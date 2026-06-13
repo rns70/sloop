@@ -15,12 +15,24 @@ export interface RetryDeps {
   onOutput?: (chunk: string) => void;
 }
 
-/**
- * FOUNDATION STUB: single attempt, no retry — preserves current behavior exactly.
- * Task 3 (Retry-with-evidence) replaces this body with the real attempt loop.
- */
 export async function runLeafWithRetry(loop: LoopDoc, deps: RetryDeps): Promise<LeafRunResult> {
-  await deps.executeAttempt(loop, { priorEvidence: [] });
-  const ok = await deps.verify(loop);
-  return { ok, attempts: 1, evidence: [] };
+  const evidence: string[] = [];
+
+  for (let attempt = 1; attempt <= deps.maxAttempts; attempt++) {
+    deps.onOutput?.(`\n[attempt ${attempt}/${deps.maxAttempts}] ${loop.frontmatter.id}\n`);
+    const { violations } = await deps.executeAttempt(loop, { priorEvidence: [...evidence] });
+
+    if (violations.length > 0) {
+      const note = `Attempt ${attempt}: wrote files outside allowedOutputs: ${violations.join(', ')}.`;
+      deps.onOutput?.(`[sandbox] ${note}\n`);
+      evidence.push(note);
+      continue; // out-of-bounds writes are a failure; don't even run verify
+    }
+
+    const ok = await deps.verify(loop);
+    if (ok) return { ok: true, attempts: attempt, evidence };
+    evidence.push(`Attempt ${attempt}: acceptance criteria did not pass (see verify output above).`);
+  }
+
+  return { ok: false, attempts: deps.maxAttempts, evidence };
 }
