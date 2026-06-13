@@ -49,11 +49,15 @@ export function useAssistantChat(opts: {
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<(() => void) | null>(null);
+  const sendingRef = useRef(false);
+  const cancelledRef = useRef(false);
 
   const send = useCallback(
     async (text: string) => {
       const trimmed = text.trim();
-      if (!trimmed || streaming) return;
+      if (!trimmed || sendingRef.current) return;
+      sendingRef.current = true;
+      cancelledRef.current = false;
 
       setError(null);
       const history: ChatMessage[] = [...messages, { role: 'user', text: trimmed }];
@@ -87,16 +91,17 @@ export function useAssistantChat(opts: {
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : String(err));
       } finally {
+        sendingRef.current = false;
         setStreaming(false);
         abortRef.current = null;
-        if (wrote.length) opts.onWrote?.(wrote);
+        if (!cancelledRef.current && wrote.length) opts.onWrote?.(wrote);
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [messages, streaming, opts.model, opts.onWrote],
   );
 
   const stop = useCallback(() => {
+    cancelledRef.current = true;
     abortRef.current?.();
     setStreaming(false);
   }, []);
