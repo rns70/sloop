@@ -21,9 +21,35 @@ export interface AgentDeps {
 
 const DEFAULT_MAX_ITERATIONS = 12;
 
-/** Map the client thread to pi-ai messages (prior turns collapse to plain text). */
-function toPiMessages(messages: ChatMessage[]): Message[] {
-  return messages.map((m) => ({ role: m.role, content: m.text, timestamp: 0 } as Message));
+const ZERO_USAGE = {
+  input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0,
+  cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+};
+
+/**
+ * Map the client thread to pi-ai messages. Prior turns collapse to plain text,
+ * but pi-ai's message transformer flatMaps `assistantMsg.content` and reads its
+ * provider/api/model/stopReason — so a prior *assistant* turn must be a full
+ * `AssistantMessage` with an ARRAY content, not a bare string. (A string content
+ * threw "assistantMsg.content.flatMap is not a function" on any 2nd+ turn.)
+ */
+function toPiMessages(messages: ChatMessage[], model: Model<Api>): Message[] {
+  return messages.map((m): Message => {
+    if (m.role === 'assistant') {
+      return {
+        role: 'assistant',
+        // Anthropic rejects empty text blocks; keep at least a space for tool-only turns.
+        content: [{ type: 'text', text: m.text || ' ' }],
+        api: model.api,
+        provider: model.provider,
+        model: model.id,
+        usage: ZERO_USAGE,
+        stopReason: 'stop',
+        timestamp: 0,
+      };
+    }
+    return { role: 'user', content: m.text, timestamp: 0 };
+  });
 }
 
 export async function runAssistantAgent(
@@ -37,7 +63,7 @@ export async function runAssistantAgent(
   const resolved = resolveModel(alias, registry, deps.env);
   const model = toPiModel(resolved);
   const system = buildAssistantSystemPrompt();
-  const messages = toPiMessages(req.messages);
+  const messages = toPiMessages(req.messages, model);
   const max = deps.maxIterations ?? DEFAULT_MAX_ITERATIONS;
 
   for (let i = 0; i < max; i += 1) {

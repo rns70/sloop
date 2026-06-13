@@ -42,6 +42,32 @@ describe('runAssistantAgent', () => {
     expect(streamFn).toHaveBeenCalledTimes(1);
   });
 
+  it('maps a prior assistant turn to ARRAY content (multi-turn flatMap regression)', async () => {
+    // pi-ai's transformMessages does `assistantMsg.content.flatMap(...)`; a bare
+    // string content threw on any 2nd+ turn. Assert the assistant history entry
+    // handed to the stream has array content with the right shape.
+    const text = asstMsg([{ type: 'text', text: 'ok' }], 'stop');
+    const streamFn = vi.fn(() => fakeStream([
+      { type: 'text_delta', contentIndex: 0, delta: 'ok', partial: text },
+      { type: 'done', reason: 'stop', message: text },
+    ]) as any);
+    const exec: ToolExecutor = { run: vi.fn() };
+    await runAssistantAgent(
+      { messages: [
+        { role: 'user', text: 'hi' },
+        { role: 'assistant', text: 'Hello!' },
+        { role: 'user', text: 'again' },
+      ] },
+      baseDeps(streamFn, exec),
+      () => {},
+    );
+    const context = (streamFn.mock.calls[0] as any[])[1] as { messages: any[] };
+    const prior = context.messages.find((m) => m.role === 'assistant');
+    expect(Array.isArray(prior.content)).toBe(true);
+    expect(prior.content).toEqual([{ type: 'text', text: 'Hello!' }]);
+    expect(typeof prior.content.flatMap).toBe('function'); // the exact thing pi-ai calls
+  });
+
   it('executes a tool call then loops and finishes', async () => {
     const toolCall: ToolCall = { type: 'toolCall', id: 't1', name: 'edit_doc', arguments: { path: 'databank/auth.md', content: 'x' } };
     const turn1 = asstMsg([toolCall], 'toolUse');
