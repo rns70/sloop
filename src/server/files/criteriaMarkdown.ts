@@ -35,25 +35,60 @@ const ID_RE = /^\*\*(ac-\d+)\*\*\s*/;
 const VERIFY_RE = /\s*[—–-]\s*verify:\s*`([^`]+)`\s*$/i;
 const LOCKED_RE = /\s*🔒\s*$/u;
 
+/** For each line, whether it sits inside a fenced code block (fence lines included). */
+function fencedLineMask(lines: string[]): boolean[] {
+  const mask: boolean[] = [];
+  let fenceChar: string | null = null;
+  for (const line of lines) {
+    const m = line.trim().match(/^(`{3,}|~{3,})/);
+    if (fenceChar === null && m) {
+      fenceChar = m[1][0];
+      mask.push(true);
+    } else if (fenceChar !== null && m && m[1][0] === fenceChar) {
+      mask.push(true);
+      fenceChar = null;
+    } else {
+      mask.push(fenceChar !== null);
+    }
+  }
+  return mask;
+}
+
 /** Extract the criteria section from a markdown body. */
 export function parseCriteriaFromBody(body: string): ParsedCriteria {
   const lines = body.split('\n');
-  const start = lines.findIndex((l) => HEADING_RE.test(l.trim()));
+  const fenced = fencedLineMask(lines);
+
+  // Find the heading, skipping lines inside fenced code blocks.
+  let start = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (!fenced[i] && HEADING_RE.test(lines[i].trim())) {
+      start = i;
+      break;
+    }
+  }
   if (start === -1) {
     return { criteria: [], bodyWithoutSection: body.trim(), hasSection: false };
   }
+
+  // Find the end of the section (next non-fenced heading), skipping fenced lines.
   let end = lines.length;
   for (let i = start + 1; i < lines.length; i++) {
-    if (ANY_HEADING_RE.test(lines[i].trim())) {
+    if (!fenced[i] && ANY_HEADING_RE.test(lines[i].trim())) {
       end = i;
       break;
     }
   }
+
+  // Parse criteria items, skipping fenced lines.
   const criteria: AcceptanceCriterion[] = [];
-  for (const raw of lines.slice(start + 1, end)) {
-    const m = raw.match(ITEM_RE);
-    if (m) criteria.push(parseItem(m[1], m[2]));
+  for (let i = start + 1; i < end; i++) {
+    if (!fenced[i]) {
+      const m = lines[i].match(ITEM_RE);
+      if (m) criteria.push(parseItem(m[1], m[2]));
+    }
   }
+
   const bodyWithoutSection = [...lines.slice(0, start), ...lines.slice(end)]
     .join('\n')
     .replace(/\n{3,}/g, '\n\n')
