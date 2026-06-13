@@ -47,10 +47,9 @@ export const moveAdr = (from: string, to: string): Promise<Ok> =>
 export const getTemplates = (): Promise<TemplateDef[]> => http('/templates');
 export const getRoles = (): Promise<RoleDef[]> => http('/roles');
 
-/** Raw markdown of any workspace file (role/template/config). Per the canonical
- *  contract (`GET/PUT /api/files/:relPath`); the mock backend wires it in WP-6.
- *  Libraries reads role/template content from the typed getRoles/getTemplates
- *  responses, so viewing works today; Save round-trips once /api/files exists. */
+/** Raw markdown of any workspace file (role/template/config), via the
+ *  `GET/PUT /api/files/:relPath` bridge. Libraries reads role/template content from
+ *  the typed getRoles/getTemplates responses; Save round-trips through /api/files. */
 export interface FileContent {
   content: string;
 }

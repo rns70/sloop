@@ -44,7 +44,7 @@ export function AssistantRail({ className }: { className?: string }) {
   const contextPaths = useMemo(() => (openDoc ? [openDoc.relPath] : []), [openDoc]);
 
   // Availability is reported by the server (provider key present). `undefined` means the
-  // backend didn't resolve it (e.g. mock) — treat as available so the picker still works.
+  // backend didn't resolve it — treat as available so the picker still works.
   const noKeysConfigured = useMemo(
     () => models.length > 0 && models.every((m) => m.available === false),
     [models],

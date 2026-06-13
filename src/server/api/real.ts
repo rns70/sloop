@@ -1,14 +1,12 @@
-// Real backend for the sloop HTTP/WS API — the WP-6 swap for WP-0's MockApi.
+// Backend for the sloop HTTP/WS API.
 //
-// `RealApi` satisfies the exact same `SloopApi` contract the mock does, but every
-// method is backed by the genuine services: FilesService (disk), GitService (the
-// databank diff), CascadeEngine (architect → leaves → convergence), the Pi Executor
-// (leaf execution + verify), and WP-7's AuthorService. The HTTP/WS adapter in
-// `index.ts` is unchanged except for the one-line construction + the live WS path.
+// `RealApi` satisfies the `SloopApi` contract, with every method backed by the
+// genuine services: FilesService (disk), GitService (the databank diff),
+// CascadeEngine (architect → leaves → convergence), the Pi Executor (leaf
+// execution + verify), and the AuthorService.
 //
-// Live streaming: the mock returns a scripted event array from `streamEvents()`. The
-// real engine instead emits events *as work happens* — so `RealApi` also implements
-// `StreamingSloopApi.subscribe()`, which `index.ts` prefers for real runs. Events are
+// Live streaming: the engine emits events *as work happens* via
+// `StreamingSloopApi.subscribe()`, which the WS layer drives. Events are
 // captured two ways and buffered per cascade so a subscriber that connects mid-run
 // (the UI subscribes only after `approve`) still sees the whole progression:
 //   - loop-update — by decorating `FilesService.writeLoop`: every persisted status
@@ -60,8 +58,8 @@ export class NotFound extends Error {}
 export class Conflict extends Error {}
 
 /**
- * `SloopApi` plus live push. `index.ts` feature-detects `subscribe` to drive the
- * WebSocket from real engine events instead of replaying a scripted array.
+ * `SloopApi` plus live push. The WS layer (`buildServer.ts`) drives the socket
+ * from real engine events via `subscribe`.
  */
 export interface StreamingSloopApi extends SloopApi {
   /**
@@ -316,7 +314,7 @@ export class RealApi implements StreamingSloopApi {
     // Enumerate cascade dirs, then derive each summary via the engine (same path
     // as `getCascade`). A dir that fails to load (mid-write, malformed) is skipped
     // so the sidebar still lists the rest. Newest first: ids are date-prefixed, so
-    // a descending id sort is chronological — matching the mock.
+    // a descending id sort is chronological.
     const ids = await this.files.listCascadeIds();
     const summaries = await Promise.all(
       ids.map((id) =>
@@ -367,11 +365,6 @@ export class RealApi implements StreamingSloopApi {
       .finally(() => this.finish(id));
 
     return OK;
-  }
-
-  /** Contract method: a snapshot of events so far. Real WS uses `subscribe` instead. */
-  async streamEvents(id: string): Promise<CascadeStreamEvent[]> {
-    return [...this.streamFor(id).buffer];
   }
 
   subscribe(
@@ -461,7 +454,7 @@ function decorateFiles(inner: FilesService, onWrite: (loop: LoopDoc) => void): F
   };
 }
 
-/** Async factory mirroring `new MockApi(root)` — used by `index.ts` for real runs. */
+/** Async factory used by `index.ts` and the CLI to construct the backend. */
 export async function createRealApi(root: string, env: NodeJS.ProcessEnv): Promise<RealApi> {
   return RealApi.create(root, env);
 }
