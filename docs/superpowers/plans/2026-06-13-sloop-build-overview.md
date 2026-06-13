@@ -251,6 +251,7 @@ GET  /api/roles                   -> RoleDef[]
 GET  /api/files/:relPath          -> { content: string }   // raw markdown of a role/template file
 PUT  /api/files/:relPath          -> { ok: true }          body: { content: string }
 POST /api/author                  -> { proposal: string }    body: AuthorRequest  (Cursor-style edit; streaming variant optional)
+GET  /api/cascades                -> CascadeSummary[]
 POST /api/cascades                -> CascadeSummary          body: { templateId }
 GET  /api/cascades/:id            -> { summary: CascadeSummary; loops: LoopDoc[] }
 POST /api/cascades/:id/approve    -> { ok: true }

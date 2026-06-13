@@ -12,6 +12,8 @@
 //   GET  /api/adrs/:relPath/diff   -> AdrDiffResponse
 //   GET  /api/templates            -> TemplateDef[]
 //   GET  /api/roles                -> RoleDef[]
+//   POST /api/author               -> AuthorResponse                body: AuthorRequestBody
+//   GET  /api/cascades             -> CascadeSummary[]
 //   POST /api/cascades             -> CascadeSummary               body: CreateCascadeRequest
 //   GET  /api/cascades/:id         -> CascadeDetail
 //   POST /api/cascades/:id/approve -> { ok: true }
@@ -41,6 +43,8 @@ export interface AdrDiffResponse {
 
 export type GetTemplatesResponse = TemplateDef[];
 export type GetRolesResponse = RoleDef[];
+
+export type GetCascadesResponse = CascadeSummary[];
 
 export interface CreateCascadeRequest {
   templateId: string;
@@ -77,6 +81,7 @@ export interface SloopApi {
   getAdrDiff(relPath: string): Promise<AdrDiffResponse>;
   listTemplates(): Promise<GetTemplatesResponse>;
   listRoles(): Promise<GetRolesResponse>;
+  listCascades(): Promise<GetCascadesResponse>;
   /** Cursor-style authoring edit (WP-7); returns a proposal, never writes. */
   author(req: AuthorRequest): Promise<AuthorResponse>;
   createCascade(req: CreateCascadeRequest): Promise<CreateCascadeResponse>;
