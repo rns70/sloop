@@ -64,19 +64,22 @@ export function AssistantRail({ className }: { className?: string }) {
       </div>
 
       <div className="border-t border-line-hair px-4 py-3">
-        <textarea
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); } }}
-          rows={3}
-          placeholder="Message the assistant…  (Enter to send, Shift+Enter for newline)"
-          className="w-full resize-y rounded border border-line-soft bg-paper px-2 py-1.5 text-[13px] text-ink outline-none placeholder:text-ink-faint focus:border-accent"
-        />
-        <div className="mt-2 flex gap-2">
-          {streaming
-            ? <Button variant="subtle" onClick={stop}>Stop</Button>
-            : <Button variant="primary" disabled={!draft.trim()} onClick={submit}>Send</Button>}
+        <div className="relative rounded border border-line-soft bg-paper focus-within:border-accent">
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); } }}
+            rows={3}
+            placeholder="Message the assistant…"
+            className="w-full resize-none rounded bg-transparent px-2 py-1.5 pb-11 text-[13px] text-ink outline-none placeholder:text-ink-faint"
+          />
+          <div className="absolute bottom-1.5 right-1.5">
+            {streaming
+              ? <Button variant="subtle" onClick={stop}>Stop</Button>
+              : <Button variant="primary" disabled={!draft.trim()} onClick={submit}>Send</Button>}
+          </div>
         </div>
+        <div className="mt-1 px-1 text-[10px] text-ink-faint">Enter to send · Shift+Enter for newline</div>
       </div>
     </aside>
   );
