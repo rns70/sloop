@@ -1,0 +1,10 @@
+{
+  "name": "sample-target-repo",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Tiny target codebase sloop reconciles to the databank in the demo. Its npm test maps to ADR-007's verify commands (npm test -- rotation / -- reuse-detection).",
+  "scripts": {
+    "test": "node test/run.mjs"
+  }
+}

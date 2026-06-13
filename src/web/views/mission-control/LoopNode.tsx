@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { LoopDoc } from '../../api-client/index';
-import { StatusDot, Tag, cx, roleTone } from '../../design/index';
+import { IconButton, StatusDot, Tag, cx, roleTone } from '../../design/index';
 import { OutputStream } from '../loop/OutputStream';
 import { loopTitle } from './text';
 
@@ -56,17 +56,18 @@ export function LoopNode({
   return (
     <div className="border-b border-line-soft">
       <div className="flex items-center gap-2.5 rounded-md px-1 py-2 transition-colors hover:bg-line-soft">
-        <button
-          type="button"
+        <IconButton
+          size="sm"
+          variant="ghost"
           onClick={() => hasDisclosure && setOpen((o) => !o)}
           className={cx(
-            'w-3.5 shrink-0 select-none text-[11px] text-ink-subtle',
-            hasDisclosure ? 'cursor-pointer' : 'cursor-default opacity-0',
+            'select-none text-[11px] text-ink-subtle',
+            !hasDisclosure && 'pointer-events-none opacity-0',
           )}
           aria-label={open ? 'Collapse' : 'Expand'}
         >
           {open ? '▾' : '▸'}
-        </button>
+        </IconButton>
 
         {isArchitect && <span className="text-[13px] text-role-purple">◆</span>}
 
