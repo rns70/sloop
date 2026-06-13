@@ -247,6 +247,7 @@ class CascadeEngineImpl implements CascadeEngine {
         parent: ROOT_LOOP_ID,
         children: [],
         sourceAdr: leaf.sourceAdr,
+        allowedOutputs: leaf.allowedOutputs,
         workflow: workflowId,
         executor: 'pi',
         acceptanceCriteria: leaf.acceptanceCriteria.map((c) => ({
