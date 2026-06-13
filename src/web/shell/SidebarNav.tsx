@@ -11,6 +11,7 @@ import {
   getCascades,
   getRoles,
   getTemplates,
+  moveAdr,
   type AdrDoc,
   type CascadeSummary,
   type RoleDef,
@@ -177,6 +178,27 @@ export function SidebarNav() {
       .catch(fail(kind));
   };
 
+  // Move/rename a databank entry (file or folder prefix). On success, re-fetch the tree;
+  // if the currently-open ADR was the one moved, follow it to its new URL so the editor
+  // doesn't 404. `from`/`to` are databank-prefixed paths (e.g. databank/auth/a.md).
+  const moveDatabank = (from: string, to: string) => {
+    const openPath = decodeURIComponent(location.pathname.replace(/^\/databank\//, ''));
+    const openRel = `databank/${openPath}`;
+    const toUrl = (rel: string) => `/databank/${rel.replace(/^databank\//, '')}`;
+    void moveAdr(from, to)
+      .then(() => getAdrs())
+      .then((next) => {
+        setAdrs(next);
+        // File rename/move: exact match. Folder move: the open file sat under `from/`.
+        if (openRel === from) {
+          navigate(toUrl(to));
+        } else if (openRel.startsWith(`${from}/`)) {
+          navigate(toUrl(`${to}/${openRel.slice(from.length + 1)}`));
+        }
+      })
+      .catch(fail('adrs'));
+  };
+
   const cascadeLeaves: Leaf[] | null =
     cascades &&
     cascades.map((c) => ({ to: `/cascades/${enc(c.id)}`, label: humanizeCascade(c.id) }));
@@ -216,6 +238,7 @@ export function SidebarNav() {
             adrs={adrs}
             onNewItem={newAdr}
             onNewFolder={newFolder}
+            onMove={moveDatabank}
             rootAdding={rootAddingFolder}
             onRootAddingDone={() => setRootAddingFolder(false)}
           />

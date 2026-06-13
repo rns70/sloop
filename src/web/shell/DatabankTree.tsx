@@ -79,8 +79,8 @@ export interface DatabankTreeProps {
   onNewItem: (folder: string) => void;
   /** Create a new subfolder named `name` under `parent` ('' = root). */
   onNewFolder: (parent: string, name: string) => void;
-  /** Move/rename: `from`/`to` are databank-prefixed paths. Required; wired by Task 7. */
-  onMove?: (from: string, to: string) => void;
+  /** Move/rename: `from`/`to` are databank-prefixed paths. */
+  onMove: (from: string, to: string) => void;
   /** Whether the root-level "new folder" input is open (driven by the group header). */
   rootAdding: boolean;
   onRootAddingDone: () => void;
@@ -90,7 +90,7 @@ export function DatabankTree({
   adrs,
   onNewItem,
   onNewFolder,
-  onMove = () => {},
+  onMove,
   rootAdding,
   onRootAddingDone,
 }: DatabankTreeProps) {
