@@ -12,16 +12,8 @@ function asString(value: unknown, fallback = ""): string {
   return typeof value === "string" ? value : fallback;
 }
 
-function asOptionalString(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim() ? value : undefined;
-}
-
 function asStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
-}
-
-function asBoolean(value: unknown, fallback: boolean): boolean {
-  return typeof value === "boolean" ? value : fallback;
 }
 
 function asEvalResult(value: unknown): EvalResult {
@@ -50,13 +42,10 @@ function normalizeRun(value: unknown): StoredLoopRun | undefined {
     runtime: "pi",
     sourcePath,
     status: asString(value.status, "idle") as DocStatus,
-    worktreePath: asOptionalString(value.worktreePath),
-    branchName: asOptionalString(value.branchName),
     changedFiles: asStringArray(value.changedFiles),
     eval: asEvalResult(value.eval),
     createdAt,
     updatedAt,
-    archived: asBoolean(value.archived, false),
     log: asStringArray(value.log)
   };
 }
@@ -91,7 +80,6 @@ export async function upsertRun(
     ...run,
     createdAt: "createdAt" in run ? run.createdAt : existing?.createdAt ?? now,
     updatedAt: now,
-    archived: ("archived" in run ? run.archived : existing?.archived) ?? false,
     log: ("log" in run ? run.log : existing?.log) ?? []
   };
 

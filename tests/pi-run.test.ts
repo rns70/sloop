@@ -6,8 +6,7 @@ import { runPiCascade } from "../server/lib/runs.js";
 import { planCascade } from "../server/lib/cascade.js";
 import { runEvaluation } from "../server/lib/evaluation.js";
 import { createPiAgentAdapter } from "../server/lib/piRuntime.js";
-import { materializeCodeStageControllers } from "../server/lib/stageControllers.js";
-import { createRunBranchName } from "../server/lib/worktrees.js";
+import { materializeCodeStageControllers, materializeDefaultCascadeForSource } from "../server/lib/stageControllers.js";
 import { listDocs } from "../server/lib/workspace.js";
 import type { AgentAdapter } from "../src/shared/types.js";
 
@@ -150,10 +149,6 @@ describe("server-side helper modules", () => {
     expect(runEvaluation({ runtime: "pi", changedFiles: [] }).status).toBe("failed");
   });
 
-  it("creates safe run branch names", () => {
-    expect(createRunBranchName("run 123", prdPath)).toBe("sloop/run/run-123-loops-prd-md");
-  });
-
   it("materializes missing code stage controller docs", async () => {
     const workspaceRoot = await mkdtemp(join(tmpdir(), "sloop-code-controller-"));
     await mkdir(join(workspaceRoot, "loops/plans"), { recursive: true });
@@ -201,6 +196,34 @@ Build auth session handling.
     expect(controller).toContain("npm test -- auth");
     expect(controller).toContain("Parent: loops/plans/auth-session.md");
     expect(plan.affectedDocs.map((doc) => doc.path)).toEqual([controllerPath]);
+  });
+
+  it("bootstraps a default doc-to-code cascade for a plain top-level request", async () => {
+    const workspaceRoot = await mkdtemp(join(tmpdir(), "sloop-default-cascade-"));
+    await mkdir(join(workspaceRoot, "loops"), { recursive: true });
+    await writeFile(join(workspaceRoot, "loops/PRD.md"), "create pacman\n", "utf8");
+
+    const result = await materializeDefaultCascadeForSource(workspaceRoot, "loops/PRD.md");
+    const docs = await listDocs(workspaceRoot);
+    const source = docs.find((doc) => doc.path === "loops/PRD.md");
+    const plan = planCascade({
+      docs,
+      sourcePath: "loops/PRD.md",
+      changedPaths: ["loops/PRD.md"]
+    });
+
+    expect(result.createdPaths).toEqual([
+      "loops/architecture/create-pacman-architecture.md",
+      "loops/plans/create-pacman-plan.md",
+      "loops/build/build-create-pacman.md"
+    ]);
+    expect(source?.body).toBe("create pacman\n");
+    expect(source?.stages[0]?.doc).toBe("loops/architecture/create-pacman-architecture.md");
+    expect(plan.affectedDocs.map((doc) => doc.path)).toEqual([
+      "loops/architecture/create-pacman-architecture.md",
+      "loops/plans/create-pacman-plan.md",
+      "loops/build/build-create-pacman.md"
+    ]);
   });
 
   it("retries Pi with eval evidence until command eval passes and captures code outputs", async () => {

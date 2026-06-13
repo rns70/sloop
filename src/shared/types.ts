@@ -70,18 +70,14 @@ export interface LoopRun {
   runtime: AgentRuntime;
   sourcePath: string;
   status: DocStatus;
-  worktreePath?: string;
-  branchName?: string;
   changedFiles: string[];
   eval: EvalResult;
-  archived?: boolean;
   log?: string[];
 }
 
 export interface StoredLoopRun extends LoopRun {
   createdAt: string;
   updatedAt: string;
-  archived: boolean;
   log: string[];
 }
 
@@ -103,6 +99,7 @@ export interface HistoryEntry {
 
 export interface WorkspaceSummary {
   root: string;
+  files: string[];
   docs: LoopDoc[];
   git: GitStatus;
   history: HistoryEntry[];

@@ -28,7 +28,7 @@ The main interface is a Notion-like paper surface backed by plain Markdown. A lo
 - **Markdown is canonical.** Loop definitions, generated docs, maintained docs, and evaluation criteria live in Markdown, optionally with frontmatter.
 - **Pipelines are user-definable.** Any loop doc can define lower stages, and those stages can define their own lower stages.
 - **Every loop has evals.** Evaluation criteria are written in text first, then agents can derive deterministic checks such as tests, schemas, fixtures, or commands.
-- **Git is the audit trail.** Sloop uses diffs, branches, and worktrees to make every agent change inspectable and reversible.
+- **Git is the audit trail.** Sloop uses diffs and history to make agent changes inspectable and reversible.
 - **Cascades are diff-driven.** When a parent doc changes, agents inspect the Git diff and update only the affected downstream docs or code.
 - **Agents run locally through Pi.** The hackathon build uses Pi as the only external coding agent runtime.
 
@@ -37,7 +37,7 @@ The main interface is a Notion-like paper surface backed by plain Markdown. A lo
 ```mermaid
 flowchart TD
   A["Markdown loop doc"] --> B["Inline child stage definitions"]
-  B --> C["Agent run in isolated Git worktree"]
+  B --> C["Agent run in the project directory"]
   C --> D["Generated or updated downstream docs"]
   D --> E["Text eval criteria + derived checks"]
   E --> F{"Passes?"}
@@ -72,7 +72,7 @@ Define the product, its constraints, and the criteria every child loop must sati
 
 ## Current Direction
 
-The hackathon version is a Vite + TypeScript app with a local Node worker/server. The frontend owns the paper-first editing experience, diff views, and loop status UI. The local worker owns filesystem access, Git operations, worktree lifecycle, and agent process orchestration.
+The hackathon version is a Vite + TypeScript app with a local Node worker/server. The frontend owns the paper-first editing experience, diff views, and loop status UI. The local worker owns filesystem access, Git status/diffs, and agent process orchestration.
 
 Tauri and Rust are intentionally deferred for now so the prototype can move quickly.
 
@@ -88,7 +88,7 @@ The runtime is configured with environment variables:
 - `SLOOP_PI_ARGS` - optional extra CLI arguments appended to the Pi invocation.
 - `SLOOP_PI_SESSION_ROOT=.sloop/pi-sessions` - optional root for per-run Pi session directories.
 
-Each Sloop run should use a per-run Pi session directory under `.sloop/pi-sessions` so runtime state is isolated.
+Each Sloop run uses a per-run Pi session directory under `.sloop/pi-sessions` for runtime state, while file edits happen directly in the active project directory.
 
 ## Repo Map
 

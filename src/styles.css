@@ -47,10 +47,16 @@ button {
 
 .rail-title {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
   padding: 0 6px 8px;
+}
+
+.rail-title > div {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
 }
 
 .rail-title strong {
@@ -60,6 +66,32 @@ button {
 
 .rail-title span {
   color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 150px;
+}
+
+.rail-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 0 6px 4px;
+}
+
+.rail-actions button {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--text);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 6px 8px;
+}
+
+.rail-actions button:hover {
+  background: #f0efeb;
 }
 
 .file-tree,
@@ -87,7 +119,8 @@ button {
 }
 
 .file-tree button,
-.file-branch button {
+.file-branch button,
+.file-entry {
   width: 100%;
   appearance: none;
   border: 0;
@@ -103,6 +136,11 @@ button {
   border-radius: 6px;
 }
 
+.file-entry {
+  cursor: default;
+  color: #8f8a84;
+}
+
 .file-tree button:hover,
 .file-branch button:hover,
 .file-tree button.selected,
@@ -116,6 +154,10 @@ button {
   height: 7px;
   border-radius: 999px;
   background: var(--muted);
+}
+
+.file-status.plain {
+  background: #c7c2bb;
 }
 
 .file-status.running,

@@ -22,7 +22,7 @@ import {
   type EvaluationCommandInput,
   type EvaluationInput
 } from "./evaluation.js";
-import { materializeCodeStageControllers } from "./stageControllers.js";
+import { materializeCodeStageControllers, materializeDefaultCascadeForSource } from "./stageControllers.js";
 import { listDocs, workspaceDiff } from "./workspace.js";
 
 const execFileAsync = promisify(execFile);
@@ -71,6 +71,7 @@ export interface PiRuntimeOptions {
 export interface PiPromptContext {
   workspaceRoot: string;
   sourcePath: string;
+  sourceDoc?: Pick<LoopDoc, "path" | "title" | "body" | "evals">;
   affectedDocs: Array<Pick<LoopDoc, "path" | "title" | "evals" | "outputs" | "commands">>;
   currentDiffSummary: string;
   evalCriteria: string[];
@@ -293,7 +294,7 @@ function retryPrompt(basePrompt: string, attempt: number, evidence: string[]): s
     basePrompt,
     "",
     `Previous evaluation failed after attempt ${attempt}.`,
-    "Use the evidence below to fix the same worktree without undoing valid changes.",
+    "Use the evidence below to fix the same workspace without undoing valid changes.",
     "",
     "Evaluation evidence:",
     ...evidence.map((line) => `- ${line}`)
@@ -480,6 +481,14 @@ export async function buildPiPromptContext(input: AgentRunInput): Promise<PiProm
   return {
     workspaceRoot: input.workspaceRoot,
     sourcePath: input.sourcePath,
+    sourceDoc: sourceDoc
+      ? {
+          path: sourceDoc.path,
+          title: sourceDoc.title,
+          body: sourceDoc.body,
+          evals: sourceDoc.evals
+        }
+      : undefined,
     affectedDocs,
     currentDiffSummary: summarizeDiffs(sourceDiffs),
     evalCriteria,
@@ -521,12 +530,23 @@ export function createPiPrompt(context: PiPromptContext): string {
     context.evalCriteria.length > 0
       ? context.evalCriteria.map((criterion) => `- ${criterion}`).join("\n")
       : "- No explicit eval criteria were found. Preserve existing loop intent and Markdown structure.";
+  const sourceDoc = context.sourceDoc
+    ? [
+        `Path: ${context.sourceDoc.path}`,
+        `Title: ${context.sourceDoc.title}`,
+        "",
+        context.sourceDoc.body.trim() || "(empty)"
+      ].join("\n")
+    : "(source document was not found)";
 
   return [
     "You are Pi, the only agent runtime for Sloop.",
     "",
     `Workspace root: ${context.workspaceRoot}`,
     `Source doc path: ${context.sourcePath}`,
+    "",
+    "Source document:",
+    sourceDoc,
     "",
     "Affected downstream docs:",
     affectedDocs,
@@ -597,6 +617,8 @@ export function createPiAgentAdapter(options: PiRuntimeOptions = {}): AgentAdapt
     async run(input: AgentRunInput): Promise<LoopRun> {
       const runId = input.runId ?? `pi-${Date.now()}`;
       const materializedPaths = new Set<string>();
+      const defaultCascade = await materializeDefaultCascadeForSource(input.workspaceRoot, input.sourcePath);
+      for (const path of defaultCascade.createdPaths) materializedPaths.add(path);
       const initialMaterialized = await materializeCodeStageControllers(input.workspaceRoot);
       for (const path of initialMaterialized.createdPaths) materializedPaths.add(path);
 

@@ -2,25 +2,63 @@ import express from "express";
 import { join, resolve } from "node:path";
 import { getGitDiff, getGitStatus } from "./lib/git.js";
 import { appendHistory, readHistory } from "./lib/history.js";
-import { readDoc, listDocs, openWorkspace, saveDoc } from "./lib/workspace.js";
+import {
+  assertWorkspaceDirectory,
+  createWorkspace,
+  readDoc,
+  listDocs,
+  openWorkspace,
+  saveDoc
+} from "./lib/workspace.js";
 import { runPiCascade } from "./lib/runs.js";
 import { runEvaluation } from "./lib/evaluation.js";
 import { pauseLoop, resumeLoop } from "./lib/loopState.js";
 import { appendRunLog, readRuns, updateRunStatus, upsertRun } from "./lib/runStore.js";
-import { applyWorktreeChanges, archiveWorktreeRun } from "./lib/apply.js";
-import { cleanupWorktree, createRunWorktree } from "./lib/worktrees.js";
 import { planCascade, summarizeAffectedDocsForPi } from "./lib/cascade.js";
 import type { DocStatus, EvalResult, LoopRun } from "../src/shared/types.js";
 
 const app = express();
 const port = Number(process.env.SLOOP_SERVER_PORT ?? 4873);
 const defaultWorkspace = resolve(process.env.SLOOP_WORKSPACE ?? process.cwd());
+let activeWorkspace = defaultWorkspace;
 
 app.use(express.json({ limit: "5mb" }));
 
+function workspaceRoot(): string {
+  return activeWorkspace;
+}
+
+function requiredWorkspacePath(value: unknown): string {
+  if (typeof value === "string" && value.trim().length > 0) {
+    return resolve(value);
+  }
+
+  throw new Error("path is required");
+}
+
 app.get("/api/workspace", async (_request, response, next) => {
   try {
-    response.json(await openWorkspace(defaultWorkspace));
+    response.json(await openWorkspace(workspaceRoot()));
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/workspace/open", async (request, response, next) => {
+  try {
+    const nextWorkspace = requiredWorkspacePath(request.body?.path);
+    await assertWorkspaceDirectory(nextWorkspace);
+    activeWorkspace = nextWorkspace;
+    response.json(await openWorkspace(workspaceRoot()));
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/workspace/create", async (request, response, next) => {
+  try {
+    activeWorkspace = requiredWorkspacePath(request.body?.path);
+    response.json(await createWorkspace(workspaceRoot()));
   } catch (error) {
     next(error);
   }
@@ -28,7 +66,7 @@ app.get("/api/workspace", async (_request, response, next) => {
 
 app.get("/api/docs", async (_request, response, next) => {
   try {
-    response.json(await listDocs(defaultWorkspace));
+    response.json(await listDocs(workspaceRoot()));
   } catch (error) {
     next(error);
   }
@@ -49,7 +87,7 @@ function requiredSourcePath(value: unknown): string {
 
 app.get(/^\/api\/docs\/(.+)$/, async (request, response, next) => {
   try {
-    response.json(await readDoc(defaultWorkspace, docPathParam(request)));
+    response.json(await readDoc(workspaceRoot(), docPathParam(request)));
   } catch (error) {
     next(error);
   }
@@ -61,7 +99,7 @@ app.put(/^\/api\/docs\/(.+)$/, async (request, response, next) => {
       frontmatter: Record<string, unknown>;
       body: string;
     };
-    response.json(await saveDoc(defaultWorkspace, docPathParam(request), frontmatter, body));
+    response.json(await saveDoc(workspaceRoot(), docPathParam(request), frontmatter, body));
   } catch (error) {
     next(error);
   }
@@ -69,7 +107,7 @@ app.put(/^\/api\/docs\/(.+)$/, async (request, response, next) => {
 
 app.get("/api/git/status", async (_request, response, next) => {
   try {
-    response.json(await getGitStatus(defaultWorkspace));
+    response.json(await getGitStatus(workspaceRoot()));
   } catch (error) {
     next(error);
   }
@@ -77,7 +115,7 @@ app.get("/api/git/status", async (_request, response, next) => {
 
 app.get("/api/git/diff", async (_request, response, next) => {
   try {
-    response.json(await getGitDiff(defaultWorkspace));
+    response.json(await getGitDiff(workspaceRoot()));
   } catch (error) {
     next(error);
   }
@@ -95,7 +133,6 @@ function failedRun(
   runId: string,
   sourcePath: string,
   evidence: string[],
-  worktree?: { path: string; branch: string },
   changedFiles: string[] = []
 ): LoopRun {
   return {
@@ -103,8 +140,6 @@ function failedRun(
     runtime: "pi",
     sourcePath,
     status: "failed",
-    worktreePath: worktree?.path,
-    branchName: worktree?.branch,
     changedFiles,
     eval: {
       status: "failed",
@@ -116,24 +151,12 @@ function failedRun(
 async function runCascadePipeline(sourcePath: string, model?: string): Promise<LoopRun> {
   const provisionalRunId = `run-${Date.now()}`;
   const evidence: string[] = [];
-  const sessionDir = join(defaultWorkspace, ".sloop", "pi-sessions", provisionalRunId);
-  let worktree: { path: string; branch: string };
-
-  try {
-    worktree = await createRunWorktree(defaultWorkspace, provisionalRunId, sourcePath);
-    evidence.push(`Created worktree ${worktree.path} on ${worktree.branch}.`);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown worktree error";
-    evidence.push(`Worktree creation failed: ${message}`);
-    return upsertRun(
-      defaultWorkspace,
-      failedRun(provisionalRunId, sourcePath, evidence, undefined, [])
-    );
-  }
+  const root = workspaceRoot();
+  const sessionDir = join(root, ".sloop", "pi-sessions", provisionalRunId);
 
   try {
     const run = await runPiCascade({
-      workspaceRoot: worktree.path,
+      workspaceRoot: root,
       sourcePath,
       runId: provisionalRunId,
       model,
@@ -145,37 +168,8 @@ async function runCascadePipeline(sourcePath: string, model?: string): Promise<L
       evidence: [...evidence, ...run.eval.evidence]
     };
     const status: DocStatus = run.status === "passed" && evalResult.status === "passed" ? "passed" : "failed";
-    let archived = false;
 
-    if (worktree && status === "passed") {
-      const applied = await applyWorktreeChanges({
-        workspaceRoot: defaultWorkspace,
-        worktreePath: worktree.path,
-        changedFiles
-      });
-      evalResult.evidence.push(
-        `Applied ${applied.appliedFiles.length} file(s) from worktree: ${applied.appliedFiles.join(", ") || "none"}.`
-      );
-      if (applied.skippedFiles.length > 0) {
-        evalResult.evidence.push(`Skipped ${applied.skippedFiles.length} file(s): ${applied.skippedFiles.join(", ")}.`);
-      }
-      await cleanupWorktree(defaultWorkspace, worktree.path);
-      evalResult.evidence.push(`Cleaned up worktree ${worktree.path}.`);
-    } else if (worktree) {
-      const archive = await archiveWorktreeRun({
-        workspaceRoot: defaultWorkspace,
-        runId: run.id,
-        worktreePath: worktree.path,
-        branch: worktree.branch,
-        sourcePath,
-        changedFiles,
-        reason: `Pi cascade ${status}; changes were archived instead of applied.`
-      });
-      archived = true;
-      evalResult.evidence.push(`Archived failed worktree changes at ${archive.markerPath}.`);
-    }
-
-    await appendHistory(defaultWorkspace, {
+    await appendHistory(root, {
       id: run.id,
       kind: "cascade",
       title: status === "passed" ? "Pi cascade passed evaluation" : "Pi cascade failed evaluation",
@@ -189,50 +183,26 @@ async function runCascadePipeline(sourcePath: string, model?: string): Promise<L
           : `Pi cascade did not pass eval: ${evalResult.evidence.join(" ")}`
     });
 
-    return upsertRun(defaultWorkspace, {
+    return upsertRun(root, {
       ...run,
       status,
-      worktreePath: worktree?.path,
-      branchName: worktree?.branch,
       changedFiles,
       eval: evalResult,
-      archived,
       log: evidence.map(runLogLine)
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown Pi cascade error";
     evidence.push(`Pi cascade failed: ${message}`);
     const changedFiles: string[] = [];
-    const run = failedRun(provisionalRunId, sourcePath, evidence, worktree, changedFiles);
+    const run = failedRun(provisionalRunId, sourcePath, evidence, changedFiles);
 
-    if (worktree) {
-      try {
-        const archive = await archiveWorktreeRun({
-          workspaceRoot: defaultWorkspace,
-        runId: provisionalRunId,
-        worktreePath: worktree.path,
-          branch: worktree.branch,
-          sourcePath,
-          changedFiles,
-          reason: message
-        });
-        run.eval.evidence.push(`Archived failed worktree changes at ${archive.markerPath}.`);
-      } catch (archiveError) {
-        run.eval.evidence.push(
-          `Failed to archive worktree changes: ${
-            archiveError instanceof Error ? archiveError.message : "Unknown archive error"
-          }`
-        );
-      }
-    }
-
-    return upsertRun(defaultWorkspace, { ...run, archived: Boolean(worktree), log: evidence.map(runLogLine) });
+    return upsertRun(root, { ...run, log: evidence.map(runLogLine) });
   }
 }
 
 app.get("/api/runs", async (_request, response, next) => {
   try {
-    response.json(await readRuns(defaultWorkspace));
+    response.json(await readRuns(workspaceRoot()));
   } catch (error) {
     next(error);
   }
@@ -262,9 +232,10 @@ app.post("/api/runs/pause", async (request, response, next) => {
   try {
     const runId = typeof request.body?.runId === "string" ? request.body.runId : undefined;
     const sourcePath = typeof request.body?.sourcePath === "string" ? request.body.sourcePath : undefined;
-    const run = runId ? await updateRunStatus(defaultWorkspace, runId, "paused") : undefined;
-    if (runId) await appendRunLog(defaultWorkspace, runId, runLogLine("Run paused."));
-    const loop = sourcePath ? await pauseLoop(defaultWorkspace, sourcePath) : undefined;
+    const root = workspaceRoot();
+    const run = runId ? await updateRunStatus(root, runId, "paused") : undefined;
+    if (runId) await appendRunLog(root, runId, runLogLine("Run paused."));
+    const loop = sourcePath ? await pauseLoop(root, sourcePath) : undefined;
 
     response.json({
       id: run?.id ?? runId ?? loop?.history.id ?? `pause-${Date.now()}`,
@@ -282,9 +253,10 @@ app.post("/api/runs/resume", async (request, response, next) => {
   try {
     const runId = typeof request.body?.runId === "string" ? request.body.runId : undefined;
     const sourcePath = typeof request.body?.sourcePath === "string" ? request.body.sourcePath : undefined;
-    const run = runId ? await updateRunStatus(defaultWorkspace, runId, "running") : undefined;
-    if (runId) await appendRunLog(defaultWorkspace, runId, runLogLine("Run resumed."));
-    const loop = sourcePath ? await resumeLoop(defaultWorkspace, sourcePath) : undefined;
+    const root = workspaceRoot();
+    const run = runId ? await updateRunStatus(root, runId, "running") : undefined;
+    if (runId) await appendRunLog(root, runId, runLogLine("Run resumed."));
+    const loop = sourcePath ? await resumeLoop(root, sourcePath) : undefined;
 
     response.json({
       id: run?.id ?? runId ?? loop?.history.id ?? `resume-${Date.now()}`,
@@ -311,7 +283,7 @@ app.post("/api/eval", async (request, response, next) => {
     });
 
     if (sourcePath) {
-      await appendHistory(defaultWorkspace, {
+      await appendHistory(workspaceRoot(), {
         id: `eval-${Date.now()}`,
         kind: "eval",
         title: result.status === "passed" ? "Evaluation passed" : "Evaluation failed",
@@ -332,8 +304,8 @@ app.post("/api/eval", async (request, response, next) => {
 app.get("/api/cascade-plan", async (request, response, next) => {
   try {
     const sourcePath = requiredSourcePath(request.query.sourcePath);
-    const docs = await listDocs(defaultWorkspace);
-    const diffs = await getGitDiff(defaultWorkspace);
+    const docs = await listDocs(workspaceRoot());
+    const diffs = await getGitDiff(workspaceRoot());
     const plan = planCascade({ docs, sourcePath, diffs });
 
     response.json({
@@ -347,7 +319,7 @@ app.get("/api/cascade-plan", async (request, response, next) => {
 
 app.get("/api/history", async (_request, response, next) => {
   try {
-    response.json(await readHistory(defaultWorkspace));
+    response.json(await readHistory(workspaceRoot()));
   } catch (error) {
     next(error);
   }

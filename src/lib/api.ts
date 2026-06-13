@@ -84,6 +84,14 @@ export function getWorkspace(): Promise<WorkspaceSummary> {
   return requestJson<WorkspaceSummary>("/api/workspace");
 }
 
+export function openProject(path: string): Promise<WorkspaceSummary> {
+  return requestJson<WorkspaceSummary>("/api/workspace/open", jsonInit("POST", { path }));
+}
+
+export function createProject(path: string): Promise<WorkspaceSummary> {
+  return requestJson<WorkspaceSummary>("/api/workspace/create", jsonInit("POST", { path }));
+}
+
 export function listDocs(): Promise<LoopDoc[]> {
   return requestJson<LoopDoc[]>("/api/docs");
 }

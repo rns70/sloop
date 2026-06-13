@@ -62,13 +62,13 @@ The initial metadata surface covers loop id, loop type, status, auto-apply, chil
 
 ## Loop Execution
 
-Runs execute in an isolated Git worktree. Before invoking Pi, Sloop materializes missing code controller docs and computes affected downstream docs from stage links.
+Runs execute in the active project directory. Before invoking Pi, Sloop materializes missing code controller docs and computes affected downstream docs from stage links.
 
 Pi receives the source doc, affected controller docs, inherited textual eval criteria, allowed output paths, and deterministic commands. For code controller docs, Pi may edit the controller doc and its allowed output paths.
 
-After each Pi attempt, Sloop captures Markdown and code changes, rejects changes outside the affected docs and allowed outputs, and runs deterministic eval commands in the worktree. If eval fails, Sloop feeds the failure evidence back to Pi and retries in the same worktree/session. The loop stops when eval passes, Pi fails to run, or the max attempt count is reached.
+After each Pi attempt, Sloop captures Markdown and code changes, rejects changes outside the affected docs and allowed outputs, and runs deterministic eval commands in the project directory. If eval fails, Sloop feeds the failure evidence back to Pi and retries in the same project directory/session. The loop stops when eval passes, Pi fails to run, or the max attempt count is reached.
 
-Only a passing run is applied back to the main workspace. Failed runs are archived with their worktree metadata and eval evidence.
+Passing and failing runs both leave their file edits in the active project directory. Failed runs record eval evidence so the user or next Pi attempt can continue from the visible state.
 
 ## Initial Scope
 

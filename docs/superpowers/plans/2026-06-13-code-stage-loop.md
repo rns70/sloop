@@ -4,9 +4,9 @@
 
 **Goal:** Build controller-doc-backed code stages that can create code outputs and loop on eval until passing.
 
-**Architecture:** Extend the existing Markdown/frontmatter model instead of adding a database. Materialize missing code controller docs before Pi runs, include controller docs and allowed output paths in the Pi prompt, capture Markdown and code file changes from the worktree, and run deterministic command eval after each Pi attempt.
+**Architecture:** Extend the existing Markdown/frontmatter model instead of adding a database. Materialize missing code controller docs before Pi runs, include controller docs and allowed output paths in the Pi prompt, capture Markdown and code file changes from the active project directory, and run deterministic command eval after each Pi attempt.
 
-**Tech Stack:** TypeScript, Vite, Express, Vitest, gray-matter, Node child processes, Git worktrees.
+**Tech Stack:** TypeScript, Vite, Express, Vitest, gray-matter, Node child processes, Git status/diffs.
 
 ---
 
@@ -43,7 +43,7 @@
 - [ ] Include affected docs, outputs, commands, and inherited criteria in Pi prompts.
 - [ ] Capture changed Markdown and code files, including newly created output files.
 - [ ] Reject changed files outside affected docs and allowed output patterns.
-- [ ] Run command eval inside the worktree.
+- [ ] Run command eval inside the active project directory.
 - [ ] Retry Pi with eval evidence until pass or max attempts.
 - [ ] Verify with focused runtime tests.
 

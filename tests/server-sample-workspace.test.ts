@@ -1,4 +1,4 @@
-import { mkdtemp } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
@@ -46,13 +46,73 @@ afterEach(() => {
   stopServer();
 });
 
-describe("sample workspace endpoint", () => {
-  it("is not available because workspaces are no longer seeded from sample content", async () => {
+describe("workspace project endpoints", () => {
+  it("creates a starter project and switches the active workspace", async () => {
     const workspaceRoot = await mkdtemp(join(tmpdir(), "sloop-empty-workspace-"));
+    const projectRoot = join(workspaceRoot, "new-project");
     const origin = await startServer(workspaceRoot);
 
-    const response = await fetch(`${origin}/api/sample-workspace`, { method: "POST" });
+    const response = await fetch(`${origin}/api/workspace/create`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: projectRoot })
+    });
+    const workspace = await response.json() as { root: string; docs: Array<{ path: string }> };
 
-    expect(response.status).toBe(404);
+    expect(response.status).toBe(200);
+    expect(workspace.root).toBe(projectRoot);
+    expect(workspace.docs.map((doc) => doc.path)).toEqual([
+      "loops/architecture/architecture.md",
+      "loops/plans/implementation-plan.md",
+      "loops/PRD.md"
+    ]);
+  });
+
+  it("opens an existing workspace folder", async () => {
+    const workspaceRoot = await mkdtemp(join(tmpdir(), "sloop-open-base-"));
+    const otherRoot = await mkdtemp(join(tmpdir(), "sloop-open-other-"));
+    await mkdir(join(otherRoot, "loops"), { recursive: true });
+    await writeFile(
+      join(otherRoot, "loops", "PRD.md"),
+      `---
+loop:
+  id: prd
+  type: prd
+  status: idle
+  autoApply: true
+  stages: []
+---
+# Other PRD
+`,
+      "utf8"
+    );
+    const origin = await startServer(workspaceRoot);
+
+    const response = await fetch(`${origin}/api/workspace/open`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: otherRoot })
+    });
+    const workspace = await response.json() as { root: string; docs: Array<{ title: string }> };
+
+    expect(response.status).toBe(200);
+    expect(workspace.root).toBe(otherRoot);
+    expect(workspace.docs[0]?.title).toBe("Other PRD");
+  });
+
+  it("returns a clear error when opening a missing folder", async () => {
+    const workspaceRoot = await mkdtemp(join(tmpdir(), "sloop-open-missing-"));
+    const missingRoot = join(workspaceRoot, "missing-project");
+    const origin = await startServer(workspaceRoot);
+
+    const response = await fetch(`${origin}/api/workspace/open`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: missingRoot })
+    });
+    const text = await response.text();
+
+    expect(response.status).toBe(500);
+    expect(text).toContain(`Workspace folder does not exist: ${missingRoot}`);
   });
 });

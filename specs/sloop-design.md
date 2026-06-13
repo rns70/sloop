@@ -54,7 +54,7 @@ Sloop is a meta-IDE for defining and running nested agent loops. It lets users d
 - Evaluation criteria are defined canonically as text in Markdown.
 - Implementation agents may derive deterministic checks from the textual criteria, such as tests, lint commands, fixtures, schemas, or replay cases.
 - Passing evaluation gates is required before auto-application of agent changes.
-- For code stages, eval happens inside the isolated worktree after each Pi attempt.
+- For code stages, eval happens inside the active project directory after each Pi attempt.
 - Failed eval evidence is fed back into the same loop and Pi retries until eval passes, Pi cannot continue, or Sloop reaches the configured max attempt count.
 - Parent design criteria are inherited as context, while code controller docs own the concrete commands that decide whether code outputs pass.
 
@@ -77,13 +77,13 @@ Sloop is a meta-IDE for defining and running nested agent loops. It lets users d
 ### Git
 
 - Sloop uses Git intensively for diffs, provenance, rollback, review, and auditability.
-- Each agent run happens in its own temporary Git worktree/branch.
-- Agent changes are merged or applied back into the main workspace only after passing evaluation.
+- Agent runs edit files directly in the active project directory.
+- Passing evaluation marks the current in-place changes as accepted; failing evaluation leaves evidence and current edits visible for inspection or continuation.
 
 ### Agent Execution
 
 - Sloop runs agents through a single Pi runtime adapter.
-- The Pi adapter invokes the Pi coding agent CLI from isolated Git worktrees.
+- The Pi adapter invokes the Pi coding agent CLI from the active project directory.
 - Pi's agent runtime is provided by the Pi agent core package.
 - Sloop uses Pi only; alternate Codex, Claude, or other runtime adapters are out of scope for the hackathon runtime.
 - Pi is expected to be installed globally and authenticated before Sloop runs agent loops.
@@ -101,7 +101,7 @@ Sloop is a meta-IDE for defining and running nested agent loops. It lets users d
 - Application components and UI layout.
 - Markdown/frontmatter shape for loop docs.
 - Local Node worker responsibilities and APIs.
-- Git/worktree lifecycle.
+- Git status and diff lifecycle.
 - Cascade and evaluation state machine.
 - Error handling and recovery.
 - Testing strategy.

@@ -3,12 +3,14 @@ import { BlockNoteView } from "@blocknote/mantine";
 import { useCreateBlockNote } from "@blocknote/react";
 import type { FileDiff, HistoryEntry, LoopDoc, LoopRun, WorkspaceSummary } from "./shared/types";
 import {
+  createProject,
   createRun,
   getGitDiff,
   getDoc,
   getHistory,
   getWorkspace,
   listRuns,
+  openProject,
   pauseRun,
   resumeRun,
   runEval,
@@ -168,7 +170,13 @@ interface DirectoryNode {
   name: string;
   path: string;
   directories: Map<string, DirectoryNode>;
-  docs: LoopDoc[];
+  entries: DirectoryEntry[];
+}
+
+interface DirectoryEntry {
+  path: string;
+  name: string;
+  doc?: LoopDoc;
 }
 
 function createDirectoryNode(name: string, path: string): DirectoryNode {
@@ -176,15 +184,19 @@ function createDirectoryNode(name: string, path: string): DirectoryNode {
     name,
     path,
     directories: new Map(),
-    docs: []
+    entries: []
   };
 }
 
-function buildDirectoryTree(docs: LoopDoc[]): DirectoryNode {
+function buildDirectoryTree(files: string[], docs: LoopDoc[]): DirectoryNode {
   const root = createDirectoryNode("", "");
+  const docsByPath = new Map(docs.map((doc) => [doc.path, doc]));
+  const paths = [...new Set([...files, ...docs.map((doc) => doc.path)])].sort((a, b) =>
+    a.localeCompare(b)
+  );
 
-  docs.forEach((workspaceDoc) => {
-    const parts = workspaceDoc.path.split("/");
+  paths.forEach((path) => {
+    const parts = path.split("/");
     const fileName = parts.at(-1);
     if (!fileName) return;
 
@@ -201,7 +213,11 @@ function buildDirectoryTree(docs: LoopDoc[]): DirectoryNode {
       current.directories.set(part, next);
       current = next;
     });
-    current.docs.push(workspaceDoc);
+    current.entries.push({
+      path,
+      name: fileName,
+      doc: docsByPath.get(path)
+    });
   });
 
   return root;
@@ -257,7 +273,7 @@ function DirectoryTree({
   const directories = [...node.directories.values()].sort((left, right) =>
     left.name.localeCompare(right.name)
   );
-  const docs = [...node.docs].sort((left, right) => left.path.localeCompare(right.path));
+  const entries = [...node.entries].sort((left, right) => left.path.localeCompare(right.path));
 
   return (
     <ol className={depth === 0 ? "file-tree" : "file-branch"}>
@@ -277,24 +293,33 @@ function DirectoryTree({
           />
         </li>
       ))}
-      {docs.map((workspaceDoc) => {
-        const selected = workspaceDoc.path === selectedPath;
-        const label = shortDocName(workspaceDoc.path);
+      {entries.map((entry) => {
+        const selected = entry.path === selectedPath;
+        const label = entry.doc ? shortDocName(entry.path) : entry.name;
 
         return (
-          <li key={workspaceDoc.path}>
-            <button
-              type="button"
-              className={selected ? "selected" : undefined}
-              onClick={() => onOpenDoc(workspaceDoc.path)}
-              aria-current={selected ? "page" : undefined}
-              style={{ "--depth": depth } as CSSProperties}
-            >
-              <span className={`file-status ${workspaceDoc.loop.status}`} aria-hidden="true" />
+          <li key={entry.path}>
+            {entry.doc ? (
+              <button
+                type="button"
+                className={selected ? "selected" : undefined}
+                onClick={() => onOpenDoc(entry.path)}
+                aria-current={selected ? "page" : undefined}
+                style={{ "--depth": depth } as CSSProperties}
+              >
+                <span className={`file-status ${entry.doc.loop.status}`} aria-hidden="true" />
+                <span className="file-text">
+                  <span>{label}</span>
+                </span>
+              </button>
+            ) : (
+              <div className="file-entry" style={{ "--depth": depth } as CSSProperties}>
+                <span className="file-status plain" aria-hidden="true" />
               <span className="file-text">
                 <span>{label}</span>
               </span>
-            </button>
+              </div>
+            )}
           </li>
         );
       })}
@@ -303,22 +328,41 @@ function DirectoryTree({
 }
 
 function DocumentRail({
+  files,
   docs,
+  workspaceRoot,
   selectedPath,
+  onOpenProject,
+  onCreateProject,
   onOpenDoc
 }: {
+  files: string[];
   docs: LoopDoc[];
+  workspaceRoot?: string;
   selectedPath: string;
+  onOpenProject: () => void;
+  onCreateProject: () => void;
   onOpenDoc: (path: string) => void;
 }) {
-  const tree = buildDirectoryTree(docs);
+  const tree = buildDirectoryTree(files, docs);
   const directoryNumbers = buildDirectoryNumbers(docs);
 
   return (
     <nav className="rail" aria-label="Files">
       <div className="rail-title">
-        <strong>Sloop</strong>
+        <div>
+          <strong>Sloop</strong>
+          <span title={workspaceRoot}>{workspaceRoot ?? "No workspace"}</span>
+        </div>
         <span>{docs.length} docs</span>
+      </div>
+      <div className="rail-actions" aria-label="Workspace actions">
+        <button type="button" onClick={onOpenProject}>
+          Open
+        </button>
+        <button type="button" onClick={onCreateProject}>
+          New
+        </button>
       </div>
       <DirectoryTree
         node={tree}
@@ -470,16 +514,8 @@ function ConsoleDrawer({
           <strong>Run detail</strong>
           <dl className="runtime-info">
             <div>
-              <dt>branch</dt>
-              <dd>{run.branchName ?? "none"}</dd>
-            </div>
-            <div>
-              <dt>worktree</dt>
-              <dd>{run.worktreePath ?? "none"}</dd>
-            </div>
-            <div>
-              <dt>archived</dt>
-              <dd>{run.archived ? "yes" : "no"}</dd>
+              <dt>source</dt>
+              <dd>{run.sourcePath}</dd>
             </div>
           </dl>
           <ul className="evidence-list">
@@ -540,7 +576,7 @@ export function App() {
     [diffs, selectedPath]
   );
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (preferredSelectedPath = selectedPath) => {
     const [workspaceResult, diffResult, historyResult, runsResult] = await Promise.all([
       getWorkspace(),
       getGitDiff(),
@@ -548,10 +584,10 @@ export function App() {
       listRuns()
     ]);
     const nextSelectedPath =
-      workspaceResult.docs.some((workspaceDoc) => workspaceDoc.path === selectedPath)
-        ? selectedPath
+      workspaceResult.docs.some((workspaceDoc) => workspaceDoc.path === preferredSelectedPath)
+        ? preferredSelectedPath
         : workspaceResult.docs[0]?.path ?? "";
-    if (nextSelectedPath !== selectedPath) {
+    if (nextSelectedPath !== preferredSelectedPath) {
       setSelectedPath(nextSelectedPath);
     }
 
@@ -674,6 +710,39 @@ export function App() {
     }
   }
 
+  async function handleSaveDocument() {
+    if (!doc) return;
+    setSavingFrontmatter(true);
+    setError("");
+    try {
+      const body = editor.blocksToMarkdownLossy(editor.document);
+      const savedDoc = await saveDoc(doc.path, {
+        frontmatter: draftFrontmatter,
+        body
+      });
+      setDoc(savedDoc);
+      setDraftFrontmatter(savedDoc.frontmatter);
+      setFrontmatterDirty(false);
+      await refresh(savedDoc.path);
+    } catch (unknownError) {
+      setError(unknownError instanceof Error ? unknownError.message : "Could not save document");
+    } finally {
+      setSavingFrontmatter(false);
+    }
+  }
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "s") return;
+
+      event.preventDefault();
+      void handleSaveDocument();
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  });
+
   function handleOpenDoc(path: string) {
     setSelectedPath(path);
     dispatchOpenSections({ type: "openDoc" });
@@ -692,36 +761,69 @@ export function App() {
     setHistoryOpen((open) => !open);
   }
 
+  async function handleOpenProject() {
+    const path = window.prompt("Open project folder", workspace?.root ?? "");
+    if (!path?.trim()) return;
+
+    setError("");
+    try {
+      await openProject(path);
+      setSelectedPath("");
+      setRun(undefined);
+      await refresh("");
+    } catch (unknownError) {
+      const message = unknownError instanceof Error ? unknownError.message : "Could not open project";
+      if (/does not exist|ENOENT|no such file/i.test(message)) {
+        const shouldCreate = window.confirm(
+          `That folder does not exist.\n\nCreate a new Sloop project at:\n${path}`
+        );
+        if (shouldCreate) {
+          try {
+            await createProject(path);
+            setSelectedPath("");
+            setRun(undefined);
+            await refresh("");
+            return;
+          } catch (createError) {
+            setError(createError instanceof Error ? createError.message : "Could not create project");
+            return;
+          }
+        }
+      }
+
+      setError(message);
+    }
+  }
+
+  async function handleCreateProject() {
+    const path = window.prompt("Create project folder", workspace?.root ? `${workspace.root}/sloop-project` : "");
+    if (!path?.trim()) return;
+
+    setError("");
+    try {
+      await createProject(path);
+      setSelectedPath("");
+      setRun(undefined);
+      await refresh("");
+    } catch (unknownError) {
+      setError(unknownError instanceof Error ? unknownError.message : "Could not create project");
+    }
+  }
+
   function handleFrontmatterChange(nextFrontmatter: Record<string, unknown>) {
     setDraftFrontmatter(nextFrontmatter);
     setFrontmatterDirty(true);
   }
 
-  async function handleSaveFrontmatter() {
-    if (!doc || !frontmatterDirty) return;
-    setSavingFrontmatter(true);
-    setError("");
-    try {
-      const savedDoc = await saveDoc(doc.path, {
-        frontmatter: draftFrontmatter,
-        body: doc.body
-      });
-      setDoc(savedDoc);
-      setDraftFrontmatter(savedDoc.frontmatter);
-      setFrontmatterDirty(false);
-      await refresh();
-    } catch (unknownError) {
-      setError(unknownError instanceof Error ? unknownError.message : "Could not save metadata");
-    } finally {
-      setSavingFrontmatter(false);
-    }
-  }
-
   return (
     <main className="app-shell">
       <DocumentRail
+        files={workspace?.files ?? []}
         docs={workspace?.docs ?? []}
+        workspaceRoot={workspace?.root}
         selectedPath={selectedPath}
+        onOpenProject={handleOpenProject}
+        onCreateProject={handleCreateProject}
         onOpenDoc={handleOpenDoc}
       />
 
@@ -747,7 +849,7 @@ export function App() {
               dirty={frontmatterDirty}
               saving={savingFrontmatter}
               onChange={handleFrontmatterChange}
-              onSave={handleSaveFrontmatter}
+              onSave={handleSaveDocument}
             />
           ) : null}
 

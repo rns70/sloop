@@ -5,7 +5,7 @@ Date: 2026-06-13
 ## Runtime Decision
 
 - Sloop uses Pi mono as the only agent runtime.
-- The server-side adapter invokes the Pi coding agent CLI from isolated Git worktrees.
+- The server-side adapter invokes the Pi coding agent CLI from the active project directory.
 - Runtime documentation should refer generically to Pi, the Pi coding agent CLI, and the Pi agent core package.
 - Do not introduce alternate agent runtime adapters in the hackathon build plan.
 
@@ -27,13 +27,13 @@ Date: 2026-06-13
 flowchart TD
     A["1. Markdown workspace foundation"] --> B["2. Document editor shell"]
     A --> C["3. Local Node worker API"]
-    C --> D["4. Git worktree lifecycle"]
+    C --> D["4. Git status and diff lifecycle"]
     C --> E["5. Loop document parser"]
     E --> F["6. Cascade planner"]
     D --> G["7. Pi runtime adapter"]
     F --> G
     G --> H["8. Evaluation runner"]
-    H --> I["9. Apply or archive agent changes"]
+    H --> I["9. Record in-place agent changes"]
     B --> J["10. Loop status footer"]
     I --> J
     I --> K["11. History and diff surfaces"]
@@ -57,8 +57,8 @@ Each package should be assigned to a focused subagent with a disjoint write set 
    - Add filesystem, document save/load, and run orchestration endpoints.
    - Write set: server worker modules and API client glue.
 
-4. Git worktree lifecycle
-   - Implement temporary branch/worktree creation, diff capture, merge/apply, and cleanup.
+4. Git status and diff lifecycle
+   - Implement diff capture and project change tracking.
    - Write set: server Git utilities and tests.
 
 5. Loop document parser
@@ -70,7 +70,7 @@ Each package should be assigned to a focused subagent with a disjoint write set 
    - Write set: cascade planning module and fixtures.
 
 7. Pi runtime adapter
-   - Invoke the Pi coding agent CLI from isolated Git worktrees.
+   - Invoke the Pi coding agent CLI from the active project directory.
    - Read Pi configuration from `SLOOP_PI_COMMAND`, `SLOOP_PI_MODEL`, optional `SLOOP_PI_PROVIDER`, optional `SLOOP_PI_ARGS`, and optional `SLOOP_PI_SESSION_ROOT`.
    - Allocate a per-run Pi session directory under `.sloop/pi-sessions`.
    - Pass loop context, diffs, instructions, and evaluation criteria to Pi.
@@ -80,9 +80,9 @@ Each package should be assigned to a focused subagent with a disjoint write set 
    - Run deterministic checks derived from textual criteria, then report pass/fail state.
    - Write set: evaluation runner and test fixtures.
 
-9. Apply or archive agent changes
-   - Apply passing Pi worktree changes back to the main workspace.
-   - Preserve failing or losing alternatives as archived runs.
+9. Record in-place agent changes
+   - Record passing and failing Pi changes in run history.
+   - Leave file edits visible in the active project directory for review and continuation.
    - Write set: run-state and Git application modules.
 
 10. Loop status footer
@@ -94,12 +94,12 @@ Each package should be assigned to a focused subagent with a disjoint write set 
     - Write set: frontend history/diff components and server read APIs.
 
 12. End-to-end demo pass
-    - Wire the document editor, Node worker, Git lifecycle, Pi runtime adapter, evaluation, and apply/archive flow into a hackathon demo.
+    - Wire the document editor, Node worker, Git diff lifecycle, Pi runtime adapter, evaluation, and run history into a hackathon demo.
     - Write set: integration glue, seed docs, and e2e tests.
 
 ## Execution Notes
 
-- Keep each agent run isolated in its own Git worktree and branch.
+- Run agents directly in the active project directory.
 - Use Pi as the only external coding agent runtime.
 - Require a globally installed and logged-in Pi CLI before agent runs; use `pi /login` or interactive `pi` then `/login`.
 - Keep Pi runtime state in per-run directories under `.sloop/pi-sessions`.
