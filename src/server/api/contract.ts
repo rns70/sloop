@@ -13,7 +13,7 @@
 //   GET  /api/templates            -> TemplateDef[]
 //   GET  /api/roles                -> RoleDef[]
 //   GET  /api/models               -> ModelOption[]
-//   POST /api/assistant            -> AssistantProposal             body: AssistantRequestBody
+//   POST /api/assistant/stream  -> SSE AssistantStreamEvent   body: AssistantStreamRequestBody
 //   GET  /api/cascades             -> CascadeSummary[]
 //   POST /api/cascades             -> CascadeSummary               body: CreateCascadeRequest
 //   GET  /api/cascades/:id         -> CascadeDetail
@@ -24,7 +24,7 @@
 
 import type {
   AdrDoc, TemplateDef, RoleDef, CascadeSummary, LoopDoc,
-  AssistantRequest, AssistantProposal, ModelOption,
+  AssistantChatRequest, AssistantStreamEvent, ModelOption,
 } from '../../shared/index';
 
 export interface Ok {
@@ -61,10 +61,8 @@ export type GetCascadeResponse = CascadeDetail;
 export type ApproveCascadeResponse = Ok;
 
 export type GetModelsResponse = ModelOption[];
-/** POST /api/assistant — global assistant (answer/edit/create-*). Returns a typed
- *  proposal the rail previews; never writes. */
-export type AssistantRequestBody = AssistantRequest;
-export type AssistantResponse = AssistantProposal;
+/** POST /api/assistant/stream — streaming, multi-turn, agentic assistant. */
+export type AssistantStreamRequestBody = AssistantChatRequest;
 
 /** Events pushed over WS while a cascade runs. */
 export type CascadeStreamEvent =
@@ -83,8 +81,8 @@ export interface SloopApi {
   listCascades(): Promise<GetCascadesResponse>;
   /** Configured model aliases for the picker (no API keys). */
   listModels(): Promise<GetModelsResponse>;
-  /** Global assistant: returns a typed proposal, never writes. */
-  assistant(req: AssistantRequest): Promise<AssistantResponse>;
+  /** Streaming agentic assistant: emits events as it thinks/acts; auto-applies writes. */
+  assistantStream(req: AssistantChatRequest, onEvent: (e: AssistantStreamEvent) => void, signal?: AbortSignal): Promise<void>;
   createCascade(req: CreateCascadeRequest): Promise<CreateCascadeResponse>;
   getCascade(id: string): Promise<GetCascadeResponse>;
   approveCascade(id: string): Promise<ApproveCascadeResponse>;
