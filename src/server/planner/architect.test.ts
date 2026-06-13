@@ -170,6 +170,24 @@ describe('parseArchitectResponse', () => {
     expect(plan.leaves[0].acceptanceCriteria[0].locked).toBe(true);
   });
 
+  it('parses allowedOutputs onto each leaf', () => {
+    const raw = JSON.stringify({
+      summary: 's',
+      leaves: [
+        {
+          id: 'l1',
+          role: 'engineer',
+          model: 'haiku',
+          brief: 'b',
+          allowedOutputs: ['code/feature/**'],
+          acceptanceCriteria: [],
+        },
+      ],
+    });
+    const plan = parseArchitectResponse(raw, opts);
+    expect(plan.leaves[0].allowedOutputs).toEqual(['code/feature/**']);
+  });
+
   it('clamps the leaf count to maxLeaves', () => {
     const many = JSON.stringify({
       leaves: Array.from({ length: 5 }, (_, i) => ({

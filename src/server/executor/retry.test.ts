@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { runLeafWithRetry } from './retry';
 import type { LoopDoc } from '../../shared/types';
+import type { AttemptResult } from './attempt';
 
 function leaf(): LoopDoc {
   return {
@@ -13,16 +14,55 @@ function leaf(): LoopDoc {
   };
 }
 
-describe('runLeafWithRetry (foundation stub: single attempt)', () => {
-  it('runs one attempt and reports the verify result', async () => {
-    let attempts = 0;
+const clean: AttemptResult = { writtenFiles: ['code/a.ts'], violations: [] };
+
+describe('runLeafWithRetry', () => {
+  it('passes on the first attempt when verify succeeds', async () => {
+    let n = 0;
     const res = await runLeafWithRetry(leaf(), {
-      executeAttempt: async () => { attempts += 1; return { writtenFiles: [], violations: [] }; },
+      executeAttempt: async () => { n++; return clean; },
       verify: async () => true,
       maxAttempts: 3,
     });
-    expect(attempts).toBe(1);
+    expect(res).toEqual({ ok: true, attempts: 1, evidence: [] });
+    expect(n).toBe(1);
+  });
+
+  it('retries after a failed verify and passes on a later attempt', async () => {
+    let n = 0;
+    const evidenceSeen: string[][] = [];
+    const res = await runLeafWithRetry(leaf(), {
+      executeAttempt: async (_l, { priorEvidence }) => { evidenceSeen.push(priorEvidence); n++; return clean; },
+      verify: async () => n >= 2, // fail first, pass second
+      maxAttempts: 3,
+    });
     expect(res.ok).toBe(true);
-    expect(res.attempts).toBe(1);
+    expect(res.attempts).toBe(2);
+    expect(evidenceSeen[0]).toEqual([]);        // first attempt: no prior evidence
+    expect(evidenceSeen[1].length).toBe(1);     // second attempt: fed the failure evidence
+  });
+
+  it('retries on a sandbox violation without running verify', async () => {
+    let verifyCalls = 0;
+    const res = await runLeafWithRetry(leaf(), {
+      executeAttempt: async () => ({ writtenFiles: ['evil.sh'], violations: ['evil.sh'] }),
+      verify: async () => { verifyCalls++; return true; },
+      maxAttempts: 2,
+    });
+    expect(res.ok).toBe(false);
+    expect(res.attempts).toBe(2);
+    expect(verifyCalls).toBe(0);                 // violation short-circuits verify
+    expect(res.evidence.join('\n')).toContain('evil.sh');
+  });
+
+  it('returns ok:false with evidence when attempts are exhausted', async () => {
+    const res = await runLeafWithRetry(leaf(), {
+      executeAttempt: async () => clean,
+      verify: async () => false,
+      maxAttempts: 3,
+    });
+    expect(res.ok).toBe(false);
+    expect(res.attempts).toBe(3);
+    expect(res.evidence.length).toBe(3);
   });
 });

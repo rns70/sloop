@@ -55,6 +55,7 @@ const PLAN: ArchitectPlan = {
       delta: 'change',
       sourceAdr: 'adr-007',
       brief: 'Rotate tokens.',
+      allowedOutputs: ['code/x/**'],
       acceptanceCriteria: [{ id: 'ac-1', text: 'rotate', verify: 'npm test -- rotation' }],
     },
     {
@@ -201,6 +202,16 @@ describe('CascadeEngine.kickoff', () => {
     expect(leaf.frontmatter.parent).toBe('_architect');
     expect(leaf.frontmatter.acceptanceCriteria[0].passed).toBe(false);
     expect(leaf.frontmatter.executor).toBe('pi');
+  });
+
+  it('stamps allowedOutputs from the plan onto the persisted leaf', async () => {
+    const { engine, files } = makeEngine();
+    await engine.kickoff('spec-driven');
+
+    const written = [...files.loops.values()].find(
+      (l) => l.frontmatter.id === 'rotate-refresh-tokens',
+    );
+    expect(written?.frontmatter.allowedOutputs).toEqual(['code/x/**']);
   });
 
   it('throws on an unknown workflow', async () => {

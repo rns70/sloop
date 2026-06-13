@@ -28,6 +28,7 @@ export interface ProposedLeaf {
   delta?: Delta;
   sourceAdr?: string;
   brief: string;
+  allowedOutputs?: string[];
   acceptanceCriteria: ProposedCriterion[];
 }
 
@@ -97,8 +98,9 @@ export function buildArchitectPrompt(
     'Rules:',
     `- Propose at most ${maxLeaves} leaves. Keep the tree shallow: architect → leaves.`,
     '- Give every leaf a stable kebab-case id, unique within this cascade.',
-    '- Partition leaves by file: no two leaves may edit the same file (they share one',
-    '  checkout and would collide).',
+    '- Partition leaves by file. Give each leaf an "allowedOutputs" array of repo-root',
+    '  relative globs under code/ that it (and only it) may write — e.g. ["code/auth/**"].',
+    '  No two leaves may share an output path; sandbox violations abort the leaf.',
     "- Choose each leaf's role from the roles list and a model alias from the workflow",
     '  step defaults or the role default. The step model is a floor for bounded work;',
     "  raise a leaf's model for open-ended or long-horizon tasks.",
@@ -119,6 +121,7 @@ export function buildArchitectPrompt(
     '      "delta": "change",',
     '      "sourceAdr": "adr-007",',
     '      "brief": "what this leaf must do",',
+    '      "allowedOutputs": ["code/auth/**"],',
     '      "acceptanceCriteria": [',
     '        { "id": "ac-1", "text": "…", "verify": "npm test -- rotation", "locked": true }',
     '      ]',
@@ -258,6 +261,12 @@ export function parseArchitectResponse(raw: string, opts: ParseOptions): Archite
       };
     });
 
+    const allowedOutputs = Array.isArray(l.allowedOutputs)
+      ? l.allowedOutputs
+          .filter((g): g is string => typeof g === 'string' && g.trim().length > 0)
+          .map((g) => g.trim())
+      : undefined;
+
     return {
       id,
       role,
@@ -266,6 +275,7 @@ export function parseArchitectResponse(raw: string, opts: ParseOptions): Archite
       sourceAdr:
         typeof l.sourceAdr === 'string' && l.sourceAdr.trim() ? l.sourceAdr.trim() : undefined,
       brief,
+      allowedOutputs,
       acceptanceCriteria,
     };
   });

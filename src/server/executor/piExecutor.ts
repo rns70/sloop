@@ -25,8 +25,9 @@ function isDryRun(env: NodeJS.ProcessEnv): boolean {
   return v !== '0' && v !== 'false' && v !== 'no' && v !== 'off';
 }
 
-function resolveTargetRepo(env: NodeJS.ProcessEnv): string {
-  return env.SLOOP_TARGET_REPO || process.cwd();
+/** The execution target is the workspace itself; leaves write into its `code/` dir. */
+function resolveTargetRepo(_env: NodeJS.ProcessEnv): string {
+  return process.cwd();
 }
 
 function resolveExecutorTimeoutMs(env: NodeJS.ProcessEnv): number {
@@ -110,7 +111,6 @@ async function verifyCriteria(
  * safety valve for offline / cost-free demos (spec §9, handoff).
  *
  * Env vars:
- *   - SLOOP_TARGET_REPO         target repo root (default: process.cwd())
  *   - SLOOP_DRY_RUN             skip the Pi agent, only verify (truthy; 0/false/no/off = off)
  *   - SLOOP_EXECUTOR_TIMEOUT_MS overall agent timeout (default 600000)
  *   - SLOOP_VERIFY_TIMEOUT_MS   per-criterion verify timeout (default 120000)
