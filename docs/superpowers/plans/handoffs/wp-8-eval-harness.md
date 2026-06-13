@@ -17,10 +17,10 @@ Produce the headline numbers that prove sloop's claims: **true-convergence rate*
 Do not edit other WPs' source. You may depend on `CascadeEngine`/`FilesService` (constructed as WP-6 does) and shared types. Add an `npm run eval` script.
 
 ## Tasks
-1. `metrics.ts`: the result type **exactly** as in eval spec §4 — incl. the **`system: 'sloop' | 'baseline-flat'`** field — (`taskId`, `system`, `modelMix`, `converged`, `independentPass`, `falsePositive`, `criteria`, `tree`, `cost`, `latencyMs`, `error`) + an `aggregate(runs)` producing convergence rate, false-positive rate, per-mix `{successRate, meanUsd, meanLatencyMs}`, **and the sloop-vs-baseline-flat delta** (resolved% and mean $ on the same tasks).
+1. `metrics.ts`: the result type **exactly** as in eval spec §4 — incl. the **`system: 'sloop' | 'baseline-flat'`** field and a `trial` index — (`taskId`, `system`, `modelMix`, `trial`, `converged`, `independentPass`, `falsePositive`, `criteria`, `tree`, `cost`, `latencyMs`, `error`) + an `aggregate(runs)` producing convergence rate, false-positive rate, per-mix `{successRate, meanUsd, meanLatencyMs}`, the **sloop-vs-baseline-flat delta**, and — when trials > 1 — **mean ± stdev and pass@k** per metric (not a single point).
 2. Task loader: parse `evals/tasks/*.md` (frontmatter via `gray-matter`) into typed tasks (`id`, `repo`, `baseRef`, `adrPath`, `heldOut[]`, `modelMixes[]`, body).
 3. **SWE-bench adapter** (`swebench.ts`): ingest a small set of SWE-bench instances and map each into the same task type — `problem_statement` → requirement body written to `adrPath`; `FAIL_TO_PASS` + `PASS_TO_PASS` → `heldOut`; run inside the instance's prepared environment/image; `baseRef` = the instance's base commit. Keep the subset to 5–10 (label outputs "N tasks from SWE-bench Lite", never a full-benchmark score).
-4. `runner.ts` — for each `(task × modelMix × system)`, run the eval spec §5 flow:
+4. `runner.ts` — for each `(task × modelMix × system × trial)` (trials via `--trials N`, default 1; pass the run-id/timestamp in as an arg, don't generate it in shared code), run the eval spec §5 flow:
    - reset repo (`git -C <repo> checkout <baseRef> && git clean -fd`) — or reset the SWE-bench instance env,
    - write the task body+criteria to `adrPath` in the databank,
    - set models for the run (planner + execute — see Integration below),
@@ -29,9 +29,9 @@ Do not edit other WPs' source. You may depend on `CascadeEngine`/`FilesService` 
    - run each `heldOut` command in the repo (`child_process`), `independentPass = all exit 0`,
    - collect cost (by model), tree loops/maxDepth, latency, criteria counts,
    - append the JSON line to `evals/results/<run-id>/runs.jsonl`, reset the repo.
-5. `report.ts`: read `runs.jsonl` → write `evals/results/<run-id>/summary.md`: convergence + false-positive rate, the per-mix table, the **sloop-vs-baseline-flat delta**, and a line citing the SWE-bench **Pro** standardized ≈59% figure as backdrop (eval spec §8; note the scaffold caveat) — clearly marked as context, not a claimed rank.
+5. `report.ts`: read `runs.jsonl` → write `evals/results/<run-id>/summary.md`: a **self-describing header** (resolved model ids + providers actually used, task-set, date, trials N — eval spec §10), then convergence + false-positive rate (mean ± stdev when N>1), the per-mix table, the **sloop-vs-baseline-flat delta**, and a line citing the SWE-bench **Pro** standardized ≈59% figure as backdrop (eval spec §8; note the scaffold caveat) — clearly marked as context, not a claimed rank. Also implement **`--compare <runA> <runB>`** that diffs two summaries (resolved% and $ deltas).
 6. Author the **handmade task suite**: 3–5 scenarios (decomposition/template showcases). Held-out suites genuinely separate from agent-visible `verify`. Tiny-but-real target repos.
-7. Tests: `aggregate()` math (convergence %, false-positive %, per-mix means, sloop-vs-baseline delta) on hand-built run arrays; task-file + SWE-bench parsing; a `SLOOP_DRY_RUN` smoke test of the runner on one task of each system (plumbing only, not real numbers).
+7. Tests: `aggregate()` math (convergence %, false-positive %, per-mix means, sloop-vs-baseline delta, **mean ± stdev + pass@k over trials**) on hand-built run arrays; task-file + SWE-bench parsing; `--compare` diff math; a `SLOOP_DRY_RUN` smoke test of the runner on one task of each system (plumbing only, not real numbers).
 
 ## Integration points (from eval spec §7 — confirm they exist, else add minimally)
 - **Auto-approve:** the runner must approve without a human. Use `CascadeEngine` programmatically and call `approve()` directly after `kickoff()`, or honor `SLOOP_AUTO_APPROVE=1`. (Keep auto-approve OFF in the app itself.)

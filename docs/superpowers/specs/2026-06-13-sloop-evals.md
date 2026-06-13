@@ -154,3 +154,17 @@ SWE-bench is the right external anchor because its structure *is* sloop's eval s
 Demo arc: **(1)** live convergence money shot → **(2)** `summary.md` as a results view: convergence rate + false-positive rate, the **sloop-vs-flat-agent delta** on identical SWE-bench tasks, the cost-vs-mix bars, and the **Nemotron** line — with the SWE-bench **Pro** standardized ≈59% figure as backdrop (scaffold caveat noted). Story: *it works (and beats a flat agent on the same tasks) → it's cheap → it's open/multi-provider.* If time allows, a small "Evals" page in the UI renders `summary.md`.
 
 **Hackathon scope:** real runs are token-spendy. Curate ~5 tasks, run the 3-mix matrix once, cache results to `runs.jsonl`, and present from the cache (don't re-run live). `SLOOP_DRY_RUN` is for smoke-testing the harness plumbing offline, not for the real numbers.
+
+---
+
+## 10. Reproducibility & re-running
+
+The harness is **re-runnable by construction**, but re-running ≠ identical numbers (agents are stochastic). Design for both:
+
+- **Idempotent setup:** every task resets its repo (`git checkout <baseRef> && git clean -fd`) and re-applies the databank edit, so each run starts clean — no cross-run drift.
+- **Isolated output:** each `npm run eval` writes a fresh `results/<run-id>/` (timestamp/ulid passed in via `args`, not generated in shared code), so re-runs never clobber prior results.
+- **`--trials N`:** run each `(task × mix × system)` N times; `aggregate()` reports **mean ± stdev** and **pass@k** instead of a single noisy point. Default `N=1` (cost); use `N≥3` for any headline number you'll present.
+- **Self-describing runs:** `summary.md` header records the **resolved model ids + providers** (pinning — what actually ran, not just the alias), the task-set, the date, and `N`. So a run can be reproduced/compared later even as registry aliases change.
+- **`--compare <runA> <runB>`:** diff two runs' summaries (resolved% and $ deltas) — the workflow for "did this sloop change actually help?"
+
+**Inherent non-reproducibility to disclose, not hide:** LLM stochasticity (→ report variance), token cost per run, SWE-bench images must be cached locally, and provider models drift over time (a pinned id can still shift). Present mean ± stdev over trials, never a lone number.
