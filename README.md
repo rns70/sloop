@@ -14,6 +14,30 @@ See the design and build plan:
 
 ---
 
+## Quickstart (CLI)
+
+Run sloop inside any project directory. It treats that directory as both the requirement
+databank and the codebase the agent edits.
+
+```bash
+# one-time: build the web UI (served by the CLI)
+npm install
+npm run build
+
+# in your project:
+export ANTHROPIC_API_KEY=sk-ant-...     # or NEBIUS_API_KEY
+cd /path/to/your/project
+sloop init      # scaffold .sloop/, databank/, and a git repo (auto-runs if you skip it)
+sloop           # serve the UI + API on http://localhost:5174 and open the browser
+```
+
+Then edit an ADR under `databank/`, kick off a cascade in the UI, approve it, and watch
+the agent implement and verify it in your repo.
+
+Flags: `sloop --port <n>`, `sloop --no-open`, `sloop --help`, `sloop --version`.
+
+---
+
 ## Run it
 
 Requires **Node 20+**.
