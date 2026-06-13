@@ -5,19 +5,18 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { createRealApi, isDryRun, bootstrapPi } from './real';
-import type { CascadeStreamEvent } from './contract';
-import type { ModelRegistry } from '../../shared/index';
+import type { AdrRunEvent, ModelRegistry } from '../../shared/index';
 
-// Integration test for the WP-6 real backend: it drives the genuine services
-// (FilesService/GitService/CascadeEngine/Executor) through the demo happy path in
-// dry-run mode against an isolated temp workspace, and asserts the convergence
-// invariant (root flips to done) plus the live-stream buffering/replay contract.
+// Integration test for the real backend: it drives the genuine services
+// (FilesService / AdrRunner / Executor) through a dry-run ADR run against an
+// isolated temp workspace, asserting the run-set is executed, statuses are
+// persisted to disk, the stream buffers/replays, and runs are serialized.
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..', '..', '..');
 const SAMPLE = path.join(REPO_ROOT, 'fixtures', 'sample-workspace');
-const ADR_REL = 'databank/adr-007-token-rotation.md';
 
+/** Run a git command in `cwd` with a deterministic identity (the executor needs a repo). */
 function git(cwd: string, args: string[]): void {
   execFileSync('git', args, {
     cwd,
@@ -32,7 +31,17 @@ function git(cwd: string, args: string[]): void {
   });
 }
 
-describe('RealApi happy path (dry-run, offline)', () => {
+/** A minimal ADR markdown doc with a single always-passing verify command. */
+function adrMd(id: string, title: string, children: string[], verify: string): string {
+  const childLine = children.length ? `\nchildren:\n${children.map((c) => `  - ${c}`).join('\n')}` : '';
+  return (
+    `---\nid: ${id}\ntitle: ${title}\nstatus: idle${childLine}\n---\n` +
+    `# ${title}\n\n## Decision\nDo the thing.\n\n` +
+    `## Acceptance criteria\n\n- [ ] It works. — verify: \`${verify}\`\n`
+  );
+}
+
+describe('RealApi ADR run (dry-run, offline)', () => {
   let tmp: string;
   let workspace: string;
   const savedEnv: Record<string, string | undefined> = {};
@@ -41,26 +50,22 @@ describe('RealApi happy path (dry-run, offline)', () => {
     tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'sloop-test-'));
     workspace = path.join(tmp, 'workspace');
     await fs.cp(SAMPLE, workspace, { recursive: true });
+
+    // Replace the sample loops with a tiny parent→child pair whose verify exits 0,
+    // so the dry-run executor (agent skipped) reports a clean pass.
+    const loops = path.join(workspace, 'loops');
+    await fs.rm(loops, { recursive: true, force: true });
+    await fs.mkdir(loops, { recursive: true });
+    await fs.writeFile(path.join(loops, 'parent.md'), adrMd('parent', 'Parent', ['loops/child.md'], 'true'));
+    await fs.writeFile(path.join(loops, 'child.md'), adrMd('child', 'Child', [], 'true'));
+
+    // The executor captures the working-tree dirty set via git, so the workspace must be a repo.
     git(workspace, ['init', '-q']);
     git(workspace, ['add', '.']);
     git(workspace, ['commit', '-q', '-m', 'baseline']);
 
-    // Create the databank delta the cascade reconciles.
-    const adrPath = path.join(workspace, ADR_REL);
-    const body = await fs.readFile(adrPath, 'utf8');
-    await fs.writeFile(adrPath, body.replace('≤15 minutes', '≤10 minutes'), 'utf8');
-
-    for (const key of [
-      'SLOOP_DRY_RUN',
-      'SLOOP_MAX_DEPTH',
-      'SLOOP_PLANNER_MODEL',
-      'SLOOP_WORKSPACE',
-    ]) {
-      savedEnv[key] = process.env[key];
-    }
+    for (const key of ['SLOOP_DRY_RUN', 'SLOOP_WORKSPACE']) savedEnv[key] = process.env[key];
     process.env.SLOOP_DRY_RUN = '1';
-    process.env.SLOOP_MAX_DEPTH = '2';
-    process.env.SLOOP_PLANNER_MODEL = 'opus';
     process.env.SLOOP_WORKSPACE = workspace;
   });
 
@@ -72,167 +77,74 @@ describe('RealApi happy path (dry-run, offline)', () => {
     await fs.rm(tmp, { recursive: true, force: true });
   });
 
-  it('converges: kickoff → approve → verify passes → root done', async () => {
+  it('runs an ADR + subtree: statuses reach passed and the stream closes done', async () => {
     const api = await createRealApi(workspace, process.env);
 
-    const summary = await api.createCascade({ workflowId: 'spec-driven' });
-    expect(summary.status).toBe('awaiting_approval');
-    expect(summary.deltas).toEqual({ add: 0, change: 1, delete: 0 });
+    // Subscribe BEFORE the run finishes to exercise live streaming + completion close.
+    const events: AdrRunEvent[] = [];
+    const { runId } = await api.runAdr('loops/parent.md');
 
-    const proposed = await api.getCascade(summary.id);
-    const leaves = proposed.loops.filter((l) => l.frontmatter.kind === 'leaf');
-    expect(leaves.length).toBe(1);
-    expect(leaves[0].frontmatter.acceptanceCriteria.length).toBe(2);
-    // Plain ADR criteria carry no ids on disk; the planner backfills stable ones.
-    expect(leaves[0].frontmatter.acceptanceCriteria.map((c) => c.id)).toEqual(['ac-1', 'ac-2']);
-
-    // Subscribe BEFORE approve resolves to exercise live streaming + completion close.
-    const events: CascadeStreamEvent[] = [];
-    const done = new Promise<void>((resolve) => {
+    await new Promise<void>((resolve) => {
       api.subscribe(
-        summary.id,
-        (ev) => events.push(ev),
+        runId,
+        (ev) => {
+          events.push(ev);
+          if (ev.type === 'done') resolve();
+        },
         () => resolve(),
       );
     });
 
-    await api.approveCascade(summary.id);
-    await done;
+    // The run covered the parent + its child, both ending passed on disk.
+    const parent = await api.getAdr('loops/parent.md');
+    const child = await api.getAdr('loops/child.md');
+    expect(parent.status).toBe('passed');
+    expect(child.status).toBe('passed');
 
-    const detail = await api.getCascade(summary.id);
-    const root = detail.loops.find((l) => l.frontmatter.id === detail.summary.rootLoopId);
-    expect(root?.frontmatter.status).toBe('done');
-    expect(detail.summary.status).toBe('done');
+    // The history entry records the run-set and a passed verdict.
+    const entry = await api.getRun(runId);
+    expect(entry.status).toBe('passed');
+    expect(entry.runSet).toEqual(['loops/parent.md', 'loops/child.md']);
+    expect(entry.evidence).toEqual([]);
 
-    // Every leaf criterion was verified by a real command exit 0.
-    const leaf = detail.loops.find((l) => l.frontmatter.kind === 'leaf');
-    expect(leaf?.frontmatter.status).toBe('done');
-    expect(leaf?.frontmatter.acceptanceCriteria.every((c) => c.passed)).toBe(true);
-
-    // The stream carried both kinds of events and saw the root reach done.
+    // The stream carried output, per-ADR statuses, eval verdicts, and a done event.
     expect(events.some((e) => e.type === 'output')).toBe(true);
-    const rootDone = events.some(
-      (e) =>
-        e.type === 'loop-update' &&
-        e.loop.frontmatter.id === '_architect' &&
-        e.loop.frontmatter.status === 'done',
-    );
-    expect(rootDone).toBe(true);
+    expect(events.some((e) => e.type === 'status' && e.status === 'running')).toBe(true);
+    expect(events.some((e) => e.type === 'eval' && e.passed)).toBe(true);
+    expect(events.some((e) => e.type === 'done' && e.status === 'passed')).toBe(true);
+
+    // listRuns surfaces the run, newest first.
+    const runs = await api.listRuns();
+    expect(runs[0]?.id).toBe(runId);
   });
 
-  it('updateLoop edits a planned leaf (model, role, plan + criteria) before it runs', async () => {
+  it('replays buffered events to a late subscriber and closes when done', async () => {
     const api = await createRealApi(workspace, process.env);
-    const summary = await api.createCascade({ workflowId: 'spec-driven' });
-    const proposed = await api.getCascade(summary.id);
-    const leaf = proposed.loops.find((l) => l.frontmatter.kind === 'leaf');
-    if (!leaf) throw new Error('expected a leaf loop');
+    const { runId } = await api.runAdr('loops/child.md');
 
-    const newBody =
-      `# Leaf — ${leaf.frontmatter.id}\n\n` +
-      `## Brief\nRewritten plan body.\n\n` +
-      `## Acceptance criteria\n\n` +
-      `- [ ] **ac-1** Edited criterion. — verify: \`echo ok\`\n`;
-
-    const updated = await api.updateLoop(summary.id, leaf.frontmatter.id, {
-      body: newBody,
-      model: 'opus',
-      role: 'debugger',
-    });
-    expect(updated.frontmatter.model).toBe('opus');
-    expect(updated.frontmatter.role).toBe('debugger');
-    expect(updated.frontmatter.acceptanceCriteria).toEqual([
-      { id: 'ac-1', text: 'Edited criterion.', passed: false, verify: 'echo ok' },
-    ]);
-    expect(updated.body).toContain('Rewritten plan body.');
-
-    // The edit is persisted: a fresh read sees the same values.
-    const reread = await api.getCascade(summary.id);
-    const sameLeaf = reread.loops.find((l) => l.frontmatter.id === leaf.frontmatter.id);
-    expect(sameLeaf?.frontmatter.model).toBe('opus');
-    expect(sameLeaf?.frontmatter.acceptanceCriteria[0]?.verify).toBe('echo ok');
-  });
-
-  it('updateLoop rejects an empty model and a missing loop', async () => {
-    const api = await createRealApi(workspace, process.env);
-    const summary = await api.createCascade({ workflowId: 'spec-driven' });
-    const proposed = await api.getCascade(summary.id);
-    const leaf = proposed.loops.find((l) => l.frontmatter.kind === 'leaf');
-    if (!leaf) throw new Error('expected a leaf loop');
-
-    await expect(api.updateLoop(summary.id, leaf.frontmatter.id, { model: '   ' })).rejects.toThrow(
-      /model must not be empty/i,
-    );
-    await expect(api.updateLoop(summary.id, 'no-such-loop', { model: 'opus' })).rejects.toThrow(
-      /not found/i,
-    );
-  });
-
-  it('updateLoop refuses to edit a loop once it has finished executing (409)', async () => {
-    const api = await createRealApi(workspace, process.env);
-    const summary = await api.createCascade({ workflowId: 'spec-driven' });
-
+    // Wait for the run to finish via a first subscriber's completion close.
     await new Promise<void>((resolve) => {
-      api.subscribe(summary.id, () => undefined, () => resolve());
-      void api.approveCascade(summary.id);
-    });
-
-    const detail = await api.getCascade(summary.id);
-    const leaf = detail.loops.find((l) => l.frontmatter.kind === 'leaf');
-    if (!leaf) throw new Error('expected a leaf loop');
-    expect(leaf.frontmatter.status).toBe('done');
-
-    await expect(
-      api.updateLoop(summary.id, leaf.frontmatter.id, { model: 'opus' }),
-    ).rejects.toThrow(/can be edited|done/i);
-  });
-
-  it('listCascades enumerates created cascades, newest first', async () => {
-    const api = await createRealApi(workspace, process.env);
-
-    const a = await api.createCascade({ workflowId: 'spec-driven' });
-    const b = await api.createCascade({ workflowId: 'spec-driven' });
-
-    const list = await api.listCascades();
-    const ids = list.map((s) => s.id);
-    expect(ids).toContain(a.id);
-    expect(ids).toContain(b.id);
-
-    // Descending id sort (date-prefixed ids => chronological, newest first).
-    const sorted = [...ids].sort((x, y) => y.localeCompare(x));
-    expect(ids).toEqual(sorted);
-
-    // Each entry is a real derived summary, not a stub.
-    const entry = list.find((s) => s.id === a.id);
-    expect(entry?.rootLoopId).toBeTruthy();
-    expect(entry?.deltas).toBeDefined();
-  });
-
-  it('subscribe replays buffered events to a late subscriber and closes when done', async () => {
-    const api = await createRealApi(workspace, process.env);
-    const summary = await api.createCascade({ workflowId: 'spec-driven' });
-
-    // Wait for the run to actually finish (the stream's completion close fires).
-    await new Promise<void>((resolve) => {
-      api.subscribe(
-        summary.id,
-        () => undefined,
-        () => resolve(),
-      );
-      void api.approveCascade(summary.id);
+      api.subscribe(runId, () => undefined, () => resolve());
     });
 
     // A subscriber attaching AFTER completion still receives the full buffer + close.
-    const replayed: CascadeStreamEvent[] = [];
+    const replayed: AdrRunEvent[] = [];
     let closed = false;
     api.subscribe(
-      summary.id,
+      runId,
       (ev) => replayed.push(ev),
       () => {
         closed = true;
       },
     );
     expect(replayed.length).toBeGreaterThan(0);
+    expect(replayed.some((e) => e.type === 'done')).toBe(true);
     expect(closed).toBe(true);
+  });
+
+  it('rejects a missing ADR with a 404-style NotFound', async () => {
+    const api = await createRealApi(workspace, process.env);
+    await expect(api.runAdr('loops/no-such.md')).rejects.toThrow(/not found/i);
   });
 });
 

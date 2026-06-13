@@ -4,7 +4,7 @@
  * `runs.jsonl`. For each run it executes the §5 flow:
  *
  *   1. reset the target repo to baseRef (`git reset --hard && git clean -fd`)
- *   2. (sloop) set up a scratch workspace + write the requirement ADR (the databank diff)
+ *   2. (sloop) set up a scratch workspace + write the requirement ADR (the loops diff)
  *   3. route models for the run (mix.plan / mix.execute)
  *   4. run the system — sloop: kickoff + AUTO-APPROVE, wait for the root loop to reach a
  *      terminal status (timeout → error); baseline-flat: one Pi agent, no decomposition

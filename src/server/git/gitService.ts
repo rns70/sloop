@@ -5,7 +5,7 @@ import type { DatabankDiff, Delta } from '../../shared';
 import type { GitService } from '../../shared';
 import { resolveWorkspaceRoot } from '../files/filesService';
 
-const DATABANK_PREFIX = 'databank/';
+const DATABANK_PREFIX = 'loops/';
 
 /**
  * A fixed identity so commits succeed without any global git config (important for
@@ -16,7 +16,7 @@ const DATABANK_PREFIX = 'databank/';
 const SLOOP_IDENTITY = ['user.name=sloop', 'user.email=sloop@earendil.works'];
 
 /**
- * Disk-backed `GitService` over a workspace repo. Tracks the databank as the source
+ * Disk-backed `GitService` over a workspace repo. Tracks the loops as the source
  * of desired state: `diffDatabank` reports what changed in the working tree since the
  * last commit, and `commitAll` snapshots an accepted state.
  */
@@ -28,19 +28,19 @@ export class GitServiceImpl implements GitService {
   }
 
   /**
-   * Diff the `databank/` working tree against the last commit (HEAD). Each changed
+   * Diff the `loops/` working tree against the last commit (HEAD). Each changed
    * file yields a `delta` derived from git status flags plus the `before` (content at
    * HEAD) and `after` (current working-tree content). New files have empty `before`;
    * deleted files have empty `after`.
    */
   async diffDatabank(): Promise<DatabankDiff> {
     const status = await this.git.status();
-    const databankFiles = status.files
+    const loopsFiles = status.files
       .filter((f) => f.path.startsWith(DATABANK_PREFIX))
       .sort((a, b) => a.path.localeCompare(b.path));
 
     const changed = await Promise.all(
-      databankFiles.map(async (f) => {
+      loopsFiles.map(async (f) => {
         const delta = statusToDelta(f.index, f.working_dir);
         const before = await this.showAtHead(f.path);
         const after = delta === 'delete' ? '' : await this.readWorkingTree(f.path);
@@ -84,7 +84,7 @@ export function createGitService(root?: string): GitService {
 }
 
 /**
- * Map a porcelain status pair (`index`, `working_dir`) to a databank `Delta`.
+ * Map a porcelain status pair (`index`, `working_dir`) to a loops `Delta`.
  * Deletion takes precedence, then addition (staged `A` or untracked `?`); anything
  * else that shows up in status is a content change.
  */

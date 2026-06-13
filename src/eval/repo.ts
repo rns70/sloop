@@ -2,7 +2,7 @@
  * Repo + workspace lifecycle for a run (WP-8, eval spec §5 steps 1–2, 6).
  *
  * Two distinct git trees per run:
- *  - the **sloop workspace** (scratch): `.sloop/` registry + `databank/` + `cascades/`.
+ *  - the **sloop workspace** (scratch): `.sloop/` registry + `loops/` + `cascades/`.
  *    Seeded from a workflow, git-committed at a baseline, then the requirement ADR is
  *    written so `GitService.diffDatabank()` shows it as a change the architect plans on.
  *  - the **target repo**: where the executor's Pi agent edits code and the held-out
@@ -87,7 +87,7 @@ export async function resetGitRepo(repoDir: string, baseRef: string): Promise<vo
 
 /**
  * Create a fresh scratch sloop workspace: copy the `.sloop/` workflow (config registry,
- * roles, workflows), add an empty `databank/`, git-init and commit a baseline so the
+ * roles, workflows), add an empty `loops/`, git-init and commit a baseline so the
  * subsequent requirement write registers as a diff. `templateWorkspaceDir` is a directory
  * containing a `.sloop/` subtree (e.g. `fixtures/sample-workspace`).
  */
@@ -100,10 +100,10 @@ export async function setupWorkspace(
   await fs.cp(path.join(templateWorkspaceDir, '.sloop'), path.join(scratchDir, '.sloop'), {
     recursive: true,
   });
-  await fs.mkdir(path.join(scratchDir, 'databank'), { recursive: true });
+  await fs.mkdir(path.join(scratchDir, 'loops'), { recursive: true });
   await fs.mkdir(path.join(scratchDir, 'cascades'), { recursive: true });
   // Keep empty dirs in git so diffDatabank has a committed baseline to diff against.
-  await fs.writeFile(path.join(scratchDir, 'databank', '.gitkeep'), '', 'utf8');
+  await fs.writeFile(path.join(scratchDir, 'loops', '.gitkeep'), '', 'utf8');
 
   await git(scratchDir, ['init', '-q']);
   await git(scratchDir, ['symbolic-ref', 'HEAD', 'refs/heads/main']);
@@ -126,9 +126,9 @@ export async function setupWorkspace(
 }
 
 /**
- * Write the task's requirement to `adrPath` in the workspace databank — the "apply the
+ * Write the task's requirement to `adrPath` in the workspace loops — the "apply the
  * requirement" step. Minimal frontmatter (id + title) + the task body (which carries the
- * agent-visible acceptance criteria). This creates the databank diff the architect plans on.
+ * agent-visible acceptance criteria). This creates the loops diff the architect plans on.
  */
 export async function applyRequirement(workspaceDir: string, task: EvalTask): Promise<void> {
   const abs = path.join(workspaceDir, task.adrPath);

@@ -7,8 +7,8 @@ import { createGitService } from './gitService';
 
 let root: string;
 
-const ADR_A = 'databank/adr-007-token-rotation.md';
-const ADR_B = 'databank/adr-012-device-trust.md';
+const ADR_A = 'loops/adr-007-token-rotation.md';
+const ADR_B = 'loops/adr-012-device-trust.md';
 
 async function write(rel: string, content: string): Promise<void> {
   const abs = path.join(root, rel);
@@ -31,7 +31,7 @@ describe('GitService', () => {
   it('commitAll returns a 7-char sha and successive commits differ', async () => {
     const git = createGitService(root);
 
-    const first = await git.commitAll('seed databank');
+    const first = await git.commitAll('seed loops');
     expect(first).toHaveLength(7);
 
     await write(ADR_A, '---\nid: adr-007\n---\n\nchanged A\n');
@@ -42,12 +42,12 @@ describe('GitService', () => {
 
   it('diffDatabank detects added, changed, and deleted ADRs vs the last commit', async () => {
     const git = createGitService(root);
-    await git.commitAll('seed databank');
+    await git.commitAll('seed loops');
 
     // change A, delete B, add C.
     await write(ADR_A, '---\nid: adr-007\n---\n\nchanged A\n');
     await fs.rm(path.join(root, ADR_B));
-    await write('databank/adr-099-new.md', '---\nid: adr-099\n---\n\nbrand new\n');
+    await write('loops/adr-099-new.md', '---\nid: adr-099\n---\n\nbrand new\n');
 
     const diff = await git.diffDatabank();
     const byPath = Object.fromEntries(diff.changed.map((c) => [c.relPath, c]));
@@ -60,14 +60,14 @@ describe('GitService', () => {
     expect(byPath[ADR_B].before).toContain('original B');
     expect(byPath[ADR_B].after).toBe('');
 
-    expect(byPath['databank/adr-099-new.md'].delta).toBe('add');
-    expect(byPath['databank/adr-099-new.md'].before).toBe('');
-    expect(byPath['databank/adr-099-new.md'].after).toContain('brand new');
+    expect(byPath['loops/adr-099-new.md'].delta).toBe('add');
+    expect(byPath['loops/adr-099-new.md'].before).toBe('');
+    expect(byPath['loops/adr-099-new.md'].after).toContain('brand new');
   });
 
-  it('reports no databank changes immediately after a commit', async () => {
+  it('reports no loops changes immediately after a commit', async () => {
     const git = createGitService(root);
-    await git.commitAll('seed databank');
+    await git.commitAll('seed loops');
 
     const diff = await git.diffDatabank();
     expect(diff.changed).toEqual([]);

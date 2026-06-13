@@ -7,7 +7,7 @@ export interface InlineDiffProps {
    *  last accepted). When omitted, `relPath` is used to fetch the committed diff. */
   before?: string;
   after?: string;
-  /** Self-fetch the committed databank diff for an ADR via getAdrDiff(relPath). */
+  /** Self-fetch the committed loops diff for an ADR via getAdrDiff(relPath). */
   relPath?: string;
 }
 

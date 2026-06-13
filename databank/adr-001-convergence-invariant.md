@@ -1,17 +1,8 @@
 ---
 id: adr-001
 title: The convergence invariant
-acceptanceCriteria:
-  - id: ac-1
-    text: "A loop's `done` status is derived, not stored: a loop is done iff all its child loops are done and its own acceptance criteria pass."
-    verify: "npm test -- convergence"
-    passed: true
-  - id: ac-2
-    text: "Completion bubbles up the tree — the cascade engine re-evaluates a parent's status from its children and blocks a subtree when a leaf fails."
-    verify: "npm test -- cascadeEngine"
-    passed: true
+status: running
 ---
-
 # ADR-001 — The convergence invariant
 
 ## Context
@@ -36,3 +27,8 @@ shows exactly where reconciliation stalled.
 - Tree depth is emergent — however deep it takes to reach verifiable criteria.
 - "Are we in sync?" collapses to reading the root loop's derived status.
 - This is the one novel idea sloop must get right; everything else serves it.
+
+## Acceptance criteria
+
+- [x] A loop's `done` status is derived, not stored: a loop is done iff all its child loops are done and its own acceptance criteria pass. — verify: `npm test -- convergence`
+- [x] Completion bubbles up the tree — the cascade engine re-evaluates a parent's status from its children and blocks a subtree when a leaf fails. — verify: `npm test -- cascadeEngine`

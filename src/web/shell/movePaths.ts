@@ -1,6 +1,6 @@
 // Pure path math for Databank drag-to-move and rename. No I/O, no React — so it can be
-// unit-tested under the node test env. All paths are databank-prefixed (e.g.
-// `databank/auth/a.md`); the tree root folder is `databank`.
+// unit-tested under the node test env. All paths are loops-prefixed (e.g.
+// `loops/auth/a.md`); the tree root folder is `loops`.
 
 import { slugify } from './createItem';
 

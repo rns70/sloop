@@ -19,12 +19,12 @@ describe('diffPathSets', () => {
   });
 
   it("excludes sloop's own bookkeeping paths", () => {
-    const after = new Set(['code/a.ts', 'databank/adr-1.md', 'cascades/c/l1.md', '.sloop/config.md']);
+    const after = new Set(['code/a.ts', 'loops/adr-1.md', 'cascades/c/l1.md', '.sloop/config.md']);
     expect(diffPathSets(new Set(), after)).toEqual(['code/a.ts']);
   });
 
   it('exposes the excluded prefixes for reuse', () => {
-    expect(SLOOP_OWN_PREFIXES).toContain('databank/');
+    expect(SLOOP_OWN_PREFIXES).toContain('loops/');
     expect(SLOOP_OWN_PREFIXES).toContain('cascades/');
     expect(SLOOP_OWN_PREFIXES).toContain('.sloop/');
   });

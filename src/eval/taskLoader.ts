@@ -87,7 +87,7 @@ export function parseTask(raw: string, fallbackId: string): EvalTask {
 
   const body = content.trim();
   if (body === '') {
-    throw new Error(`Task "${id}": body is empty (the requirement text written to the databank).`);
+    throw new Error(`Task "${id}": body is empty (the requirement text written to the loops).`);
   }
 
   return {

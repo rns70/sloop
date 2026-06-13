@@ -13,14 +13,14 @@ const TEXTAREA_MAX_HEIGHT = 220; // ~10 rows
 function useGoToPath() {
   const navigate = useNavigate();
   return (path: string) => {
-    if (path.startsWith('databank/')) navigate(`/databank/${path.replace(/^databank\//, '')}`);
+    if (path.startsWith('loops/')) navigate(`/loops/${path.replace(/^loops\//, '')}`);
     else navigate('/libraries');
   };
 }
 
 export function AssistantRail({ className }: { className?: string }) {
   const goToPath = useGoToPath();
-  const { openDoc, registerRunner } = useAssistant();
+  const { openDoc, registerRunner, notifyWrote } = useAssistant();
   const [models, setModels] = useState<ModelOption[]>([]);
   const [alias, setAlias] = useState('');
   const [modelsError, setModelsError] = useState<string | null>(null);
@@ -38,6 +38,9 @@ export function AssistantRail({ className }: { className?: string }) {
   }, []);
 
   const onWrote = (paths: string[]) => {
+    // Let an open editor of any written path refetch in place (navigating to the doc it's
+    // already showing is a no-op, so the editor would otherwise keep stale content).
+    notifyWrote(paths);
     const last = paths[paths.length - 1];
     if (last) goToPath(last);
   };
@@ -159,18 +162,27 @@ export function AssistantRail({ className }: { className?: string }) {
 
             {m.tools?.map((t, j) => {
               const clickable = t.ok && Boolean(t.path);
-              return clickable ? (
-                <button
-                  key={j}
-                  type="button"
-                  onClick={() => goToPath(t.path!)}
-                  className="mt-1 block cursor-pointer font-mono text-[11px] text-ink-faint hover:underline"
-                >
-                  ✎ {t.tool} {t.path}
-                </button>
-              ) : (
-                <div key={j} className="mt-1 font-mono text-[11px] text-ink-faint">
-                  {t.ok ? '✎' : '⚠'} {t.tool}{t.path ? ` ${t.path}` : ''}
+              return (
+                <div key={j}>
+                  {clickable ? (
+                    <button
+                      type="button"
+                      onClick={() => goToPath(t.path!)}
+                      className="mt-1 block cursor-pointer font-mono text-[11px] text-ink-faint hover:underline"
+                    >
+                      ✎ {t.tool} {t.path}
+                    </button>
+                  ) : (
+                    <div className="mt-1 font-mono text-[11px] text-ink-faint">
+                      {t.ok ? '✎' : '⚠'} {t.tool}{t.path ? ` ${t.path}` : ''}
+                    </div>
+                  )}
+                  {t.warning && (
+                    <div className="mt-1 flex gap-1 text-[11px] text-status-failed">
+                      <span aria-hidden>⚠</span>
+                      <span>{t.warning}</span>
+                    </div>
+                  )}
                 </div>
               );
             })}

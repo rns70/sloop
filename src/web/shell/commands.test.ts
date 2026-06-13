@@ -9,10 +9,9 @@ import {
 
 const sources: CommandSources = {
   adrs: [
-    { relPath: 'databank/auth/login.md', title: 'Login flow' },
-    { relPath: 'databank/billing/invoices.md', title: 'Invoices' },
+    { relPath: 'loops/auth/login.md', title: 'Login flow' },
+    { relPath: 'loops/billing/invoices.md', title: 'Invoices' },
   ],
-  cascades: [{ id: 'run-1', label: 'Run 1' }],
   roles: [{ id: 'engineer', name: 'Engineer' }],
   workflows: [{ id: 'feature', name: 'Feature' }],
 };
@@ -26,10 +25,10 @@ const handlers = () => ({
 });
 
 describe('adrRoute', () => {
-  it('strips the databank prefix and encodes only the filename', () => {
-    expect(adrRoute('databank/auth/login.md')).toBe('/databank/auth/login.md');
-    expect(adrRoute('databank/adr 7.md')).toBe('/databank/adr%207.md');
-    expect(adrRoute('databank/a/b/c.md')).toBe('/databank/a/b/c.md');
+  it('strips the loops prefix and encodes only the filename', () => {
+    expect(adrRoute('loops/auth/login.md')).toBe('/loops/auth/login.md');
+    expect(adrRoute('loops/adr 7.md')).toBe('/loops/adr%207.md');
+    expect(adrRoute('loops/a/b/c.md')).toBe('/loops/a/b/c.md');
   });
 });
 
@@ -42,8 +41,7 @@ describe('buildCommands', () => {
       'action:new-role',
       'action:new-workflow',
     ]);
-    expect(ids).toContain('nav:adr:databank/auth/login.md');
-    expect(ids).toContain('nav:cascade:run-1');
+    expect(ids).toContain('nav:adr:loops/auth/login.md');
     expect(ids).toContain('nav:role:engineer');
     expect(ids).toContain('nav:workflow:feature');
   });
@@ -51,8 +49,8 @@ describe('buildCommands', () => {
   it('navigates to the matching route when a nav command runs', () => {
     const h = handlers();
     const cmds = buildCommands(sources, h);
-    cmds.find((c) => c.id === 'nav:adr:databank/auth/login.md')!.run();
-    expect(h.navigate).toHaveBeenCalledWith('/databank/auth/login.md');
+    cmds.find((c) => c.id === 'nav:adr:loops/auth/login.md')!.run();
+    expect(h.navigate).toHaveBeenCalledWith('/loops/auth/login.md');
     cmds.find((c) => c.id === 'nav:role:engineer')!.run();
     expect(h.navigate).toHaveBeenCalledWith('/libraries/roles/engineer');
   });
@@ -113,7 +111,7 @@ describe('filterCommands', () => {
 
   it('keeps only matching commands', () => {
     const res = filterCommands(cmds, 'invoic');
-    expect(res.map((c) => c.id)).toContain('nav:adr:databank/billing/invoices.md');
+    expect(res.map((c) => c.id)).toContain('nav:adr:loops/billing/invoices.md');
     expect(res.every((c) => c.title.toLowerCase().includes('invoic') || c.hint?.includes('invoic'))).toBe(
       true,
     );
@@ -128,6 +126,6 @@ describe('filterCommands', () => {
 
   it('matches against the hint (file path), not just the title', () => {
     const res = filterCommands(cmds, 'auth');
-    expect(res.map((c) => c.id)).toContain('nav:adr:databank/auth/login.md');
+    expect(res.map((c) => c.id)).toContain('nav:adr:loops/auth/login.md');
   });
 });

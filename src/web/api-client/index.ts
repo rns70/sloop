@@ -3,20 +3,19 @@
 // after WP-0); the wire types come from the shared contract, the single source of truth.
 
 import type {
-  AdrDoc, WorkflowDef, RoleDef, CascadeSummary, AssistantChatRequest, AssistantStreamEvent,
+  AdrDoc, WorkflowDef, RoleDef, AssistantChatRequest, AssistantStreamEvent,
+  AdrRunEvent, RunHistoryEntry,
 } from '../../shared/index';
 import type {
-  AdrDiffResponse, GetModelsResponse,
-  CascadeDetail, CascadeStreamEvent, CreateCascadeRequest, Ok,
-  UpdateLoopRequest, UpdateLoopResponse,
+  AdrDiffResponse, GetAdrRunResponse, GetModelsResponse, RunStartedResponse, Ok,
 } from '../../server/api/contract';
 
 export type {
-  AdrDoc, WorkflowDef, RoleDef, CascadeSummary, LoopDoc,
-  LoopFrontmatter, LoopStatus, LoopKind, Delta, AcceptanceCriterion,
+  AdrDoc, WorkflowDef, RoleDef, AcceptanceCriterion, AdrStatus,
   AssistantChatRequest, AssistantStreamEvent, ModelOption,
+  AdrRunEvent, RunHistoryEntry,
 } from '../../shared/index';
-export type { AdrDiffResponse, CascadeDetail, CascadeStreamEvent } from '../../server/api/contract';
+export type { AdrDiffResponse } from '../../server/api/contract';
 
 const BASE = '/api';
 
@@ -71,16 +70,22 @@ export const putAdr = (relPath: string, doc: AdrDoc): Promise<Ok> =>
   http(`/adrs/${enc(relPath)}`, { method: 'PUT', body: JSON.stringify(doc) });
 export const getAdrDiff = (relPath: string): Promise<AdrDiffResponse> =>
   http(`/adrs/${enc(relPath)}/diff`);
-/** Move/rename an ADR file, or a whole folder prefix. `from`/`to` are databank-prefixed
- *  paths (e.g. `databank/auth/a.md`). Folder moves carry all descendants. */
+/** Move/rename an ADR file, or a whole folder prefix. `from`/`to` are loops-prefixed
+ *  paths (e.g. `loops/auth/a.md`). Folder moves carry all descendants. */
 export const moveAdr = (from: string, to: string): Promise<Ok> =>
   http(`/adrs/${enc(from)}/move`, { method: 'POST', body: JSON.stringify({ to }) });
-/** Delete an ADR file, or a whole folder subtree (databank-prefixed path). */
+/** Delete an ADR file, or a whole folder subtree (loops-prefixed path). */
 export const deleteAdr = (relPath: string): Promise<Ok> =>
   http(`/adrs/${enc(relPath)}`, { method: 'DELETE' });
 
 export const getWorkflows = (): Promise<WorkflowDef[]> => http('/workflows');
 export const getRoles = (): Promise<RoleDef[]> => http('/roles');
+
+/** Stamp a workflow's starter child-ADR tree onto an ADR (one child per workflow step).
+ *  Idempotent server-side — re-applying skips children that already exist. Returns the
+ *  updated parent ADR (with the new child links appended to `children`). */
+export const applyWorkflow = (relPath: string, workflowId: string): Promise<AdrDoc> =>
+  http(`/adrs/${enc(relPath)}/apply-workflow`, { method: 'POST', body: JSON.stringify({ workflowId }) });
 
 /** Raw markdown of any workspace file (role/workflow/config), via the
  *  `GET/PUT /api/files/:relPath` bridge. Libraries reads role/workflow content from
@@ -138,38 +143,35 @@ export function streamAssistant(
   return { done, abort: () => controller.abort() };
 }
 
-export const getCascades = (): Promise<CascadeSummary[]> => http('/cascades');
-export const createCascade = (req: CreateCascadeRequest): Promise<CascadeSummary> =>
-  http('/cascades', { method: 'POST', body: JSON.stringify(req) });
-export const getCascade = (id: string): Promise<CascadeDetail> => http(`/cascades/${enc(id)}`);
-export const approveCascade = (id: string): Promise<Ok> =>
-  http(`/cascades/${enc(id)}/approve`, { method: 'POST' });
-/** Edit a not-yet-executing loop (plan/model/role). Throws ApiError(409) once it has started. */
-export const updateLoop = (
-  cascadeId: string,
-  loopId: string,
-  patch: UpdateLoopRequest,
-): Promise<UpdateLoopResponse> =>
-  http(`/cascades/${enc(cascadeId)}/loops/${enc(loopId)}`, {
-    method: 'PATCH',
-    body: JSON.stringify(patch),
-  });
+/** Run an ADR + its subtree as a single agent pass. Throws ApiError(409) if a run is
+ *  already active (runs are serialized). Returns the run id to subscribe to. */
+export const runAdr = (relPath: string): Promise<RunStartedResponse> =>
+  http(`/adrs/${enc(relPath)}/run`, { method: 'POST' });
+
+/** The run that rehydrates this ADR's panel (active → live reconnect, else newest finished
+ *  run that included it → replay), or null if the ADR was never run. */
+export const getAdrRun = (relPath: string): Promise<GetAdrRunResponse> =>
+  http(`/adrs/${enc(relPath)}/run`);
+
+/** Past runs, newest first, for the history drawer. */
+export const getRuns = (): Promise<RunHistoryEntry[]> => http('/runs');
+export const getRun = (runId: string): Promise<RunHistoryEntry> => http(`/runs/${enc(runId)}`);
 
 /**
- * Subscribe to a cascade's live event stream over WebSocket.
+ * Subscribe to an ADR run's live event stream over WebSocket.
  * Returns an unsubscribe function that closes the socket.
  */
-export function subscribeToCascade(
-  id: string,
-  onEvent: (event: CascadeStreamEvent) => void,
+export function subscribeToRun(
+  runId: string,
+  onEvent: (event: AdrRunEvent) => void,
   onError?: (err: Event) => void,
 ): () => void {
   const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
-  const url = `${proto}://${window.location.host}${BASE}/cascades/${enc(id)}/stream`;
+  const url = `${proto}://${window.location.host}${BASE}/runs/${enc(runId)}/stream`;
   const ws = new WebSocket(url);
   ws.onmessage = (msg) => {
     try {
-      onEvent(JSON.parse(msg.data as string) as CascadeStreamEvent);
+      onEvent(JSON.parse(msg.data as string) as AdrRunEvent);
     } catch {
       // Ignore malformed frames; the contract guarantees JSON, this is defense-in-depth.
     }

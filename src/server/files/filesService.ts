@@ -2,6 +2,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import type {
   AdrDoc,
+  AdrStatus,
   LoopDoc,
   LoopFrontmatter,
   WorkflowDef,
@@ -13,7 +14,7 @@ import type { FilesService } from '../../shared';
 import { parseFrontmatter, serializeFrontmatter } from './frontmatter';
 import { parseCriteriaFromBody, upsertCriteriaInBody } from '../../shared';
 
-const DATABANK_DIR = 'databank';
+const DATABANK_DIR = 'loops';
 const DATABANK_PREFIX = `${DATABANK_DIR}/`;
 const CASCADES_DIR = 'cascades';
 
@@ -68,7 +69,7 @@ export class FilesServiceImpl implements FilesService {
   }
 
   async listAdrs(): Promise<AdrDoc[]> {
-    // Recursive so ADRs organised into subfolders (databank/auth/adr-007.md) are listed
+    // Recursive so ADRs organised into subfolders (loops/auth/adr-007.md) are listed
     // with their full relPath — the web sidebar derives its folder tree from those paths.
     const files = await listMarkdownRecursive(this.abs(DATABANK_DIR));
     const adrs = await Promise.all(
@@ -97,6 +98,11 @@ export class FilesServiceImpl implements FilesService {
       title: String(data.title ?? ''),
       body: outBody,
       acceptanceCriteria,
+      children: normalizeStringArray(data.children),
+      status: normalizeAdrStatus(data.status),
+      outputs: normalizeStringArray(data.outputs),
+      ...(data.workflow !== undefined ? { workflow: String(data.workflow) } : {}),
+      ...(data.role !== undefined ? { role: String(data.role) } : {}),
     };
   }
 
@@ -108,7 +114,17 @@ export class FilesServiceImpl implements FilesService {
     const criteria = parsed.hasSection ? parsed.criteria : doc.acceptanceCriteria;
     // ADR criteria are a plain checklist; ids/lock belong to loops only.
     const body = upsertCriteriaInBody(doc.body, criteria, 'plain');
-    const frontmatter = { id: doc.id, title: doc.title };
+    // Always write `status`; omit empty `children`/`outputs` and absent
+    // `workflow`/`role` so files stay clean. `serializeFrontmatter` prunes undefined.
+    const frontmatter: Record<string, unknown> = {
+      id: doc.id,
+      title: doc.title,
+      status: doc.status,
+      children: doc.children.length > 0 ? doc.children : undefined,
+      outputs: doc.outputs.length > 0 ? doc.outputs : undefined,
+      workflow: doc.workflow,
+      role: doc.role,
+    };
     await this.writeFile(doc.relPath, serializeFrontmatter(frontmatter, body));
   }
 
@@ -206,7 +222,7 @@ export class FilesServiceImpl implements FilesService {
     await this.pruneEmptyDirs(path.dirname(fromRel));
   }
 
-  /** Remove now-empty directories from `relDir` up to (but not including) databank/. */
+  /** Remove now-empty directories from `relDir` up to (but not including) loops/. */
   private async pruneEmptyDirs(relDir: string): Promise<void> {
     let dir = relDir;
     while (dir.startsWith(DATABANK_PREFIX)) {
@@ -219,18 +235,18 @@ export class FilesServiceImpl implements FilesService {
     }
   }
 
-  /** Reject paths that normalize outside databank/ (traversal defense). */
+  /** Reject paths that normalize outside loops/ (traversal defense). */
   private assertInDatabank(relPath: string): void {
     if (!isInsideDatabank(relPath)) {
-      throw new MoveError('invalid', `Path is outside databank/: ${relPath}`);
+      throw new MoveError('invalid', `Path is outside loops/: ${relPath}`);
     }
   }
 
   async deleteAdr(relPath: string): Promise<void> {
-    // Traversal defense, and never let a caller wipe the databank/ root itself —
+    // Traversal defense, and never let a caller wipe the loops/ root itself —
     // only files and folders *inside* it are deletable.
     if (!isInsideDatabank(relPath) || path.normalize(relPath) === DATABANK_DIR) {
-      throw new DeleteError('invalid', `Refusing to delete outside databank/ or its root: ${relPath}`);
+      throw new DeleteError('invalid', `Refusing to delete outside loops/ or its root: ${relPath}`);
     }
 
     const relPaths = (await this.listAdrs()).map((a) => a.relPath);
@@ -368,7 +384,21 @@ function normalizeCriteria(value: unknown): AcceptanceCriterion[] {
   });
 }
 
-/** True if `relPath` normalizes to databank/ or somewhere inside it (traversal defense). */
+/** Coerce a loosely-typed frontmatter value into a clean `string[]` (drops blanks). */
+function normalizeStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((v) => String(v)).filter((v) => v.length > 0);
+}
+
+/** The set of valid ADR statuses, kept in lockstep with the `AdrStatus` union. */
+const ADR_STATUSES: readonly AdrStatus[] = ['idle', 'running', 'evaluating', 'passed', 'failed'];
+
+/** Coerce a frontmatter `status` to a known `AdrStatus`, defaulting to `idle`. */
+function normalizeAdrStatus(value: unknown): AdrStatus {
+  return ADR_STATUSES.includes(value as AdrStatus) ? (value as AdrStatus) : 'idle';
+}
+
+/** True if `relPath` normalizes to loops/ or somewhere inside it (traversal defense). */
 function isInsideDatabank(relPath: string): boolean {
   const norm = path.normalize(relPath);
   return norm === DATABANK_DIR || norm.startsWith(DATABANK_PREFIX);

@@ -1,6 +1,12 @@
 import { Type } from 'typebox';
 import type { Tool, ToolCall } from '@earendil-works/pi-ai';
 import type { AdrDoc, ModelRegistry, RoleDef, WorkflowDef } from '../../shared/index';
+import { bodyHasNoCriteria } from '../../shared/index';
+
+/** Warning raised when an ADR is written without acceptance criteria. Surfaced to the agent
+ *  (so it self-corrects) and to the UI (as a chip note). */
+const NO_CRITERIA_WARNING =
+  'This ADR has no acceptance criteria. Add a "## Acceptance criteria" checklist of objectively verifiable items so loops seeded from it can be verified.';
 
 /**
  * The agent's view of the workspace: read/list/search plus the two write primitives
@@ -18,8 +24,12 @@ export interface AssistantWorkspace {
   readModelRegistry(): Promise<ModelRegistry>;
 }
 
-/** Normalized executor result: `ok` drives the UI chip, `text` is fed back to the model. */
-export interface ToolRunResult { ok: boolean; text: string; path?: string }
+/**
+ * Normalized executor result: `ok` drives the UI chip, `text` is fed back to the model.
+ * `warning` is an optional non-fatal note (e.g. an ADR written without acceptance criteria)
+ * surfaced both to the model (appended to `text`) and to the UI (via the tool_result event).
+ */
+export interface ToolRunResult { ok: boolean; text: string; path?: string; warning?: string }
 
 /** kebab-case a string into a filename-safe id; never empty. (Mirrors web `slugify`.) */
 function slugify(name: string): string {
@@ -34,7 +44,7 @@ function uniqueSlug(base: string, taken: Set<string>): string {
   for (let i = 2; ; i += 1) { const c = `${b}-${i}`; if (!taken.has(c)) return c; }
 }
 
-/** basename without extension: 'databank/x/auth.md' -> 'auth'. */
+/** basename without extension: 'loops/x/auth.md' -> 'auth'. */
 function baseId(path: string | undefined): string {
   if (!path) return '';
   return (path.split('/').pop() ?? '').replace(/\.md$/, '');
@@ -43,27 +53,27 @@ function baseId(path: string | undefined): string {
 export const ASSISTANT_TOOLS: Tool[] = [
   {
     name: 'list_docs',
-    description: 'List all databank ADRs (path + title), role ids, and workflow ids.',
+    description: 'List all loops ADRs (path + title), role ids, and workflow ids.',
     parameters: Type.Object({}),
   },
   {
     name: 'read_doc',
-    description: 'Read the full markdown body of one databank ADR by its workspace-relative path (e.g. databank/auth.md).',
-    parameters: Type.Object({ path: Type.String({ description: 'e.g. databank/auth.md' }) }),
+    description: 'Read the full markdown body of one loops ADR by its workspace-relative path (e.g. loops/auth.md).',
+    parameters: Type.Object({ path: Type.String({ description: 'e.g. loops/auth.md' }) }),
   },
   {
     name: 'search',
-    description: 'Find databank ADRs, roles, or workflows whose id/path or body contains the query (case-insensitive substring).',
+    description: 'Find loops ADRs, roles, or workflows whose id/path or body contains the query (case-insensitive substring).',
     parameters: Type.Object({ query: Type.String() }),
   },
   {
     name: 'edit_doc',
-    description: 'Overwrite an existing document. For a databank ADR, content is the new markdown body. For a role/workflow file, content is the full file.',
+    description: 'Overwrite an existing document. For a loops ADR, content is the new markdown body. For a role/workflow file, content is the full file.',
     parameters: Type.Object({ path: Type.String(), content: Type.String() }),
   },
   {
     name: 'create_adr',
-    description: 'Create a new databank ADR. content is the markdown body only.',
+    description: 'Create a new loops ADR. content is the markdown body only.',
     parameters: Type.Object({ title: Type.String(), content: Type.String(), slug: Type.Optional(Type.String()) }),
   },
   {
@@ -120,20 +130,23 @@ export function createToolExecutor(ws: AssistantWorkspace): ToolExecutor {
           case 'edit_doc': {
             const path = String(a.path);
             const content = String(a.content ?? '');
-            if (path.startsWith('databank/')) {
+            if (path.startsWith('loops/')) {
               const adr = await ws.readAdr(path); // throws if unknown
               await ws.writeAdr({ ...adr, body: content });
-            } else {
-              await ws.writeRaw(path, content);
+              const warning = bodyHasNoCriteria(content) ? NO_CRITERIA_WARNING : undefined;
+              return { ok: true, text: `Edited ${path}.${warning ? ` ⚠ ${warning}` : ''}`, path, ...(warning ? { warning } : {}) };
             }
+            await ws.writeRaw(path, content);
             return { ok: true, text: `Edited ${path}.`, path };
           }
           case 'create_adr': {
             const taken = new Set((await ws.listAdrs()).map((d) => baseId(d.relPath)));
             const id = uniqueSlug(baseId(String(a.slug ?? '')) || slugify(String(a.title ?? 'untitled')), taken);
-            const relPath = `databank/${id}.md`;
-            await ws.writeAdr({ id, relPath, title: String(a.title ?? 'Untitled'), body: String(a.content ?? ''), acceptanceCriteria: [] });
-            return { ok: true, text: `Created ${relPath}.`, path: relPath };
+            const relPath = `loops/${id}.md`;
+            const body = String(a.content ?? '');
+            await ws.writeAdr({ id, relPath, title: String(a.title ?? 'Untitled'), body, acceptanceCriteria: [], children: [], status: 'idle', outputs: [] });
+            const warning = bodyHasNoCriteria(body) ? NO_CRITERIA_WARNING : undefined;
+            return { ok: true, text: `Created ${relPath}.${warning ? ` ⚠ ${warning}` : ''}`, path: relPath, ...(warning ? { warning } : {}) };
           }
           case 'create_role':
           case 'create_workflow': {

@@ -69,18 +69,18 @@ describe('runAssistantAgent', () => {
   });
 
   it('executes a tool call then loops and finishes', async () => {
-    const toolCall: ToolCall = { type: 'toolCall', id: 't1', name: 'edit_doc', arguments: { path: 'databank/auth.md', content: 'x' } };
+    const toolCall: ToolCall = { type: 'toolCall', id: 't1', name: 'edit_doc', arguments: { path: 'loops/auth.md', content: 'x' } };
     const turn1 = asstMsg([toolCall], 'toolUse');
     const turn2 = asstMsg([{ type: 'text', text: 'done' }], 'stop');
     const streamFn = vi.fn()
       .mockReturnValueOnce(fakeStream([{ type: 'toolcall_end', contentIndex: 0, toolCall, partial: turn1 }, { type: 'done', reason: 'toolUse', message: turn1 }]) as any)
       .mockReturnValueOnce(fakeStream([{ type: 'text_delta', contentIndex: 0, delta: 'done', partial: turn2 }, { type: 'done', reason: 'stop', message: turn2 }]) as any);
-    const exec: ToolExecutor = { run: vi.fn(async () => ({ ok: true, text: 'Edited databank/auth.md.', path: 'databank/auth.md' })) };
+    const exec: ToolExecutor = { run: vi.fn(async () => ({ ok: true, text: 'Edited loops/auth.md.', path: 'loops/auth.md' })) };
     const out: AssistantStreamEvent[] = [];
     await runAssistantAgent({ messages: [{ role: 'user', text: 'edit it' }] }, baseDeps(streamFn, exec), (e) => out.push(e));
     expect(exec.run).toHaveBeenCalledTimes(1);
-    expect(out).toContainEqual({ type: 'tool_start', tool: 'edit_doc', path: 'databank/auth.md' });
-    expect(out).toContainEqual({ type: 'tool_result', tool: 'edit_doc', path: 'databank/auth.md', ok: true });
+    expect(out).toContainEqual({ type: 'tool_start', tool: 'edit_doc', path: 'loops/auth.md' });
+    expect(out).toContainEqual({ type: 'tool_result', tool: 'edit_doc', path: 'loops/auth.md', ok: true });
     expect(streamFn).toHaveBeenCalledTimes(2);
     expect(out.at(-1)).toEqual({ type: 'done' });
   });

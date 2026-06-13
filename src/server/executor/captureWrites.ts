@@ -2,10 +2,10 @@ import { simpleGit } from 'simple-git';
 
 /**
  * Paths sloop owns and that an agent leaf is never credited with "writing": the
- * desired-state databank, the cascade bookkeeping, and sloop config. Everything
+ * desired-state loops, the cascade bookkeeping, and sloop config. Everything
  * else (notably `code/`) is fair game and subject to the output sandbox.
  */
-export const SLOOP_OWN_PREFIXES = ['databank/', 'cascades/', '.sloop/'] as const;
+export const SLOOP_OWN_PREFIXES = ['loops/', 'cascades/', '.sloop/'] as const;
 
 function isOwn(p: string): boolean {
   return SLOOP_OWN_PREFIXES.some((prefix) => p.startsWith(prefix));

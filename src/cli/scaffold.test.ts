@@ -23,7 +23,10 @@ describe('scaffold', () => {
     const result = await scaffold(dir);
     expect(await exists('.sloop/config.md')).toBe(true);
     expect(await exists('.sloop/workflows/spec-driven.md')).toBe(true);
-    expect(await exists('databank/adr-001-example.md')).toBe(true);
+    expect(await exists('loops/PRD.md')).toBe(true);
+    expect(await exists('loops/architecture/architecture.md')).toBe(true);
+    expect(await exists('loops/plans/implementation-plan.md')).toBe(true);
+    expect(await exists('loops/build/build.md')).toBe(true);
     expect(await exists('.git')).toBe(true);
     expect(await exists('.gitignore')).toBe(true);
     expect(result.gitInitialized).toBe(true);

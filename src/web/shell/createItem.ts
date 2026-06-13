@@ -1,4 +1,4 @@
-// Creating new library/databank items from the sidebar, plus the markdown serializers
+// Creating new library/loops items from the sidebar, plus the markdown serializers
 // the editors reuse on save. Roles and workflows are written through the raw-file API
 // (PUT /api/files), so the frontend owns their on-disk shape: frontmatter + body. ADRs
 // go through the structured putAdr, so the backend serializes those.
@@ -73,11 +73,11 @@ const WORKFLOW_PLACEHOLDER =
 
 /**
  * Create a new ADR, optionally inside a folder (`auth` or `auth/sub`, '' = top level).
- * `existingRelPaths` are the databank relPaths already in the tree (for id uniqueness).
- * Returns the databank-relative subpath to route to (`/databank/<subpath>`).
+ * `existingRelPaths` are the loops relPaths already in the tree (for id uniqueness).
+ * Returns the loops-relative subpath to route to (`/loops/<subpath>`).
  */
 export async function createDatabankItem(existingRelPaths: string[], folder = ''): Promise<string> {
-  const dir = folder ? `databank/${folder}` : 'databank';
+  const dir = folder ? `loops/${folder}` : 'loops';
   const taken = new Set(
     existingRelPaths
       .filter((p) => p.startsWith(`${dir}/`) && !p.slice(dir.length + 1).includes('/'))
@@ -91,8 +91,11 @@ export async function createDatabankItem(existingRelPaths: string[], folder = ''
     title: 'Untitled',
     body: ADR_BODY_TEMPLATE,
     acceptanceCriteria: [],
+    children: [],
+    status: 'idle',
+    outputs: [],
   });
-  return relPath.replace(/^databank\//, '');
+  return relPath.replace(/^loops\//, '');
 }
 
 export type LibKind = 'roles' | 'workflows';
@@ -143,19 +146,19 @@ function serializeLibrary(kind: LibKind, item: RoleDef | WorkflowDef): string {
 }
 
 /**
- * Duplicate a databank ADR in place (same folder), copying its body + criteria under a fresh
- * unique id and a "… copy" title. `existingRelPaths` are the databank relPaths already in the
- * tree (for id uniqueness). Returns the databank-relative subpath to route to.
+ * Duplicate a loops ADR in place (same folder), copying its body + criteria under a fresh
+ * unique id and a "… copy" title. `existingRelPaths` are the loops relPaths already in the
+ * tree (for id uniqueness). Returns the loops-relative subpath to route to.
  */
 export async function duplicateDatabankItem(
   existingRelPaths: string[],
   srcRelPath: string,
 ): Promise<string> {
   const src = await getAdr(srcRelPath);
-  const sub = srcRelPath.replace(/^databank\//, '');
+  const sub = srcRelPath.replace(/^loops\//, '');
   const slashIdx = sub.lastIndexOf('/');
   const folder = slashIdx === -1 ? '' : sub.slice(0, slashIdx);
-  const dir = folder ? `databank/${folder}` : 'databank';
+  const dir = folder ? `loops/${folder}` : 'loops';
   const taken = new Set(
     existingRelPaths
       .filter((p) => p.startsWith(`${dir}/`) && !p.slice(dir.length + 1).includes('/'))
@@ -170,7 +173,7 @@ export async function duplicateDatabankItem(
     relPath,
     title: src.title ? `${src.title} copy` : 'Untitled copy',
   });
-  return relPath.replace(/^databank\//, '');
+  return relPath.replace(/^loops\//, '');
 }
 
 /** Duplicate a role/workflow under a fresh unique id + "… copy" name. Returns the new id. */

@@ -8,12 +8,12 @@ export interface FilesService {
   readAdr(relPath: string): Promise<AdrDoc>;
   writeAdr(doc: AdrDoc): Promise<void>;
   /** Move/rename an ADR file, or a whole folder prefix, on the working tree.
-   *  `from`/`to` are databank-prefixed paths. Throws MoveError on collision,
+   *  `from`/`to` are loops-prefixed paths. Throws MoveError on collision,
    *  cycle, traversal, or a missing source. */
   moveAdr(from: string, to: string): Promise<void>;
   /** Delete an ADR file, or a whole folder subtree, on the working tree.
-   *  `relPath` is a databank-prefixed path. Throws DeleteError on traversal,
-   *  an attempt to delete the databank/ root, or a missing target. */
+   *  `relPath` is a loops-prefixed path. Throws DeleteError on traversal,
+   *  an attempt to delete the loops/ root, or a missing target. */
   deleteAdr(relPath: string): Promise<void>;
   readLoop(relPath: string): Promise<LoopDoc>;
   writeLoop(loop: LoopDoc): Promise<void>;
@@ -28,7 +28,7 @@ export interface FilesService {
 export type ResolveModel = (alias: string, registry: ModelRegistry, env: NodeJS.ProcessEnv) => ResolvedModel;
 
 export interface GitService {
-  diffDatabank(): Promise<DatabankDiff>;     // databank working tree vs last commit
+  diffDatabank(): Promise<DatabankDiff>;     // loops working tree vs last commit
   commitAll(message: string): Promise<string>; // returns short sha
 }
 

@@ -14,7 +14,7 @@ import type { AcceptanceCriterion } from './types';
  *   remainder    -> text
  *
  * Flat (non-nested) single-line items are used deliberately: they survive the
- * databank editor's lossy BlockNote markdown export far more reliably than nested
+ * loops editor's lossy BlockNote markdown export far more reliably than nested
  * lists or HTML comments. This module is the single source of truth for the format.
  * Note: verify commands must not contain backticks (they delimit the inline code span).
  */

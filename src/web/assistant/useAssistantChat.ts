@@ -26,7 +26,7 @@ export function applyEvent(
       return { msg: { ...msg, text: msg.text + e.delta } };
 
     case 'tool_result': {
-      const activity: ToolActivity = { tool: e.tool, path: e.path, ok: e.ok };
+      const activity: ToolActivity = { tool: e.tool, path: e.path, ok: e.ok, warning: e.warning };
       return {
         msg: { ...msg, tools: [...(msg.tools ?? []), activity] },
         wrotePath: e.ok && e.path ? e.path : undefined,

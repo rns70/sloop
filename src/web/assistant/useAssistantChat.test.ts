@@ -31,12 +31,12 @@ describe('applyEvent reducer', () => {
     const e: AssistantStreamEvent = {
       type: 'tool_result',
       tool: 'create_adr',
-      path: 'databank/x.md',
+      path: 'loops/x.md',
       ok: true,
     };
     const { msg: next, wrotePath } = applyEvent(msg, e);
-    expect(next.tools).toContainEqual({ tool: 'create_adr', path: 'databank/x.md', ok: true });
-    expect(wrotePath).toBe('databank/x.md');
+    expect(next.tools).toContainEqual({ tool: 'create_adr', path: 'loops/x.md', ok: true });
+    expect(wrotePath).toBe('loops/x.md');
   });
 
   it('records a failed tool_result without capturing a wrote path', () => {
@@ -44,11 +44,11 @@ describe('applyEvent reducer', () => {
     const e: AssistantStreamEvent = {
       type: 'tool_result',
       tool: 'edit_doc',
-      path: 'databank/y.md',
+      path: 'loops/y.md',
       ok: false,
     };
     const { msg: next, wrotePath } = applyEvent(msg, e);
-    expect(next.tools).toContainEqual({ tool: 'edit_doc', path: 'databank/y.md', ok: false });
+    expect(next.tools).toContainEqual({ tool: 'edit_doc', path: 'loops/y.md', ok: false });
     expect(wrotePath).toBeUndefined();
   });
 

@@ -1,5 +1,5 @@
 // Idempotent workspace initializer. Copies the bundled seed (assets/init-template)
-// into a target dir, ensures a git repo (required for databank diffing), and adds a
+// into a target dir, ensures a git repo (required for loops diffing), and adds a
 // .gitignore entry for transient cascade run state. Never overwrites existing files.
 
 import { promises as fs } from 'node:fs';
@@ -40,7 +40,7 @@ async function ensureGitRepo(root: string): Promise<boolean> {
     await run('git', ['init', '-q'], { cwd: root });
   } catch (err) {
     throw new Error(
-      `sloop needs git to diff the databank, but \`git init\` failed in ${root}. ` +
+      `sloop needs git to diff the loops, but \`git init\` failed in ${root}. ` +
         `Install git and try again. (${err instanceof Error ? err.message : String(err)})`,
     );
   }

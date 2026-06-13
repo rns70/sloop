@@ -39,12 +39,44 @@ export interface LoopDoc {
   relPath: string;     // path within the workspace, e.g. cascades/<id>/<loop>.md
 }
 
+/** Lifecycle of an executable ADR. Stored in frontmatter, written by the runner —
+ *  NOT derived/bubbled. A parent's status reflects its own run (which covers the subtree). */
+export type AdrStatus = 'idle' | 'running' | 'evaluating' | 'passed' | 'failed';
+
 export interface AdrDoc {
   id: string;
   relPath: string;
   title: string;
   body: string;
   acceptanceCriteria: AcceptanceCriterion[];
+  /** Ordered child relPaths (workspace-root-relative, e.g. `loops/architecture/architecture.md`)
+   *  — the authoritative parent->child hierarchy link. `parent` is derived by scanning,
+   *  never authored/stored. */
+  children: string[];
+  status: AdrStatus;
+  /** Optional allow-list of file globs the agent may touch for this ADR. */
+  outputs: string[];
+  /** Optional: supplies model + brief preamble for a run (no step pipeline). */
+  workflow?: string;
+  role?: string;
+}
+
+/** Events streamed while an ADR run executes (over WS /api/runs/:runId/stream). */
+export type AdrRunEvent =
+  | { type: 'status'; relPath: string; status: AdrStatus }
+  | { type: 'output'; relPath: string; chunk: string }
+  | { type: 'eval'; relPath: string; criterionId: string; passed: boolean }
+  | { type: 'done'; runId: string; status: 'passed' | 'failed' }
+  | { type: 'error'; message: string };
+
+/** One past run, surfaced in the history drawer. */
+export interface RunHistoryEntry {
+  id: string;
+  rootRelPath: string;          // the ADR that was run
+  runSet: string[];             // relPaths included in the run (source + descendants)
+  status: 'passed' | 'failed';
+  createdAt: string;            // ISO; stamped server-side, never Date.now in shared code
+  evidence: string[];           // eval evidence / failures
 }
 
 export interface CascadeSummary {
@@ -119,6 +151,7 @@ export interface ToolActivity {
   tool: string;          // e.g. 'edit_doc', 'create_adr'
   path?: string;         // workspace-relative path written, when applicable
   ok: boolean;           // false if the tool threw or returned an error
+  warning?: string;      // non-fatal note, e.g. an ADR written without acceptance criteria
 }
 
 /** A message in the client-held conversation thread. Sent back in full each turn. */
@@ -138,6 +171,6 @@ export interface AssistantChatRequest {
 export type AssistantStreamEvent =
   | { type: 'text_delta'; delta: string }
   | { type: 'tool_start'; tool: string; path?: string }
-  | { type: 'tool_result'; tool: string; path?: string; ok: boolean }
+  | { type: 'tool_result'; tool: string; path?: string; ok: boolean; warning?: string }
   | { type: 'done' }
   | { type: 'error'; message: string };

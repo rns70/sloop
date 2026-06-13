@@ -4,4 +4,5 @@ export * from './types';
 export * from './services';
 export { resolveModel } from './resolveModel';
 export * from './criteriaMarkdown';
+export * from './adrTemplate';
 export * from './loopEditable';

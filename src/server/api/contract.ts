@@ -14,29 +14,20 @@
 //   GET  /api/roles                -> RoleDef[]
 //   GET  /api/models               -> ModelOption[]
 //   POST /api/assistant/stream  -> SSE AssistantStreamEvent   body: AssistantStreamRequestBody
-//   GET  /api/cascades             -> CascadeSummary[]
-//   POST /api/cascades             -> CascadeSummary               body: CreateCascadeRequest
-//   GET  /api/cascades/:id         -> CascadeDetail
-//   POST /api/cascades/:id/approve -> { ok: true }
-//   PATCH /api/cascades/:id/loops/:loopId -> LoopDoc          body: UpdateLoopRequest
-//   WS   /api/cascades/:id/stream  -> CascadeStreamEvent
+//   POST /api/adrs/:relPath/apply-workflow -> AdrDoc                stamps a workflow's starter child tree
+//   POST /api/adrs/:relPath/run    -> RunStartedResponse           starts a run (409 if active)
+//   GET  /api/adrs/:relPath/run    -> GetAdrRunResponse            run to rehydrate this ADR (or null)
+//   GET  /api/runs                 -> RunHistoryEntry[]            history drawer feed
+//   GET  /api/runs/:runId          -> RunHistoryEntry
+//   WS   /api/runs/:runId/stream   -> AdrRunEvent                  live output + status
 //
-// `:relPath` is URL-encoded (it contains slashes, e.g. databank/adr-007.md).
+// `:relPath` is URL-encoded (it contains slashes, e.g. loops/adr-007.md).
 
 import type {
-  AdrDoc, WorkflowDef, RoleDef, CascadeSummary, LoopDoc,
+  AdrDoc, WorkflowDef, RoleDef,
   AssistantChatRequest, AssistantStreamEvent, ModelOption,
+  RunHistoryEntry,
 } from '../../shared/index';
-
-/** PATCH /api/cascades/:id/loops/:loopId — fields to change on a not-yet-executing loop.
- *  Every field is optional; omitted fields are left untouched. Acceptance criteria are
- *  edited as part of `body` (the `## Acceptance criteria` checklist), the on-disk source
- *  of truth, so there is no separate criteria field. */
-export interface UpdateLoopRequest {
-  body?: string;
-  model?: string;
-  role?: string;
-}
 
 export interface Ok {
   ok: true;
@@ -50,14 +41,14 @@ export type PutAdrRequest = AdrDoc;
 export type PutAdrResponse = Ok;
 
 /** POST /api/adrs/:relPath/move — `:relPath` is the source; `to` is the destination
- *  path (both databank-prefixed). Serves file move, file rename, and folder move. */
+ *  path (both loops-prefixed). Serves file move, file rename, and folder move. */
 export interface MoveAdrRequest {
   to: string;
 }
 export type MoveAdrResponse = Ok;
 
 /** DELETE /api/adrs/:relPath — removes a single ADR file or a whole folder subtree
- *  (databank-prefixed path). Empty parent dirs are pruned. */
+ *  (loops-prefixed path). Empty parent dirs are pruned. */
 export type DeleteAdrResponse = Ok;
 
 export interface AdrDiffResponse {
@@ -67,32 +58,33 @@ export interface AdrDiffResponse {
 
 export type GetWorkflowsResponse = WorkflowDef[];
 export type GetRolesResponse = RoleDef[];
-export type GetCascadesResponse = CascadeSummary[];
 
-export interface CreateCascadeRequest {
+/** POST /api/adrs/:relPath/apply-workflow — stamp a workflow's starter child-ADR tree onto
+ *  this ADR (one child per workflow step). Idempotent: re-applying never duplicates children
+ *  whose id already exists. `workflowId` is a WorkflowDef.id. */
+export interface ApplyWorkflowRequest {
   workflowId: string;
 }
-export type CreateCascadeResponse = CascadeSummary;
+/** The updated parent ADR (with the new child ids appended to `children`). */
+export type ApplyWorkflowResponse = AdrDoc;
 
-export interface CascadeDetail {
-  summary: CascadeSummary;
-  loops: LoopDoc[];
+/** POST /api/adrs/:relPath/run — kicks off a run of this ADR + its subtree.
+ *  Returns the run id to subscribe to. 409 if a run is already active (runs are serialized). */
+export interface RunStartedResponse {
+  runId: string;
 }
-export type GetCascadeResponse = CascadeDetail;
 
-export type ApproveCascadeResponse = Ok;
+/** GET /api/adrs/:relPath/run — the run whose buffered events rehydrate this ADR's panel,
+ *  or null if the ADR was never part of one. `live: true` means reconnect to a still-active
+ *  run; `live: false` means replay a finished run's result. */
+export type GetAdrRunResponse = { runId: string; live: boolean } | null;
 
-/** PATCH /api/cascades/:id/loops/:loopId — the persisted loop after the edit. */
-export type UpdateLoopResponse = LoopDoc;
+export type GetRunsResponse = RunHistoryEntry[];
+export type GetRunResponse = RunHistoryEntry;
 
 export type GetModelsResponse = ModelOption[];
 /** POST /api/assistant/stream — streaming, multi-turn, agentic assistant. */
 export type AssistantStreamRequestBody = AssistantChatRequest;
-
-/** Events pushed over WS while a cascade runs. */
-export type CascadeStreamEvent =
-  | { type: 'loop-update'; loop: LoopDoc }
-  | { type: 'output'; loopId: string; chunk: string };
 
 /** Shape the API backend implements. The HTTP/WS layer is a thin adapter over this. */
 export interface SloopApi {
@@ -104,14 +96,23 @@ export interface SloopApi {
   getAdrDiff(relPath: string): Promise<AdrDiffResponse>;
   listWorkflows(): Promise<GetWorkflowsResponse>;
   listRoles(): Promise<GetRolesResponse>;
-  listCascades(): Promise<GetCascadesResponse>;
+  /** Stamp a workflow's starter child-ADR tree onto `relPath` (one child per step).
+   *  Idempotent — re-applying skips children that already exist. Returns the updated parent. */
+  applyWorkflow(relPath: string, workflowId: string): Promise<ApplyWorkflowResponse>;
   /** Configured model aliases for the picker (no API keys). */
   listModels(): Promise<GetModelsResponse>;
   /** Streaming agentic assistant: emits events as it thinks/acts; auto-applies writes. */
   assistantStream(req: AssistantChatRequest, onEvent: (e: AssistantStreamEvent) => void, signal?: AbortSignal): Promise<void>;
-  createCascade(req: CreateCascadeRequest): Promise<CreateCascadeResponse>;
-  getCascade(id: string): Promise<GetCascadeResponse>;
-  approveCascade(id: string): Promise<ApproveCascadeResponse>;
-  /** Edit a not-yet-executing loop's plan/model/role. Rejects (409) once it has begun. */
-  updateLoop(cascadeId: string, loopId: string, patch: UpdateLoopRequest): Promise<UpdateLoopResponse>;
+  /** Run an ADR + its subtree as a single agent pass. Returns the run id. Rejects (409)
+   *  if a run is already active — runs are serialized (shared-checkout safety). */
+  runAdr(relPath: string): Promise<RunStartedResponse>;
+  /** The run that rehydrates `relPath`'s panel (active → live reconnect, else newest finished
+   *  run including it → replay), or null if the ADR was never run. */
+  getAdrRun(relPath: string): Promise<GetAdrRunResponse>;
+  /** Past runs, newest first, for the history drawer. */
+  listRuns(): Promise<GetRunsResponse>;
+  getRun(runId: string): Promise<GetRunResponse>;
 }
+
+/** Re-export so the web client can name the WS event type without reaching into shared. */
+export type { AdrRunEvent, RunHistoryEntry } from '../../shared/index';

@@ -14,7 +14,7 @@ const HELP = `sloop — run sloop against the current directory
 
 Usage:
   sloop              initialize if needed, then serve the UI + API (opens a browser)
-  sloop init         scaffold a sloop workspace here (.sloop/, databank/, git)
+  sloop init         scaffold a sloop workspace here (.sloop/, loops/, git)
   sloop --port <n>   serve on a specific port (default 5174)
   sloop --no-open    serve without opening a browser
   sloop --help       show this help

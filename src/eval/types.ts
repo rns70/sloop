@@ -100,7 +100,7 @@ export type TaskSource = 'handmade' | 'swebench';
 /**
  * A loaded eval task (handmade or SWE-bench), normalized to one shape (spec §3).
  * `heldOut` commands are NEVER shown to the agents; `body` (with its agent-visible
- * `verify` criteria) is written to `adrPath` in the databank before the cascade runs.
+ * `verify` criteria) is written to `adrPath` in the loops before the cascade runs.
  */
 export interface EvalTask {
   id: string;
@@ -109,7 +109,7 @@ export interface EvalTask {
   repo: string;
   /** Git ref to reset the target repo to before each run. */
   baseRef: string;
-  /** Databank file the requirement is written to (e.g. `databank/adr-020-rate-limit.md`). */
+  /** Databank file the requirement is written to (e.g. `loops/adr-020-rate-limit.md`). */
   adrPath: string;
   /** Independent acceptance commands — run by the harness, hidden from agents. */
   heldOut: string[];

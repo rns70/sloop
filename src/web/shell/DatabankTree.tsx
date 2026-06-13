@@ -1,5 +1,5 @@
 // The Databank sidebar tree. Folders are derived purely from ADR file paths
-// (databank/auth/adr-007.md → folder "auth"), so there are no empty directories and no
+// (loops/auth/adr-007.md → folder "auth"), so there are no empty directories and no
 // folder endpoint — a folder exists exactly when it holds a file. Each folder and the
 // root can spawn a new ADR (instant) or a new subfolder (name-first inline input, since a
 // folder's name *is* its path). Navigation/refresh is the parent's job via callbacks.
@@ -36,25 +36,25 @@ import {
 interface FileLeaf {
   title: string;
   to: string;
-  relPath: string; // databank-prefixed, e.g. databank/auth/a.md — the drag source + move identity
+  relPath: string; // loops-prefixed, e.g. loops/auth/a.md — the drag source + move identity
 }
 interface FolderNode {
   name: string;
-  path: string; // databank-relative, e.g. "auth" or "auth/oauth"
+  path: string; // loops-relative, e.g. "auth" or "auth/oauth"
   folders: FolderNode[];
   files: FileLeaf[];
 }
 
 const enc = encodeURIComponent;
 
-/** A folder node's databank-prefixed path. The root node ('') maps to `databank`. */
-const folderRelPath = (nodePath: string) => (nodePath ? `databank/${nodePath}` : 'databank');
+/** A folder node's loops-prefixed path. The root node ('') maps to `loops`. */
+const folderRelPath = (nodePath: string) => (nodePath ? `loops/${nodePath}` : 'loops');
 
-/** Build the folder/file tree from ADR relPaths (each `databank/<...>/<file>.md`). */
+/** Build the folder/file tree from ADR relPaths (each `loops/<...>/<file>.md`). */
 function buildTree(adrs: AdrDoc[]): FolderNode {
   const root: FolderNode = { name: '', path: '', folders: [], files: [] };
   for (const adr of [...adrs].sort((a, b) => a.relPath.localeCompare(b.relPath))) {
-    const sub = adr.relPath.replace(/^databank\//, '');
+    const sub = adr.relPath.replace(/^loops\//, '');
     const segments = sub.split('/');
     const fileName = segments.pop() ?? sub;
     let node = root;
@@ -71,7 +71,7 @@ function buildTree(adrs: AdrDoc[]): FolderNode {
     const dirPrefix = segments.length ? `${segments.map(enc).join('/')}/` : '';
     node.files.push({
       title: adr.title || fileName,
-      to: `/databank/${dirPrefix}${enc(fileName)}`,
+      to: `/loops/${dirPrefix}${enc(fileName)}`,
       relPath: adr.relPath,
     });
   }
@@ -84,11 +84,11 @@ export interface DatabankTreeProps {
   onNewItem: (folder: string) => void;
   /** Create a new subfolder named `name` under `parent` ('' = root). */
   onNewFolder: (parent: string, name: string) => void;
-  /** Move/rename: `from`/`to` are databank-prefixed paths. */
+  /** Move/rename: `from`/`to` are loops-prefixed paths. */
   onMove: (from: string, to: string) => void;
-  /** Duplicate the ADR at `relPath` (databank-prefixed). */
+  /** Duplicate the ADR at `relPath` (loops-prefixed). */
   onDuplicate: (relPath: string) => void;
-  /** Delete the file or folder subtree at `relPath` (databank-prefixed). */
+  /** Delete the file or folder subtree at `relPath` (loops-prefixed). */
   onDelete: (relPath: string) => void;
   /** Whether the root-level "new folder" input is open (driven by the group header). */
   rootAdding: boolean;
@@ -175,9 +175,9 @@ export function DatabankTree({
   );
 }
 
-/** The whole tree body is a drop target for moving items back to the databank root. */
+/** The whole tree body is a drop target for moving items back to the loops root. */
 function RootDrop({ children }: { children: ReactNode }) {
-  const { setNodeRef, isOver } = useDroppable({ id: 'drop:databank' });
+  const { setNodeRef, isOver } = useDroppable({ id: 'drop:loops' });
   return (
     <div ref={setNodeRef} className={cx('rounded-md', isOver && 'ring-1 ring-accent/50')}>
       {children}

@@ -12,7 +12,7 @@ Notion-quiet primitives + the shared markdown editor. **WP-5 imports from
   `text-ink-faint` / `text-ink-subtle`); `text-accent` is the single blue. Metadata is
   plain muted text, never a colored pill.
 - **Role tag** is the one persistent colored element — `<Tag tone={roleTone(role)}>`.
-- **Status** is a dot + label — `<StatusDot status={...} />`.
+- **Status** is a dot + label — a single colored dot beside a status word.
 - **Inline diffs** render in the document flow (green add / red strikethrough), never a
   side rail.
 
@@ -26,7 +26,6 @@ Notion-quiet primitives + the shared markdown editor. **WP-5 imports from
 | `Label` | Small uppercase section label. |
 | `Card` | Light hairline container (use sparingly; prefer divided rows). |
 | `PropertyRow` | Notion-style `label` / value metadata row. |
-| `StatusDot` | Status label with a single colored dot (`running`/`done`/`blocked`/`failed`/`queued`/`planned`). |
 | `Spinner` | Activity spinner (`sm`/`md`/`lg`). Inherits `currentColor`; spins under motion-safe, pulses under reduced-motion. |
 | `Skeleton` | Shimmer placeholder block. Compose several to mirror a layout's shape on load. Decorative (hidden from assistive tech). |
 | `MarkdownEditor` | **The shared BlockNote editor.** Edit / inline-diff / proposal modes. File-agnostic — edits any markdown string. |
@@ -34,7 +33,7 @@ Notion-quiet primitives + the shared markdown editor. **WP-5 imports from
 
 ### Helpers
 
-`cx(...)` (classNames joiner) · `roleTone(role)` → `Tone` · `statusMeta(status)` ·
+`cx(...)` (classNames joiner) · `roleTone(role)` → `Tone` ·
 `diffLines(before, after)` / `hasChanges(before, after)`.
 
 ## `MarkdownEditor` — the core primitive

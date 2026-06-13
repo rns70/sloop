@@ -1,28 +1,25 @@
 // The Cmd+K (Ctrl+K) command palette: a global quick-switcher + action launcher.
 // Opens over any view, fetches the same lists the sidebar shows, fuzzy-filters them
 // (see commands.ts), and runs the chosen command — jump to a file, or fire an action
-// like "New databank entry" or "Save current document". Built on the design tokens so
+// like "New loops entry" or "Save current document". Built on the design tokens so
 // it reads as the same quiet surface as the rest of the app (no new dependency).
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   getAdrs,
-  getCascades,
   getRoles,
   getWorkflows,
   type AdrDoc,
-  type CascadeSummary,
   type RoleDef,
   type WorkflowDef,
 } from '../api-client/index';
 import { cx } from '../design/index';
-import { humanizeCascade } from '../views/mission-control/text';
 import { createDatabankItem, createLibraryItem } from './createItem';
 import { useSaveAction } from './EditorActionsContext';
 import { buildCommands, filterCommands, type CommandItem, type CommandSources } from './commands';
 
-const EMPTY_SOURCES: CommandSources = { adrs: [], cascades: [], roles: [], workflows: [] };
+const EMPTY_SOURCES: CommandSources = { adrs: [], roles: [], workflows: [] };
 
 /** Did this keydown ask to open the palette? Cmd+K on mac, Ctrl+K elsewhere. */
 function isPaletteToggle(e: KeyboardEvent): boolean {
@@ -39,7 +36,6 @@ export function CommandPalette() {
 
   // Raw data; refetched each time the palette opens so freshly-created items appear.
   const [adrs, setAdrs] = useState<AdrDoc[]>([]);
-  const [cascades, setCascades] = useState<CascadeSummary[]>([]);
   const [roles, setRoles] = useState<RoleDef[]>([]);
   const [workflows, setWorkflows] = useState<WorkflowDef[]>([]);
 
@@ -74,7 +70,6 @@ export function CommandPalette() {
 
     let cancelled = false;
     getAdrs().then((v) => !cancelled && setAdrs(v)).catch(() => undefined);
-    getCascades().then((v) => !cancelled && setCascades(v)).catch(() => undefined);
     getRoles().then((v) => !cancelled && setRoles(v)).catch(() => undefined);
     getWorkflows().then((v) => !cancelled && setWorkflows(v)).catch(() => undefined);
     return () => {
@@ -87,12 +82,11 @@ export function CommandPalette() {
       open
         ? {
             adrs: adrs.map((a) => ({ relPath: a.relPath, title: a.title })),
-            cascades: cascades.map((c) => ({ id: c.id, label: humanizeCascade(c.id) })),
             roles: roles.map((r) => ({ id: r.id, name: r.name })),
             workflows: workflows.map((t) => ({ id: t.id, name: t.name })),
           }
         : EMPTY_SOURCES,
-    [open, adrs, cascades, roles, workflows],
+    [open, adrs, roles, workflows],
   );
 
   const commands = useMemo(
@@ -101,7 +95,7 @@ export function CommandPalette() {
         navigate,
         newAdr: () =>
           void createDatabankItem(adrs.map((a) => a.relPath), '')
-            .then((sub) => navigate(`/databank/${sub}?new=1`))
+            .then((sub) => navigate(`/loops/${sub}?new=1`))
             .catch(() => undefined),
         newRole: () =>
           void createLibraryItem('roles', roles.map((r) => r.id))

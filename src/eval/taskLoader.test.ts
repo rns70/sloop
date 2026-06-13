@@ -5,7 +5,7 @@ const VALID = `---
 id: "001-add-rate-limit"
 repo: api-service
 baseRef: main
-adrPath: databank/adr-020-rate-limit.md
+adrPath: loops/adr-020-rate-limit.md
 heldOut:
   - "node --test test/heldout.test.js"
   - "npm run lint"
@@ -25,7 +25,7 @@ describe('parseTask', () => {
     expect(t.source).toBe('handmade');
     expect(t.repo).toBe('api-service');
     expect(t.baseRef).toBe('main');
-    expect(t.adrPath).toBe('databank/adr-020-rate-limit.md');
+    expect(t.adrPath).toBe('loops/adr-020-rate-limit.md');
     expect(t.heldOut).toEqual(['node --test test/heldout.test.js', 'npm run lint']);
     expect(t.modelMixes).toEqual([
       { plan: 'opus', execute: 'haiku' },
@@ -49,7 +49,7 @@ describe('parseTask', () => {
     const raw = `---
 id: x
 repo: r
-adrPath: databank/x.md
+adrPath: loops/x.md
 heldOut: []
 modelMixes:
   - { plan: opus, execute: haiku }

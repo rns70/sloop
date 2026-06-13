@@ -1,56 +1,47 @@
 // Backend for the sloop HTTP/WS API.
 //
 // `RealApi` satisfies the `SloopApi` contract, with every method backed by the
-// genuine services: FilesService (disk), GitService (the databank diff),
-// CascadeEngine (architect → leaves → convergence), the Pi Executor (leaf
-// execution + verify), and the AuthorService.
+// genuine services: FilesService (disk), GitService (the loops diff), the
+// AdrRunner (runs an ADR + its subtree through the Pi Executor + verify), and the
+// AuthorService.
 //
-// Live streaming: the engine emits events *as work happens* via
-// `StreamingSloopApi.subscribe()`, which the WS layer drives. Events are
-// captured two ways and buffered per cascade so a subscriber that connects mid-run
-// (the UI subscribes only after `approve`) still sees the whole progression:
-//   - loop-update — by decorating `FilesService.writeLoop`: every persisted status
-//     change becomes a `{type:'loop-update', loop}` event (the engine persists on
-//     every transition, so this captures queued → executing → review → done and the
-//     root flipping to done — the convergence "money shot").
-//   - output      — via the engine's `onOutput(loopId, chunk)` hook.
+// Live streaming: the runner emits `AdrRunEvent`s *as work happens* via
+// `StreamingSloopApi.subscribe(runId, …)`, which the WS layer drives. Events are
+// buffered per run so a subscriber that connects mid-run still sees the whole
+// progression (status transitions, agent output, eval verdicts, done).
 
 import { registerBuiltInApiProviders, stream } from '@earendil-works/pi-ai';
 import { promises as fs } from 'node:fs';
 import { join, normalize, dirname, sep } from 'node:path';
 import type {
   AdrDoc,
-  CascadeEngine,
-  CascadeSummary,
+  AdrRunEvent,
   FilesService,
   LoopDoc,
-  LoopStatus,
   ModelRegistry,
   ResolvedModel,
+  RunHistoryEntry,
 } from '../../shared/index';
-import { resolveModel, assignMissingIds, isLoopEditable, parseCriteriaFromBody } from '../../shared/index';
+import { resolveModel } from '../../shared/index';
 import { createFilesService } from '../files/index';
 import { createGitService } from '../git/index';
 import { createExecutor } from '../executor/index';
-import { createCascadeEngine } from '../cascade/cascadeEngine';
-import { createArchitect, pickPlannerAlias, type ArchitectPlanner } from '../planner/architect';
-import type { ArchitectPlan, ProposedLeaf } from '../planner/prompt';
+import { createAdrRunner, Conflict as RunnerConflict, type AdrRunner } from '../adr/adrRunner';
+import { planWorkflowScaffold } from '../adr/scaffold';
 import { toModelOptions } from '../assistant/index';
 import { runAssistantAgent } from '../assistant/agent';
 import { createToolExecutor, type AssistantWorkspace } from '../assistant/tools';
 import type {
   AdrDiffResponse,
-  ApproveCascadeResponse,
-  CascadeDetail,
-  CascadeStreamEvent,
-  CreateCascadeRequest,
+  ApplyWorkflowResponse,
   DeleteAdrResponse,
+  GetAdrRunResponse,
   GetModelsResponse,
   MoveAdrResponse,
   Ok,
   PutAdrRequest,
+  RunStartedResponse,
   SloopApi,
-  UpdateLoopRequest,
 } from './contract';
 import { MoveError, DeleteError } from '../files/filesService';
 import type { AssistantChatRequest, AssistantStreamEvent } from '../../shared/index';
@@ -61,32 +52,24 @@ const OK: Ok = { ok: true };
 /** Thrown for missing resources; `index.ts`'s error funnel maps it to a 404. */
 export class NotFound extends Error {}
 
-/** Thrown when a move destination already exists; `buildServer.ts`'s error funnel maps it to a 409. */
+/** Thrown when a write conflicts (move collision, active run); the error funnel maps it to 409. */
 export class Conflict extends Error {}
 
 /**
  * `SloopApi` plus live push. The WS layer (`buildServer.ts`) drives the socket
- * from real engine events via `subscribe`.
+ * from real runner events via `subscribe`.
  */
 export interface StreamingSloopApi extends SloopApi {
   /**
-   * Subscribe to a cascade's event stream. Immediately replays every event buffered
-   * so far (so a late subscriber catches up), then streams live ones. `close` is
-   * invoked when the cascade run finishes so the socket can be torn down. Returns an
-   * unsubscribe function.
+   * Subscribe to a run's event stream. Immediately replays every event buffered so
+   * far (so a late subscriber catches up), then streams live ones. `close` is invoked
+   * when the run finishes so the socket can be torn down. Returns an unsubscribe function.
    */
   subscribe(
-    cascadeId: string,
-    send: (event: CascadeStreamEvent) => void,
+    runId: string,
+    send: (event: AdrRunEvent) => void,
     close: () => void,
   ): () => void;
-}
-
-/** Per-cascade live stream state: a replay buffer + active sinks + completion flag. */
-interface Stream {
-  buffer: CascadeStreamEvent[];
-  sinks: Set<{ send: (e: CascadeStreamEvent) => void; close: () => void }>;
-  done: boolean;
 }
 
 /** Truthy-env check shared with the executor's dry-run semantics (0/false/no/off = off). */
@@ -95,12 +78,6 @@ export function isDryRun(env: NodeJS.ProcessEnv): boolean {
   if (!raw) return false;
   const v = raw.toLowerCase();
   return v !== '0' && v !== 'false' && v !== 'no' && v !== 'off';
-}
-
-/** Extract the cascade id from a loop relPath (`cascades/<id>/<loop>.md`). */
-function cascadeIdOf(relPath: string): string | undefined {
-  const m = /^cascades\/([^/]+)\//.exec(relPath);
-  return m?.[1];
 }
 
 /**
@@ -131,73 +108,11 @@ export function bootstrapPi(registry: ModelRegistry, env: NodeJS.ProcessEnv): vo
 }
 
 /**
- * Deterministic, network-free architect used in dry-run / offline demos.
- *
- * The real architect calls a big model to decompose the diff; for a reliable demo
- * without API keys we instead derive the plan directly from the databank diff: one
- * engineer leaf per changed ADR, copying that ADR's acceptance criteria (id + text +
- * `verify`) onto the leaf — exactly what the spec-driven workflow prescribes. This
- * exercises the *entire* real engine (files, git, convergence, executor, verify,
- * status bubbling); only the LLM planning call is replaced.
- */
-function createOfflinePlanner(files: FilesService, env: NodeJS.ProcessEnv): ArchitectPlanner {
-  return {
-    async propose({ workflow, diff }): Promise<ArchitectPlan> {
-      const plannerAlias = pickPlannerAlias(env, workflow);
-      const engineerStage =
-        workflow.steps.find((s) => s.role === 'engineer') ??
-        workflow.steps[1] ??
-        workflow.steps[0];
-      const leafModel = engineerStage?.model ?? 'haiku';
-
-      const leaves: ProposedLeaf[] = [];
-      for (const change of diff.changed) {
-        if (change.delta === 'delete') continue; // nothing to implement for a removed ADR
-        const adr = await files.readAdr(change.relPath).catch(() => undefined);
-        if (!adr) continue;
-        const slug = (adr.id || change.relPath.replace(/\W+/g, '-')).toLowerCase();
-        leaves.push({
-          id: `implement-${slug}`,
-          role: engineerStage?.role ?? 'engineer',
-          model: leafModel,
-          delta: change.delta,
-          sourceAdr: adr.id || undefined,
-          brief:
-            `Reconcile the codebase to **${adr.title || adr.id}** (${change.delta}). ` +
-            `Make the change so every acceptance criterion below passes.`,
-          acceptanceCriteria: assignMissingIds(adr.acceptanceCriteria).map((c) => ({
-            id: c.id,
-            text: c.text,
-            verify: c.verify,
-          })),
-        });
-      }
-
-      if (leaves.length === 0) {
-        throw new Error(
-          'Offline planner: the databank diff has no actionable ADR changes to reconcile. ' +
-            'Edit an ADR under databank/ before kicking off (dry-run derives leaves from the diff).',
-        );
-      }
-
-      return {
-        plannerAlias,
-        summary:
-          `Offline plan (dry-run): ${leaves.length} engineer leaf loop(s) derived from the ` +
-          `databank diff, following the ${workflow.name} workflow. Each leaf carries its ADR's ` +
-          `acceptance criteria; convergence bubbles up as each \`verify\` command passes.`,
-        leaves,
-      };
-    },
-  };
-}
-
-/**
- * Resolve the model a single leaf runs on, at run time (never at construction). Honors the
- * leaf's own planned `model` alias first, then SLOOP_EXECUTOR_MODEL / SLOOP_PLANNER_MODEL,
- * then a default — so the architect can route different leaves to different providers and
- * Anthropic/Nebius keys are interchangeable per leaf. A missing key throws here (per-leaf
- * "blocked"), not at boot, so the server starts with zero or partial keys configured.
+ * Resolve the model the run's synthetic loop executes on, at run time (never at
+ * construction). Honors the loop's `model` alias first, then SLOOP_EXECUTOR_MODEL /
+ * SLOOP_PLANNER_MODEL, then a default — so Anthropic/Nebius keys are interchangeable.
+ * A missing key throws here (surfaced as a run error), not at boot, so the server
+ * starts with zero or partial keys configured.
  */
 function resolveLeafModel(
   loop: LoopDoc,
@@ -217,16 +132,10 @@ function resolveLeafModel(
  * (async — it reads the registry and bootstraps Pi).
  */
 export class RealApi implements StreamingSloopApi {
-  private readonly streams = new Map<string, Stream>();
-  /** loopId → cascadeId, so the engine's `onOutput(loopId, …)` can route by cascade. */
-  private readonly loopCascade = new Map<string, string>();
-  /** loopId → last status logged, so a re-persist at the same status isn't re-announced. */
-  private readonly lastStatus = new Map<string, LoopStatus>();
-
   private constructor(
     private readonly files: FilesService,
     private readonly git: ReturnType<typeof createGitService>,
-    private readonly engine: CascadeEngine,
+    private readonly runner: AdrRunner,
     private readonly root: string,
     private readonly env: NodeJS.ProcessEnv,
     private readonly log: Logger,
@@ -241,27 +150,17 @@ export class RealApi implements StreamingSloopApi {
     const executor = createExecutor((loop) => resolveLeafModel(loop, registry, env), {
       targetRepo: root,
     });
+    const log = getLogger();
 
-    // Late-bound holder so the writeLoop decorator can reach the not-yet-created instance.
-    const ref: { api?: RealApi } = {};
-    const emittingFiles = decorateFiles(files, (loop) => ref.api?.onLoopWrite(loop));
-
-    const planner: ArchitectPlanner = isDryRun(env)
-      ? createOfflinePlanner(files, env)
-      : createArchitect({ files, env });
-
-    const engine = createCascadeEngine({
-      files: emittingFiles,
-      git,
+    const runner = createAdrRunner({
+      files,
       executor,
-      planner,
+      resolveModel: (alias) => resolveModel(alias, registry, env),
       env,
-      onOutput: (loopId, chunk) => ref.api?.onLoopOutput(loopId, chunk),
+      onEvent: (runId, event) => logRunEvent(log, runId, event),
     });
 
-    const api = new RealApi(files, git, engine, root, env, getLogger());
-    ref.api = api;
-    return api;
+    return new RealApi(files, git, runner, root, env, log);
   }
 
   // ---- ADRs ----------------------------------------------------------------
@@ -300,7 +199,7 @@ export class RealApi implements StreamingSloopApi {
     } catch (err) {
       if (err instanceof DeleteError) {
         if (err.code === 'not_found') throw new NotFound(err.message);
-        throw new Conflict(err.message); // 'invalid' (e.g. path outside databank/)
+        throw new Conflict(err.message); // 'invalid' (e.g. path outside loops/)
       }
       throw err;
     }
@@ -326,6 +225,32 @@ export class RealApi implements StreamingSloopApi {
     return this.files.listRoles();
   }
 
+  /**
+   * Stamp a workflow's starter child-ADR tree onto `relPath` (one child per step). Pure
+   * planning (`planWorkflowScaffold`) decides the children + the parent's updated `children`
+   * list; this method does the IO: write each new child, then the updated parent. Idempotent
+   * — children whose id already exists in the workspace are skipped, so re-applying the same
+   * workflow never duplicates. Returns the updated parent ADR.
+   */
+  async applyWorkflow(relPath: string, workflowId: string): Promise<ApplyWorkflowResponse> {
+    const parent = await this.getAdr(relPath); // 404 if missing
+    const workflows = await this.files.listWorkflows();
+    const workflow = workflows.find((w) => w.id === workflowId);
+    if (!workflow) throw new NotFound(`Workflow not found: ${workflowId}`);
+
+    // Existing ids across the whole workspace make the scaffold idempotent (a re-apply, or a
+    // step whose id collides with an unrelated ADR, is skipped rather than overwriting).
+    const existingIds = new Set((await this.files.listAdrs()).map((a) => a.id));
+    const { children, parentChildren } = planWorkflowScaffold(parent, workflow, existingIds);
+
+    // Write the new children first so the parent never references a child that isn't on disk.
+    for (const child of children) await this.files.writeAdr(child);
+    const updated: AdrDoc = { ...parent, children: parentChildren };
+    await this.files.writeAdr(updated);
+    this.log.info('workflow applied', { adr: relPath, workflow: workflowId, added: children.length });
+    return updated;
+  }
+
   // ---- Global assistant ----------------------------------------------------
 
   async listModels(): Promise<GetModelsResponse> {
@@ -346,9 +271,9 @@ export class RealApi implements StreamingSloopApi {
         const abs = normalize(join(root, relPath));
         if (abs !== root && !abs.startsWith(root + sep)) throw new Error(`Path escapes the workspace: ${relPath}`);
         const rel = abs.slice(root.length + 1).split(sep).join('/'); // normalize to forward slashes
-        const allowed = /^databank\/.+\.md$/.test(rel)
+        const allowed = /^loops\/.+\.md$/.test(rel)
           || /^\.sloop\/(roles|workflows)\/.+\.md$/.test(rel);
-        if (!allowed) throw new Error(`Path not writable by the assistant: ${relPath} (only databank/ and .sloop/{roles,workflows}/ *.md)`);
+        if (!allowed) throw new Error(`Path not writable by the assistant: ${relPath} (only loops/ and .sloop/{roles,workflows}/ *.md)`);
         await fs.mkdir(dirname(abs), { recursive: true });
         await fs.writeFile(abs, content, 'utf8');
       },
@@ -364,229 +289,73 @@ export class RealApi implements StreamingSloopApi {
     }, onEvent, signal);
   }
 
-  // ---- Cascades ------------------------------------------------------------
+  // ---- Runs ----------------------------------------------------------------
 
-  async listCascades(): Promise<CascadeSummary[]> {
-    // Enumerate cascade dirs, then derive each summary via the engine (same path
-    // as `getCascade`). A dir that fails to load (mid-write, malformed) is skipped
-    // so the sidebar still lists the rest. Newest first: ids are date-prefixed, so
-    // a descending id sort is chronological.
-    const ids = await this.files.listCascadeIds();
-    const summaries = await Promise.all(
-      ids.map((id) =>
-        this.engine
-          .get(id)
-          .then((detail) => detail.summary)
-          .catch(() => undefined),
-      ),
-    );
-    return summaries
-      .filter((s): s is CascadeSummary => s !== undefined)
-      .sort((a, b) => b.id.localeCompare(a.id));
-  }
-
-  async createCascade(req: CreateCascadeRequest): Promise<CascadeSummary> {
-    this.log.info('cascade kickoff', { workflow: req.workflowId });
-    const summary = await this.engine.kickoff(req.workflowId);
-    const { add, change, delete: del } = summary.deltas;
-    this.log.info('cascade planned — awaiting approval', {
-      cascade: summary.id,
-      workflow: summary.workflow,
-      deltas: `+${add}/~${change}/-${del}`,
-    });
-    // Prime a stream buffer so a subscriber can attach the instant approval starts.
-    this.streamFor(summary.id);
-    return summary;
-  }
-
-  async getCascade(id: string): Promise<CascadeDetail> {
+  async runAdr(relPath: string): Promise<RunStartedResponse> {
+    // Confirm the ADR exists before delegating, so a bad path is a clean 404.
+    await this.getAdr(relPath);
+    this.log.info('adr run requested', { adr: relPath });
     try {
-      return await this.engine.get(id);
+      const { runId } = await this.runner.runAdr(relPath);
+      this.log.info('adr run started', { adr: relPath, run: runId });
+      return { runId };
     } catch (err) {
-      throw new NotFound(err instanceof Error ? err.message : `Cascade not found: ${id}`);
+      // The runner serializes runs: a second concurrent request is a 409.
+      if (err instanceof RunnerConflict) throw new Conflict(err.message);
+      throw err;
     }
   }
 
-  async approveCascade(id: string): Promise<ApproveCascadeResponse> {
-    // Confirm the cascade exists before kicking off background execution.
-    await this.getCascade(id);
-    const stream = this.streamFor(id);
-    stream.done = false;
-    this.log.info('cascade approved — executing', { cascade: id });
-    const startedAt = Date.now();
-
-    // Run the cascade in the background and return immediately: the UI awaits this
-    // POST, then opens the WS. Buffered events guarantee nothing is missed in the gap.
-    void this.engine
-      .approve(id)
-      .then(async () => {
-        const status = await this.engine.recomputeStatus(id).catch(() => undefined);
-        const ms = Date.now() - startedAt;
-        this.log.info('cascade complete', { cascade: id, status: status ?? 'unknown', durationMs: ms });
-      })
-      .catch((err: unknown) => {
-        const message = err instanceof Error ? err.message : String(err);
-        this.log.error('cascade failed', { cascade: id, error: message });
-        this.emit(id, {
-          type: 'output',
-          loopId: id,
-          chunk: `\n[sloop] cascade failed: ${message}\n`,
-        });
-      })
-      .finally(() => this.finish(id));
-
-    return OK;
+  getAdrRun(relPath: string): Promise<GetAdrRunResponse> {
+    // Pure in-memory lookup; wrapped in a promise to satisfy the async API contract.
+    return Promise.resolve(this.runner.getAdrRun(relPath));
   }
 
-  async updateLoop(cascadeId: string, loopId: string, patch: UpdateLoopRequest): Promise<LoopDoc> {
-    const relPath = `cascades/${cascadeId}/${loopId}.md`;
-    const loop = await this.files.readLoop(relPath).catch(() => {
-      throw new NotFound(`Loop not found: ${cascadeId}/${loopId}`);
-    });
+  async listRuns(): Promise<RunHistoryEntry[]> {
+    return this.runner.listRuns();
+  }
 
-    // Gate on status: a running (or finished) loop is frozen, so an edit can't race the
-    // executing agent or rewrite criteria the convergence invariant already acted on.
-    if (!isLoopEditable(loop.frontmatter.status)) {
-      throw new Conflict(
-        `Loop ${loopId} is ${loop.frontmatter.status}; only loops that have not started executing can be edited.`,
-      );
+  async getRun(runId: string): Promise<RunHistoryEntry> {
+    try {
+      return await this.runner.getRun(runId);
+    } catch (err) {
+      throw new NotFound(err instanceof Error ? err.message : `Run not found: ${runId}`);
     }
-
-    // Validate before mutating (fail fast at the boundary). Empty strings are rejected
-    // rather than silently clearing a required field.
-    const model = patch.model === undefined ? loop.frontmatter.model : patch.model.trim();
-    const role = patch.role === undefined ? loop.frontmatter.role : patch.role.trim();
-    if (!model) throw new Conflict('Loop model must not be empty.');
-    if (!role) throw new Conflict('Loop role must not be empty.');
-
-    // Criteria live in the body's `## Acceptance criteria` checklist (the on-disk source
-    // of truth). Re-derive the structured field from the edited body; `writeLoop` then
-    // canonicalizes the section (stable ids, consistent format) back into the body.
-    const body = patch.body === undefined ? loop.body : patch.body;
-    const acceptanceCriteria = assignMissingIds(parseCriteriaFromBody(body).criteria);
-
-    const updated: LoopDoc = {
-      frontmatter: { ...loop.frontmatter, model, role, acceptanceCriteria },
-      body,
-      relPath,
-    };
-    await this.files.writeLoop(updated);
-    // Surface the edit to any live subscriber (e.g. the tree open in another tab).
-    this.onLoopWrite(updated);
-    return this.files.readLoop(relPath);
   }
 
   subscribe(
-    id: string,
-    send: (event: CascadeStreamEvent) => void,
+    runId: string,
+    send: (event: AdrRunEvent) => void,
     close: () => void,
   ): () => void {
-    const stream = this.streamFor(id);
-    this.log.debug('cascade stream subscribe', { cascade: id, replay: stream.buffer.length });
-    // Replay everything buffered so far, then register for live events. No await
-    // between replay and registration, so the single-threaded event loop cannot
-    // interleave an emit and drop or duplicate a frame.
-    for (const event of stream.buffer) send(event);
-    if (stream.done) {
-      close();
-      return () => undefined;
-    }
-    const sink = { send, close };
-    stream.sinks.add(sink);
-    return () => {
-      stream.sinks.delete(sink);
-    };
-  }
-
-  // ---- internals -----------------------------------------------------------
-
-  private streamFor(id: string): Stream {
-    let stream = this.streams.get(id);
-    if (!stream) {
-      stream = { buffer: [], sinks: new Set(), done: false };
-      this.streams.set(id, stream);
-    }
-    return stream;
-  }
-
-  private emit(id: string, event: CascadeStreamEvent): void {
-    this.logEvent(id, event);
-    const stream = this.streamFor(id);
-    stream.buffer.push(event);
-    for (const sink of stream.sinks) sink.send(event);
-  }
-
-  /**
-   * Mirror a cascade stream event to the console. This is the heart of the CLI progress
-   * view: a loop-update becomes a deduped status-transition line, and an output chunk is
-   * streamed raw (agent text + `[tool]`/`[verify]` markers) so the operator watches work
-   * happen live. Verbosity is governed entirely by SLOOP_LOG_LEVEL via the logger.
-   */
-  private logEvent(id: string, event: CascadeStreamEvent): void {
-    if (event.type === 'output') {
-      this.log.stream(event.chunk);
-      return;
-    }
-    const { id: loopId, status, role, model, kind } = event.loop.frontmatter;
-    const prev = this.lastStatus.get(loopId);
-    if (prev === status) return; // a re-persist at the same status isn't progress
-    this.lastStatus.set(loopId, status);
-    this.log.info(`loop ${loopId}: ${prev ?? '∅'} → ${status}`, {
-      cascade: id,
-      kind,
-      role,
-      model,
-    });
-  }
-
-  private finish(id: string): void {
-    const stream = this.streams.get(id);
-    if (!stream) return;
-    stream.done = true;
-    this.log.debug('cascade stream closed', { cascade: id, subscribers: stream.sinks.size });
-    for (const sink of stream.sinks) sink.close();
-    stream.sinks.clear();
-  }
-
-  /** A persisted loop → a loop-update event (routed by its cascade id). */
-  private onLoopWrite(loop: LoopDoc): void {
-    const id = cascadeIdOf(loop.relPath);
-    if (!id) return;
-    this.loopCascade.set(loop.frontmatter.id, id);
-    this.emit(id, { type: 'loop-update', loop });
-  }
-
-  /** A streamed executor chunk → an output event (routed via loopId → cascade). */
-  private onLoopOutput(loopId: string, chunk: string): void {
-    const id = this.loopCascade.get(loopId);
-    if (!id) return;
-    this.emit(id, { type: 'output', loopId, chunk });
+    this.log.debug('run stream subscribe', { run: runId });
+    return this.runner.subscribe(runId, send, close);
   }
 }
 
 /**
- * Wrap a `FilesService` so every `writeLoop` also fires `onWrite(loop)` — the seam
- * that turns the engine's normal persistence into a live loop-update stream without
- * the engine knowing anything about WebSockets.
+ * Mirror a run event to the console: output chunks stream raw (agent text +
+ * `[tool]`/`[verify]` markers) so the operator watches work happen live; status/eval/
+ * done/error become structured log lines. Verbosity is governed by SLOOP_LOG_LEVEL.
  */
-function decorateFiles(inner: FilesService, onWrite: (loop: LoopDoc) => void): FilesService {
-  return {
-    listAdrs: () => inner.listAdrs(),
-    readAdr: (p) => inner.readAdr(p),
-    writeAdr: (d) => inner.writeAdr(d),
-    moveAdr: (from, to) => inner.moveAdr(from, to),
-    deleteAdr: (p) => inner.deleteAdr(p),
-    readLoop: (p) => inner.readLoop(p),
-    listLoops: (c) => inner.listLoops(c),
-    listCascadeIds: () => inner.listCascadeIds(),
-    listWorkflows: () => inner.listWorkflows(),
-    listRoles: () => inner.listRoles(),
-    readModelRegistry: () => inner.readModelRegistry(),
-    async writeLoop(loop) {
-      await inner.writeLoop(loop);
-      onWrite(loop);
-    },
-  };
+function logRunEvent(log: Logger, runId: string, event: AdrRunEvent): void {
+  switch (event.type) {
+    case 'output':
+      log.stream(event.chunk);
+      return;
+    case 'status':
+      log.info(`run ${runId}: ${event.relPath} → ${event.status}`);
+      return;
+    case 'eval':
+      log.debug(`run ${runId}: ${event.relPath} ${event.criterionId} ${event.passed ? 'PASS' : 'FAIL'}`);
+      return;
+    case 'done':
+      log.info(`run ${runId} complete`, { status: event.status });
+      return;
+    case 'error':
+      log.error(`run ${runId} failed`, { error: event.message });
+      return;
+  }
 }
 
 /** Async factory used by `index.ts` and the CLI to construct the backend. */

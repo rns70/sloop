@@ -33,7 +33,7 @@ describe('mountWebUi', () => {
     expect(mountWebUi(app, dir)).toBe(true);
     const base = await listen(app);
 
-    const res = await fetch(`${base}/databank/anything`);
+    const res = await fetch(`${base}/loops/anything`);
     expect(res.status).toBe(200);
     expect(await res.text()).toContain('sloop');
   });

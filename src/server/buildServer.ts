@@ -1,5 +1,5 @@
 // Assembles the sloop HTTP server: /api routes, the /api/files raw-workspace bridge,
-// the cascade WebSocket stream, the error funnel, and (optionally) the static web UI.
+// the run WebSocket stream, the error funnel, and (optionally) the static web UI.
 // Returns a non-listening http.Server so both the env-driven entrypoint (main) and the
 // programmatic CLI entry (startServer) share one definition.
 
@@ -9,7 +9,7 @@ import { join, normalize, dirname, sep } from 'node:path';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import { WebSocketServer } from 'ws';
 import { NotFound, Conflict, type StreamingSloopApi } from './api/real';
-import type { CascadeStreamEvent } from './api/contract';
+import type { AdrRunEvent } from './api/contract';
 import { mountWebUi } from './webui';
 import { getLogger } from './log';
 
@@ -117,14 +117,18 @@ export function buildServer(opts: BuildServerOptions): { server: Server; uiMount
     }).finally(() => res.end());
   });
 
-  app.get('/api/cascades', h(async (_req, res) => res.json(await api.listCascades())));
-  app.post('/api/cascades', h(async (req, res) => res.json(await api.createCascade(req.body))));
-  app.get('/api/cascades/:id', h(async (req, res) => res.json(await api.getCascade(req.params.id))));
-  app.post('/api/cascades/:id/approve', h(async (req, res) =>
-    res.json(await api.approveCascade(req.params.id)),
+  app.post('/api/adrs/:relPath/apply-workflow', h(async (req, res) =>
+    res.json(await api.applyWorkflow(decodeURIComponent(req.params.relPath), String(req.body?.workflowId ?? ''))),
   ));
-  app.patch('/api/cascades/:id/loops/:loopId', h(async (req, res) =>
-    res.json(await api.updateLoop(req.params.id, req.params.loopId, req.body ?? {})),
+  app.post('/api/adrs/:relPath/run', h(async (req, res) =>
+    res.json(await api.runAdr(decodeURIComponent(req.params.relPath))),
+  ));
+  app.get('/api/adrs/:relPath/run', h(async (req, res) =>
+    res.json(await api.getAdrRun(decodeURIComponent(req.params.relPath))),
+  ));
+  app.get('/api/runs', h(async (_req, res) => res.json(await api.listRuns())));
+  app.get('/api/runs/:runId', h(async (req, res) =>
+    res.json(await api.getRun(decodeURIComponent(req.params.runId))),
   ));
 
   const uiMounted = distDir ? mountWebUi(app, distDir) : false;
@@ -148,7 +152,7 @@ export function buildServer(opts: BuildServerOptions): { server: Server; uiMount
 
   const server = createServer(app);
 
-  const STREAM_RE = /^\/api\/cascades\/([^/]+)\/stream$/;
+  const STREAM_RE = /^\/api\/runs\/([^/]+)\/stream$/;
   const wss = new WebSocketServer({ noServer: true });
 
   server.on('upgrade', (req, socket, head) => {
@@ -159,15 +163,15 @@ export function buildServer(opts: BuildServerOptions): { server: Server; uiMount
       socket.destroy();
       return;
     }
-    const cascadeId = decodeURIComponent(match[1]);
+    const runId = decodeURIComponent(match[1]);
     wss.handleUpgrade(req, socket, head, (ws) => {
-      getLogger().debug('WS client connected', { cascade: cascadeId });
-      const sendEvent = (event: CascadeStreamEvent) => {
+      getLogger().debug('WS client connected', { run: runId });
+      const sendEvent = (event: AdrRunEvent) => {
         if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(event));
       };
-      const unsubscribe = api.subscribe(cascadeId, sendEvent, () => ws.close());
+      const unsubscribe = api.subscribe(runId, sendEvent, () => ws.close());
       ws.on('close', () => {
-        getLogger().debug('WS client disconnected', { cascade: cascadeId });
+        getLogger().debug('WS client disconnected', { run: runId });
         unsubscribe();
       });
     });

@@ -38,7 +38,7 @@ describe('instanceToTask', () => {
     expect(t.source).toBe('swebench');
     expect(t.id).toBe('django__django-12345');
     expect(t.baseRef).toBe('abc123'); // base_commit
-    expect(t.adrPath).toBe('databank/swebench-django__django-12345.md');
+    expect(t.adrPath).toBe('loops/swebench-django__django-12345.md');
     expect(t.body).toContain('Fix the thing that is broken'); // problem_statement
     expect(t.heldOut.length).toBe(2); // hidden tests
     expect(t.swebench?.image).toContain('sweb.eval');

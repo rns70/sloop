@@ -4,7 +4,7 @@ import { ASSISTANT_TOOLS, createToolExecutor, type AssistantWorkspace } from './
 
 function fakeWorkspace(over: Partial<AssistantWorkspace> = {}): { ws: AssistantWorkspace; writes: Array<{ path: string; body: string }> } {
   const writes: Array<{ path: string; body: string }> = [];
-  const adrs: AdrDoc[] = [{ id: 'auth', relPath: 'databank/auth.md', title: 'Auth', body: 'Auth rules', acceptanceCriteria: [] }];
+  const adrs: AdrDoc[] = [{ id: 'auth', relPath: 'loops/auth.md', title: 'Auth', body: 'Auth rules', acceptanceCriteria: [], children: [], status: 'idle', outputs: [] }];
   const roles: RoleDef[] = [{ id: 'architect', name: 'Architect', defaultModel: 'opus', brief: '' }];
   const workflows: WorkflowDef[] = [];
   const ws: AssistantWorkspace = {
@@ -33,22 +33,48 @@ describe('createToolExecutor', () => {
     const exec = createToolExecutor(ws);
     const r = await exec.run({ type: 'toolCall', id: '1', name: 'create_adr', arguments: { title: 'Auth', content: 'New body' } });
     expect(r.ok).toBe(true);
-    expect(r.path).toBe('databank/auth-2.md'); // 'auth' taken
-    expect(writes).toContainEqual({ path: 'databank/auth-2.md', body: 'New body' });
+    expect(r.path).toBe('loops/auth-2.md'); // 'auth' taken
+    expect(writes).toContainEqual({ path: 'loops/auth-2.md', body: 'New body' });
+  });
+
+  it('create_adr warns when the body has no acceptance criteria', async () => {
+    const { ws } = fakeWorkspace();
+    const exec = createToolExecutor(ws);
+    const r = await exec.run({ type: 'toolCall', id: 'c1', name: 'create_adr', arguments: { title: 'Login', content: '## Decision\n\nUse OAuth.' } });
+    expect(r.ok).toBe(true);
+    expect(r.text).toContain('no acceptance criteria');
+  });
+
+  it('create_adr does not warn when the body includes a criteria checklist', async () => {
+    const { ws } = fakeWorkspace();
+    const exec = createToolExecutor(ws);
+    const body = '## Decision\n\nUse OAuth.\n\n## Acceptance criteria\n\n- [ ] Login redirects to the IdP — verify: `curl -sI / | grep 302`';
+    const r = await exec.run({ type: 'toolCall', id: 'c2', name: 'create_adr', arguments: { title: 'Login', content: body } });
+    expect(r.ok).toBe(true);
+    expect(r.text).not.toContain('no acceptance criteria');
+  });
+
+  it('edit_doc warns when an ADR is rewritten without criteria, but not raw files', async () => {
+    const { ws } = fakeWorkspace();
+    const exec = createToolExecutor(ws);
+    const adr = await exec.run({ type: 'toolCall', id: 'e1', name: 'edit_doc', arguments: { path: 'loops/auth.md', content: 'No criteria here' } });
+    expect(adr.text).toContain('no acceptance criteria');
+    const raw = await exec.run({ type: 'toolCall', id: 'e2', name: 'edit_doc', arguments: { path: '.sloop/roles/x.md', content: 'whatever' } });
+    expect(raw.text).not.toContain('no acceptance criteria');
   });
 
   it('edit_doc on an ADR replaces the body', async () => {
     const { ws, writes } = fakeWorkspace();
     const exec = createToolExecutor(ws);
-    const r = await exec.run({ type: 'toolCall', id: '2', name: 'edit_doc', arguments: { path: 'databank/auth.md', content: 'Rewritten' } });
+    const r = await exec.run({ type: 'toolCall', id: '2', name: 'edit_doc', arguments: { path: 'loops/auth.md', content: 'Rewritten' } });
     expect(r.ok).toBe(true);
-    expect(writes).toContainEqual({ path: 'databank/auth.md', body: 'Rewritten' });
+    expect(writes).toContainEqual({ path: 'loops/auth.md', body: 'Rewritten' });
   });
 
   it('edit_doc on an unknown path returns an error result (never throws)', async () => {
     const { ws } = fakeWorkspace();
     const exec = createToolExecutor(ws);
-    const r = await exec.run({ type: 'toolCall', id: '3', name: 'edit_doc', arguments: { path: 'databank/nope.md', content: 'x' } });
+    const r = await exec.run({ type: 'toolCall', id: '3', name: 'edit_doc', arguments: { path: 'loops/nope.md', content: 'x' } });
     expect(r.ok).toBe(false);
     expect(r.text.toLowerCase()).toContain('not found');
   });
@@ -67,7 +93,7 @@ describe('createToolExecutor', () => {
     const exec = createToolExecutor(ws);
     const r = await exec.run({ type: 'toolCall', id: '5', name: 'search', arguments: { query: 'rules' } });
     expect(r.ok).toBe(true);
-    expect(r.text).toContain('databank/auth.md');
+    expect(r.text).toContain('loops/auth.md');
   });
 
   it('unknown tool returns an error result', async () => {
@@ -89,11 +115,11 @@ describe('createToolExecutor', () => {
   it('read_doc truncates long bodies with …[truncated]', async () => {
     const longBody = 'x'.repeat(7000);
     const { ws } = fakeWorkspace({
-      listAdrs: async () => [{ id: 'big', relPath: 'databank/big.md', title: 'Big', body: longBody, acceptanceCriteria: [] }],
-      readAdr: async () => ({ id: 'big', relPath: 'databank/big.md', title: 'Big', body: longBody, acceptanceCriteria: [] }),
+      listAdrs: async () => [{ id: 'big', relPath: 'loops/big.md', title: 'Big', body: longBody, acceptanceCriteria: [], children: [], status: 'idle', outputs: [] }],
+      readAdr: async () => ({ id: 'big', relPath: 'loops/big.md', title: 'Big', body: longBody, acceptanceCriteria: [], children: [], status: 'idle', outputs: [] }),
     });
     const exec = createToolExecutor(ws);
-    const r = await exec.run({ type: 'toolCall', id: '8', name: 'read_doc', arguments: { path: 'databank/big.md' } });
+    const r = await exec.run({ type: 'toolCall', id: '8', name: 'read_doc', arguments: { path: 'loops/big.md' } });
     expect(r.ok).toBe(true);
     expect(r.text).toContain('…[truncated]');
     expect(r.text.length).toBeLessThan(longBody.length);

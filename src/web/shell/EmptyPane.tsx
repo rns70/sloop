@@ -2,7 +2,7 @@ import { Page } from '../design/index';
 
 /**
  * The content pane when a file-backed section is open but no file is selected. Navigation
- * now lives entirely in the sidebar tree, so these section roots (/databank, /libraries)
+ * now lives entirely in the sidebar tree, so these section roots (/loops, /libraries)
  * are landing prompts rather than overview pages. Pure presentational — no data I/O.
  */
 export function EmptyPane({ section, hint }: { section: string; hint: string }) {

@@ -113,7 +113,7 @@ export async function runAssistantAgent(
         emit({ type: 'error', message: e instanceof Error ? e.message : 'tool execution failed' });
         return;
       }
-      emit({ type: 'tool_result', tool: call.name, path: result.path ?? path, ok: result.ok });
+      emit({ type: 'tool_result', tool: call.name, path: result.path ?? path, ok: result.ok, ...(result.warning ? { warning: result.warning } : {}) });
       const toolResult: Message = {
         role: 'toolResult',
         toolCallId: call.id,

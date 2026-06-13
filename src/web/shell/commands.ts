@@ -1,5 +1,5 @@
 // Pure core for the Cmd+K command palette: turning the app's navigable surfaces
-// (ADRs, cascades, roles, workflows) and global actions into a flat, searchable
+// (ADRs, roles, workflows) and global actions into a flat, searchable
 // command list, plus the fuzzy matcher that ranks them against a query. Kept free
 // of React/DOM so it can be unit-tested in the node test env (commands.test.ts);
 // the CommandPalette component owns all rendering, focus and data-fetching.
@@ -25,7 +25,6 @@ export interface CommandItem {
 /** The navigable data the palette draws on — the same lists the sidebar fetches. */
 export interface CommandSources {
   adrs: { relPath: string; title: string }[];
-  cascades: { id: string; label: string }[];
   roles: { id: string; name: string }[];
   workflows: { id: string; name: string }[];
 }
@@ -43,16 +42,16 @@ export interface CommandHandlers {
 const enc = encodeURIComponent;
 
 /**
- * Route for an ADR given its `databank/<...>/<file>.md` relPath. Mirrors DatabankTree
- * exactly (strip the `databank/` prefix, encode only the filename segment) so palette
+ * Route for an ADR given its `loops/<...>/<file>.md` relPath. Mirrors DatabankTree
+ * exactly (strip the `loops/` prefix, encode only the filename segment) so palette
  * links resolve to the same URLs the sidebar produces — one source of truth for the shape.
  */
 export function adrRoute(relPath: string): string {
-  const sub = relPath.replace(/^databank\//, '');
+  const sub = relPath.replace(/^loops\//, '');
   const parts = sub.split('/');
   const fileName = parts.pop() ?? '';
   const dir = parts.length ? `${parts.join('/')}/` : '';
-  return `/databank/${dir}${enc(fileName)}`;
+  return `/loops/${dir}${enc(fileName)}`;
 }
 
 /** Flatten every navigable surface + the global actions into one command list. */
@@ -63,7 +62,7 @@ export function buildCommands(sources: CommandSources, handlers: CommandHandlers
   items.push(
     {
       id: 'action:new-adr',
-      title: 'New databank entry',
+      title: 'New loops entry',
       group: 'Actions',
       keywords: 'create add adr requirement',
       run: handlers.newAdr,
@@ -97,21 +96,13 @@ export function buildCommands(sources: CommandSources, handlers: CommandHandlers
 
   // --- Navigation (jump straight to any file or run) ---
   for (const adr of sources.adrs) {
-    const sub = adr.relPath.replace(/^databank\//, '');
+    const sub = adr.relPath.replace(/^loops\//, '');
     items.push({
       id: `nav:adr:${adr.relPath}`,
       title: adr.title || sub,
       group: 'Databank',
       hint: sub,
       run: () => handlers.navigate(adrRoute(adr.relPath)),
-    });
-  }
-  for (const c of sources.cascades) {
-    items.push({
-      id: `nav:cascade:${c.id}`,
-      title: c.label,
-      group: 'Cascades',
-      run: () => handlers.navigate(`/cascades/${enc(c.id)}`),
     });
   }
   for (const r of sources.roles) {

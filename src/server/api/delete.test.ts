@@ -8,11 +8,11 @@ let root: string;
 
 beforeEach(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), 'sloop-del-'));
-  await fs.mkdir(path.join(root, 'databank/auth'), { recursive: true });
+  await fs.mkdir(path.join(root, 'loops/auth'), { recursive: true });
   await fs.mkdir(path.join(root, '.sloop'), { recursive: true });
-  await fs.writeFile(path.join(root, 'databank/a.md'), '---\nid: a\ntitle: A\n---\n\nBody.\n', 'utf8');
+  await fs.writeFile(path.join(root, 'loops/a.md'), '---\nid: a\ntitle: A\n---\n\nBody.\n', 'utf8');
   await fs.writeFile(
-    path.join(root, 'databank/auth/b.md'),
+    path.join(root, 'loops/auth/b.md'),
     '---\nid: b\ntitle: B\n---\n\nBody.\n',
     'utf8',
   );
@@ -30,26 +30,26 @@ afterEach(async () => {
 describe('RealApi.deleteAdr', () => {
   it('deletes a single file', async () => {
     const api = await createRealApi(root, { SLOOP_DRY_RUN: '1' } as NodeJS.ProcessEnv);
-    await api.deleteAdr('databank/a.md');
+    await api.deleteAdr('loops/a.md');
     const relPaths = (await api.listAdrs()).map((x) => x.relPath);
-    expect(relPaths).not.toContain('databank/a.md');
-    expect(relPaths).toContain('databank/auth/b.md');
+    expect(relPaths).not.toContain('loops/a.md');
+    expect(relPaths).toContain('loops/auth/b.md');
   });
 
   it('deletes a whole folder subtree and prunes the empty dir', async () => {
     const api = await createRealApi(root, { SLOOP_DRY_RUN: '1' } as NodeJS.ProcessEnv);
-    await api.deleteAdr('databank/auth');
+    await api.deleteAdr('loops/auth');
     const relPaths = (await api.listAdrs()).map((x) => x.relPath);
-    expect(relPaths).toEqual(['databank/a.md']);
-    await expect(fs.access(path.join(root, 'databank/auth'))).rejects.toThrow();
+    expect(relPaths).toEqual(['loops/a.md']);
+    await expect(fs.access(path.join(root, 'loops/auth'))).rejects.toThrow();
   });
 
   it('throws NotFound for a missing path', async () => {
     const api = await createRealApi(root, { SLOOP_DRY_RUN: '1' } as NodeJS.ProcessEnv);
-    await expect(api.deleteAdr('databank/nope.md')).rejects.toBeInstanceOf(NotFound);
+    await expect(api.deleteAdr('loops/nope.md')).rejects.toBeInstanceOf(NotFound);
   });
 
-  it('throws Conflict when refusing to delete outside databank/', async () => {
+  it('throws Conflict when refusing to delete outside loops/', async () => {
     const api = await createRealApi(root, { SLOOP_DRY_RUN: '1' } as NodeJS.ProcessEnv);
     await expect(api.deleteAdr('.sloop/config.md')).rejects.toBeInstanceOf(Conflict);
   });

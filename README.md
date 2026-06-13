@@ -47,6 +47,30 @@ flowchart TD
   I --> A
 ```
 
+## Running Sloop
+
+Sloop runs as a CLI that operates on **the directory you launch it from** — your project's working directory. There's no separate workspace to register or import: `cd` into the repo you want to work on and Sloop treats that directory as the canonical workspace. All loop docs, generated/maintained files, and the agent's edits land directly in that tree, so Git is the single source of truth for everything Sloop does.
+
+```bash
+# from inside the project you want to work on
+sloop              # initialize if needed, then serve the UI + API (opens a browser)
+sloop init         # scaffold a sloop workspace here (.sloop/, databank/, git)
+sloop --port 5500  # serve on a specific port (default 5174)
+sloop --no-open    # serve without opening a browser
+sloop --help       # full usage
+sloop --version    # print the version
+```
+
+On first run in a fresh directory, Sloop scaffolds a workspace in place:
+
+- `.sloop/` — per-run agent session state and Sloop's own runtime data.
+- `databank/` — the paper surface: loop docs, ADRs, and other Markdown.
+- a Git repo (initialized if the directory isn't already one) so every agent change is a diff you can inspect, history you can browse, and a commit you can roll back.
+
+The local server owns filesystem access, Git status/diffs, and agent orchestration; the browser UI is the paper-first editing surface. Because Sloop binds to the current directory, you can run an isolated instance per project simply by launching it from a different folder.
+
+Set a model provider key before running cascades — Sloop checks for `ANTHROPIC_API_KEY` or `NEBIUS_API_KEY` and warns if neither is present.
+
 ## Example Loop Shape
 
 ```md

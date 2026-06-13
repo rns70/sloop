@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { getAdr, getAdrDiff, putAdr, type AdrDoc } from '../../api-client/index';
 import { bodyHasNoCriteria, CRITERIA_ASSISTANT_INSTRUCTION } from '../../../shared/index';
 import { Button, CriteriaWarning, EditableTitle, MarkdownEditor, Page, cx, type MarkdownEditorHandle } from '../../design/index';
-import { useAssistant } from '../../assistant/AssistantContext';
+import { signalTouches, useAssistant } from '../../assistant/AssistantContext';
 import { useRegisterSave } from '../../shell/EditorActionsContext';
 import { InlineDiff } from './InlineDiff';
+import { RunPanel } from './RunPanel';
 
 type Mode = 'edit' | 'changes';
 
@@ -18,7 +19,7 @@ type Mode = 'edit' | 'changes';
 export function AdrEditor() {
   const params = useParams();
   const file = params['*'] ?? ''; // splat: may include folders, e.g. auth/adr-007.md
-  const relPath = `databank/${file}`;
+  const relPath = `loops/${file}`;
   const [searchParams] = useSearchParams();
   const isNew = searchParams.get('new') === '1';
 
@@ -31,31 +32,51 @@ export function AdrEditor() {
   const [error, setError] = useState<string | null>(null);
 
   const editorRef = useRef<MarkdownEditorHandle>(null);
-  const { registerOpenDoc, runAssistant } = useAssistant();
+  const { registerOpenDoc, runAssistant, writeSignal } = useAssistant();
 
+  /** Fetch the ADR body + diff baseline from disk. `fresh` resets the view (Loading…,
+   *  back to edit mode) when the path changes; an in-place refresh after an assistant
+   *  write keeps the current view and just swaps in the new content. Returns a cleanup
+   *  that cancels the in-flight fetch so a stale response can't overwrite newer state. */
+  const load = useCallback(
+    (fresh: boolean) => {
+      let cancelled = false;
+      if (fresh) {
+        setAdr(null);
+        setMode('edit');
+      }
+      setError(null);
+      getAdr(relPath)
+        .then((doc) => {
+          if (cancelled) return;
+          setAdr(doc);
+          setTitle(doc.title);
+          setBody(doc.body);
+        })
+        .catch((e: unknown) => {
+          if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+        });
+      // The diff is best-effort: a brand-new ADR has no committed baseline yet.
+      getAdrDiff(relPath)
+        .then((diff) => !cancelled && setCommitted(diff.before))
+        .catch(() => !cancelled && setCommitted(''));
+      return () => {
+        cancelled = true;
+      };
+    },
+    [relPath],
+  );
+
+  useEffect(() => load(true), [load]);
+
+  // The "Add with assistant" criteria shortcut runs in the rail and writes this doc to
+  // disk via the API (not the inline-diff channel), and the rail's navigate-to-written-
+  // path is a no-op when we're already showing it — so without this the editor keeps the
+  // pre-write body. Refetch in place when the assistant touches *this* path.
   useEffect(() => {
-    let cancelled = false;
-    setAdr(null);
-    setError(null);
-    setMode('edit');
-    getAdr(relPath)
-      .then((doc) => {
-        if (cancelled) return;
-        setAdr(doc);
-        setTitle(doc.title);
-        setBody(doc.body);
-      })
-      .catch((e: unknown) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
-      });
-    // The diff is best-effort: a brand-new ADR has no committed baseline yet.
-    getAdrDiff(relPath)
-      .then((diff) => !cancelled && setCommitted(diff.before))
-      .catch(() => !cancelled && setCommitted(''));
-    return () => {
-      cancelled = true;
-    };
-  }, [relPath]);
+    if (!signalTouches(writeSignal, relPath)) return;
+    return load(false);
+  }, [writeSignal, relPath, load]);
 
   // Register this doc with the global assistant so the rail can use it as context and
   // hand an edit of THIS doc to the editor's inline accept/reject diff (no API write).
@@ -139,6 +160,9 @@ export function AdrEditor() {
           <EditableTitle value={title} onChange={setTitle} autoFocus={isNew} />
           <div className="mb-5 mt-1 font-mono text-[12px] text-ink-faint">{file}</div>
 
+          {/* Run controls + the live run tree sit at the TOP, above the document. */}
+          <RunPanel key={relPath} adr={adr} onApplied={() => load(false)} />
+
           {mode === 'edit' && missingCriteria && (
             <CriteriaWarning
               action={
@@ -162,7 +186,6 @@ export function AdrEditor() {
           ) : (
             <InlineDiff before={committed} after={body} />
           )}
-
         </>
       )}
     </Page>

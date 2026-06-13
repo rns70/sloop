@@ -8,12 +8,11 @@
 //   Label        — small uppercase section label
 //   Card         — light hairline container (use sparingly; prefer divided rows)
 //   PropertyRow  — Notion-style label / value metadata row
-//   StatusDot    — status label with a single colored dot
 //   MarkdownEditor — the shared BlockNote editor (edit / inline-diff / proposal modes)
 //   InlineDiffView — in-document add/remove diff renderer (used by MarkdownEditor)
 //
 // Helpers:
-//   cx, roleTone, statusMeta, diffLines, hasChanges
+//   cx, roleTone, diffLines, hasChanges
 export { Page } from './Page';
 export type { PageProps } from './Page';
 export { Tag } from './Tag';
@@ -27,8 +26,6 @@ export { Card } from './Card';
 export type { CardProps } from './Card';
 export { PropertyRow } from './PropertyRow';
 export type { PropertyRowProps } from './PropertyRow';
-export { StatusDot } from './StatusDot';
-export type { StatusDotProps } from './StatusDot';
 export { Spinner } from './Spinner';
 export type { SpinnerProps } from './Spinner';
 export { Skeleton } from './Skeleton';
@@ -45,7 +42,7 @@ export { InlineDiffView } from './InlineDiffView';
 export type { InlineDiffViewProps } from './InlineDiffView';
 
 export { cx } from './cx';
-export { roleTone, statusMeta, TONE_CLASS } from './tokens';
-export type { Tone, StatusMeta } from './tokens';
+export { roleTone, TONE_CLASS } from './tokens';
+export type { Tone } from './tokens';
 export { diffLines, hasChanges } from './diff';
 export type { DiffLine, DiffOp } from './diff';

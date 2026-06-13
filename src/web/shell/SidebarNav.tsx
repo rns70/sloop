@@ -1,32 +1,28 @@
 // The sidebar navigation tree. File-backed sections list their files directly: Databank
-// is a nested folder tree (see DatabankTree), Roles/Workflows are flat lists, Cascades is
-// a live run list. Each section can create new items inline — a quiet, hover-revealed "+"
-// on its header (Notion-style); Databank also gets a "new folder". Lists refresh on every
-// navigation, so a freshly-created item (or kicked-off cascade) shows up immediately.
+// is a nested folder tree (see DatabankTree), Roles/Workflows are flat lists. Each section
+// can create new items inline — a quiet, hover-revealed "+" on its header (Notion-style);
+// Databank also gets a "new folder". Lists refresh on every navigation, so a freshly-created
+// item shows up immediately.
 //
 // Every row also carries a right-click context menu (see ContextMenu): Rename (inline) +
-// Duplicate + Delete for editable items; Re-run + Delete for cascade runs. Rename reuses the
-// same move/inline-edit path as double-click; Duplicate/Delete/Re-run are client-side calls.
+// Duplicate + Delete. Rename reuses the same move/inline-edit path as double-click;
+// Duplicate/Delete are client-side calls.
 
 import { useEffect, useState, type ReactNode } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
-  createCascade,
   deleteAdr,
   deleteFile,
   getAdrs,
-  getCascades,
   getRoles,
   getWorkflows,
   moveAdr,
   ApiError,
   type AdrDoc,
-  type CascadeSummary,
   type RoleDef,
   type WorkflowDef,
 } from '../api-client/index';
 import { IconButton, cx } from '../design/index';
-import { humanizeCascade } from '../views/mission-control/text';
 import { DatabankTree } from './DatabankTree';
 import {
   createDatabankItem,
@@ -212,12 +208,10 @@ export function SidebarNav() {
   const [adrs, setAdrs] = useState<AdrDoc[] | null>(null);
   const [roles, setRoles] = useState<RoleDef[] | null>(null);
   const [workflows, setWorkflows] = useState<WorkflowDef[] | null>(null);
-  const [cascades, setCascades] = useState<CascadeSummary[] | null>(null);
   const [errs, setErrs] = useState<{
     adrs?: string;
     roles?: string;
     workflows?: string;
-    cascades?: string;
   }>({});
   const [rootAddingFolder, setRootAddingFolder] = useState(false);
   // A rejected move (e.g. a name collision -> 409) is transient: the tree loaded fine,
@@ -228,7 +222,7 @@ export function SidebarNav() {
   const reload = () => setReloadTick((t) => t + 1);
 
   const fail =
-    (key: 'adrs' | 'roles' | 'workflows' | 'cascades') => (e: unknown) =>
+    (key: 'adrs' | 'roles' | 'workflows') => (e: unknown) =>
       setErrs((prev) => ({ ...prev, [key]: e instanceof Error ? e.message : String(e) }));
 
   // Refresh every list on navigation (and after an in-place mutation) so newly-created,
@@ -239,7 +233,6 @@ export function SidebarNav() {
     getAdrs().then((v) => !cancelled && setAdrs(v)).catch(fail('adrs'));
     getRoles().then((v) => !cancelled && setRoles(v)).catch(fail('roles'));
     getWorkflows().then((v) => !cancelled && setWorkflows(v)).catch(fail('workflows'));
-    getCascades().then((v) => !cancelled && setCascades(v)).catch(fail('cascades'));
     return () => {
       cancelled = true;
     };
@@ -248,13 +241,13 @@ export function SidebarNav() {
   // ---- Create handlers (navigate to the new item with ?new=1 to focus its title) ----
   const newAdr = (folder: string) => {
     void createDatabankItem((adrs ?? []).map((a) => a.relPath), folder)
-      .then((sub) => navigate(`/databank/${sub}?new=1`))
+      .then((sub) => navigate(`/loops/${sub}?new=1`))
       .catch(fail('adrs'));
   };
   const newFolder = (parent: string, name: string) => {
     const folder = parent ? `${parent}/${slugify(name)}` : slugify(name);
     void createDatabankItem((adrs ?? []).map((a) => a.relPath), folder)
-      .then((sub) => navigate(`/databank/${sub}?new=1`))
+      .then((sub) => navigate(`/loops/${sub}?new=1`))
       .catch(fail('adrs'));
   };
   const newLib = (kind: LibKind) => {
@@ -264,14 +257,14 @@ export function SidebarNav() {
       .catch(fail(kind));
   };
 
-  // Move/rename a databank entry (file or folder prefix). On success, re-fetch the tree;
+  // Move/rename a loops entry (file or folder prefix). On success, re-fetch the tree;
   // if the currently-open ADR was the one moved, follow it to its new URL so the editor
-  // doesn't 404. `from`/`to` are databank-prefixed paths (e.g. databank/auth/a.md).
+  // doesn't 404. `from`/`to` are loops-prefixed paths (e.g. loops/auth/a.md).
   const moveDatabank = (from: string, to: string) => {
     setMoveErr(null);
-    const openPath = decodeURIComponent(location.pathname.replace(/^\/databank\//, ''));
-    const openRel = `databank/${openPath}`;
-    const toUrl = (rel: string) => `/databank/${rel.replace(/^databank\//, '')}`;
+    const openPath = decodeURIComponent(location.pathname.replace(/^\/loops\//, ''));
+    const openRel = `loops/${openPath}`;
+    const toUrl = (rel: string) => `/loops/${rel.replace(/^loops\//, '')}`;
     void moveAdr(from, to)
       .then(() => getAdrs())
       .then((next) => {
@@ -294,21 +287,21 @@ export function SidebarNav() {
       });
   };
 
-  // Duplicate a databank file in place; route to the copy (focused for an immediate rename).
+  // Duplicate a loops file in place; route to the copy (focused for an immediate rename).
   const duplicateDatabank = (relPath: string) => {
     void duplicateDatabankItem((adrs ?? []).map((a) => a.relPath), relPath)
-      .then((sub) => navigate(`/databank/${sub}?new=1`))
+      .then((sub) => navigate(`/loops/${sub}?new=1`))
       .catch(fail('adrs'));
   };
 
-  // Delete a databank file or folder subtree. If the open ADR was (under) it, leave the editor.
+  // Delete a loops file or folder subtree. If the open ADR was (under) it, leave the editor.
   const deleteDatabank = (relPath: string) => {
     void deleteAdr(relPath)
       .then(() => getAdrs())
       .then((next) => {
         setAdrs(next);
-        if (location.pathname.startsWith('/databank/')) {
-          const openRel = `databank/${decodeURIComponent(location.pathname.replace(/^\/databank\//, ''))}`;
+        if (location.pathname.startsWith('/loops/')) {
+          const openRel = `loops/${decodeURIComponent(location.pathname.replace(/^\/loops\//, ''))}`;
           if (openRel === relPath || openRel.startsWith(`${relPath}/`)) navigate('/');
         }
       })
@@ -334,32 +327,6 @@ export function SidebarNav() {
       .catch(fail(kind));
   };
 
-  // ---- Cascade menu handlers ----
-  const rerunCascade = (c: CascadeSummary) => {
-    void createCascade({ workflowId: c.workflow })
-      .then((summary) => navigate(`/cascades/${enc(summary.id)}`))
-      .catch(fail('cascades'));
-  };
-  const deleteCascade = (c: CascadeSummary) => {
-    void deleteFile(`cascades/${c.id}`)
-      .then(() => {
-        if (location.pathname === `/cascades/${enc(c.id)}`) navigate('/');
-        else reload();
-      })
-      .catch(fail('cascades'));
-  };
-
-  const cascadeLeaves: Leaf[] | null =
-    cascades &&
-    cascades.map((c) => ({
-      to: `/cascades/${enc(c.id)}`,
-      label: humanizeCascade(c.id),
-      menu: () => [
-        { label: 'Re-run', onSelect: () => rerunCascade(c) },
-        'separator',
-        { label: 'Delete', danger: true, confirm: 'Delete cascade?', onSelect: () => deleteCascade(c) },
-      ],
-    }));
   const roleLeaves: Leaf[] | null =
     roles &&
     roles.map((r) => ({
@@ -402,11 +369,11 @@ export function SidebarNav() {
           actions={
             adrs && (
               <>
-                <IconButton aria-label="New databank entry" onClick={() => newAdr('')}>
+                <IconButton aria-label="New loops entry" onClick={() => newAdr('')}>
                   <span className="text-[14px] leading-none">＋</span>
                 </IconButton>
                 <IconButton
-                  aria-label="New databank folder"
+                  aria-label="New loops folder"
                   onClick={() => setRootAddingFolder(true)}
                 >
                   <FolderPlusIcon />
@@ -450,8 +417,6 @@ export function SidebarNav() {
             </>
           )}
         </NavGroup>
-
-        <NavGroup label="Cascades" items={cascadeLeaves} error={errs.cascades ?? null} />
 
         <NavGroup
           label="Roles"

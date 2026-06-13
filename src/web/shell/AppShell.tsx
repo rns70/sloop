@@ -1,5 +1,5 @@
 import { Outlet } from 'react-router-dom';
-import { KickoffMenu } from './KickoffMenu';
+import { HistoryDrawer } from './HistoryDrawer';
 import { SidebarNav } from './SidebarNav';
 import { AssistantRail } from './AssistantRail';
 import { CommandPalette } from './CommandPalette';
@@ -8,9 +8,9 @@ import { useSaveHotkey } from './useSaveHotkey';
 
 /**
  * The app shell: a quiet left sidebar (the only navigation — no top tabs) plus the
- * routed content area. The sidebar carries the logo, the global "kick off cascade"
- * affordance, and the navigation tree — file-backed sections list their files inline
- * (see SidebarNav), so a click opens a file directly with no overview page in between.
+ * routed content area. The sidebar carries the logo, the run-history drawer trigger,
+ * and the navigation tree — file-backed sections list their files inline (see SidebarNav),
+ * so a click opens a file directly with no overview page in between.
  *
  * Global keyboard surfaces live here so they span every view: Cmd+S saves the open
  * document (useSaveHotkey) and Cmd+K opens the command palette. Both read the active
@@ -33,14 +33,14 @@ function ShellChrome() {
           <span className="text-ink-faint">◆</span> sloop
         </div>
 
-        <KickoffMenu />
+        <HistoryDrawer />
 
         <div className="mt-3">
           <SidebarNav />
         </div>
 
         <div className="mt-auto px-2 pt-3 text-[11px] text-ink-subtle">
-          Reconciling code to the databank.
+          Reconciling code to the loops.
         </div>
       </aside>
 

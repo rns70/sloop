@@ -86,10 +86,10 @@ export function heldOutCommands(instance: SwebenchInstance): string[] {
   return cmds;
 }
 
-/** Sanitize an instance id into a safe databank filename. */
+/** Sanitize an instance id into a safe loops filename. */
 function adrPathFor(instanceId: string): string {
   const safe = instanceId.replace(/[^a-zA-Z0-9._-]/g, '-');
-  return `databank/swebench-${safe}.md`;
+  return `loops/swebench-${safe}.md`;
 }
 
 /**

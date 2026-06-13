@@ -82,10 +82,13 @@ describe('FilesService', () => {
     const files = createFilesService(root);
     const adr: AdrDoc = {
       id: 'adr-099',
-      relPath: 'databank/adr-099-sample.md',
+      relPath: 'loops/adr-099-sample.md',
       title: 'Sample requirement',
       body: '# ADR-099\n\nContext.\n',
       acceptanceCriteria: [{ id: 'ac-1', text: 'Holds', passed: false }],
+      children: [],
+      status: 'idle',
+      outputs: [],
     };
 
     await files.writeAdr(adr);
@@ -138,9 +141,9 @@ describe('FilesService', () => {
   });
 
   it('carries the locked flag on acceptance criteria through normalizeCriteria', async () => {
-    await fs.mkdir(path.join(root, 'databank'), { recursive: true });
+    await fs.mkdir(path.join(root, 'loops'), { recursive: true });
     await fs.writeFile(
-      path.join(root, 'databank/adr-100.md'),
+      path.join(root, 'loops/adr-100.md'),
       [
         '---',
         'id: adr-100',
@@ -170,13 +173,16 @@ describe('FilesService', () => {
 
   it('treats the body as authoritative over the acceptanceCriteria field on write', async () => {
     const files = createFilesService(root);
-    const relPath = 'databank/adr-101.md';
+    const relPath = 'loops/adr-101.md';
     await files.writeAdr({
       id: 'adr-101',
       relPath,
       title: 'Body wins',
       body: '# A\n\n## Acceptance criteria\n\n- [x] **ac-1** From body\n',
       acceptanceCriteria: [{ id: 'ac-9', text: 'From field', passed: false }],
+      children: [],
+      status: 'idle',
+      outputs: [],
     });
     const readBack = await files.readAdr(relPath);
     expect(readBack.acceptanceCriteria).toEqual([{ id: '', text: 'From body', passed: true }]);
@@ -210,9 +216,9 @@ describe('FilesService', () => {
   });
 
   it('migrates a legacy frontmatter ADR into the body on read and write', async () => {
-    await fs.mkdir(path.join(root, 'databank'), { recursive: true });
+    await fs.mkdir(path.join(root, 'loops'), { recursive: true });
     await fs.writeFile(
-      path.join(root, 'databank/adr-legacy.md'),
+      path.join(root, 'loops/adr-legacy.md'),
       [
         '---',
         'id: adr-legacy',
@@ -228,7 +234,7 @@ describe('FilesService', () => {
     const files = createFilesService(root);
 
     // Read injects a canonical body section so the editor shows criteria immediately.
-    const read = await files.readAdr('databank/adr-legacy.md');
+    const read = await files.readAdr('loops/adr-legacy.md');
     expect(read.body).toContain('## Acceptance criteria');
     expect(read.body).toContain('- [ ] old style');
     expect(read.body).not.toContain('**ac-1**');
@@ -236,7 +242,7 @@ describe('FilesService', () => {
 
     // Writing it back migrates the disk file: criteria leave frontmatter, enter the body.
     await files.writeAdr(read);
-    const raw = await fs.readFile(path.join(root, 'databank/adr-legacy.md'), 'utf8');
+    const raw = await fs.readFile(path.join(root, 'loops/adr-legacy.md'), 'utf8');
     expect(raw).not.toContain('acceptanceCriteria:');
     expect(raw).toContain('## Acceptance criteria');
     expect(raw).not.toContain('🔒');
@@ -251,111 +257,111 @@ describe('FilesService', () => {
 
     it('moves a file into another folder and prunes the emptied source dir', async () => {
       const files = createFilesService(root);
-      await writeAdrFile('databank/auth/a.md', 'A');
-      await files.moveAdr('databank/auth/a.md', 'databank/api/a.md');
-      expect(await fs.readFile(path.join(root, 'databank/api/a.md'), 'utf8')).toContain('title: A');
-      await expect(fs.access(path.join(root, 'databank/auth'))).rejects.toThrow(); // pruned
+      await writeAdrFile('loops/auth/a.md', 'A');
+      await files.moveAdr('loops/auth/a.md', 'loops/api/a.md');
+      expect(await fs.readFile(path.join(root, 'loops/api/a.md'), 'utf8')).toContain('title: A');
+      await expect(fs.access(path.join(root, 'loops/auth'))).rejects.toThrow(); // pruned
     });
 
     it('renames a file in place (same dir, new slug)', async () => {
       const files = createFilesService(root);
-      await writeAdrFile('databank/auth/a.md', 'A');
-      await files.moveAdr('databank/auth/a.md', 'databank/auth/b.md');
-      expect(await fs.access(path.join(root, 'databank/auth/b.md')).then(() => true)).toBe(true);
-      await expect(fs.access(path.join(root, 'databank/auth/a.md'))).rejects.toThrow();
+      await writeAdrFile('loops/auth/a.md', 'A');
+      await files.moveAdr('loops/auth/a.md', 'loops/auth/b.md');
+      expect(await fs.access(path.join(root, 'loops/auth/b.md')).then(() => true)).toBe(true);
+      await expect(fs.access(path.join(root, 'loops/auth/a.md'))).rejects.toThrow();
     });
 
     it('moves a whole folder (atomic rename) carrying all descendants', async () => {
       const files = createFilesService(root);
-      await writeAdrFile('databank/auth/a.md', 'A');
-      await writeAdrFile('databank/auth/oauth/b.md', 'B');
-      await files.moveAdr('databank/auth', 'databank/api/auth');
-      expect(await fs.access(path.join(root, 'databank/api/auth/a.md')).then(() => true)).toBe(true);
-      expect(await fs.access(path.join(root, 'databank/api/auth/oauth/b.md')).then(() => true)).toBe(true);
+      await writeAdrFile('loops/auth/a.md', 'A');
+      await writeAdrFile('loops/auth/oauth/b.md', 'B');
+      await files.moveAdr('loops/auth', 'loops/api/auth');
+      expect(await fs.access(path.join(root, 'loops/api/auth/a.md')).then(() => true)).toBe(true);
+      expect(await fs.access(path.join(root, 'loops/api/auth/oauth/b.md')).then(() => true)).toBe(true);
     });
 
     it('merges a folder into an existing destination folder (per-file fallback)', async () => {
       const files = createFilesService(root);
-      await writeAdrFile('databank/auth/a.md', 'A');
-      await writeAdrFile('databank/api/keep.md', 'Keep');
-      await files.moveAdr('databank/auth', 'databank/api/auth');
-      expect(await fs.access(path.join(root, 'databank/api/keep.md')).then(() => true)).toBe(true);
-      expect(await fs.access(path.join(root, 'databank/api/auth/a.md')).then(() => true)).toBe(true);
+      await writeAdrFile('loops/auth/a.md', 'A');
+      await writeAdrFile('loops/api/keep.md', 'Keep');
+      await files.moveAdr('loops/auth', 'loops/api/auth');
+      expect(await fs.access(path.join(root, 'loops/api/keep.md')).then(() => true)).toBe(true);
+      expect(await fs.access(path.join(root, 'loops/api/auth/a.md')).then(() => true)).toBe(true);
     });
 
     it('rejects a destination collision with a Conflict MoveError', async () => {
       const files = createFilesService(root);
-      await writeAdrFile('databank/auth/a.md', 'A');
-      await writeAdrFile('databank/api/a.md', 'Other');
-      await expect(files.moveAdr('databank/auth/a.md', 'databank/api/a.md')).rejects.toMatchObject({
+      await writeAdrFile('loops/auth/a.md', 'A');
+      await writeAdrFile('loops/api/a.md', 'Other');
+      await expect(files.moveAdr('loops/auth/a.md', 'loops/api/a.md')).rejects.toMatchObject({
         code: 'conflict',
       });
     });
 
     it('allows a case-only file rename (a.md -> A.md)', async () => {
       const files = createFilesService(root);
-      await writeAdrFile('databank/auth/a.md', 'A');
-      await files.moveAdr('databank/auth/a.md', 'databank/auth/A.md');
+      await writeAdrFile('loops/auth/a.md', 'A');
+      await files.moveAdr('loops/auth/a.md', 'loops/auth/A.md');
       // On a case-insensitive volume the bytes live at the same inode under the new
       // casing; on a case-sensitive volume the rename creates A.md. Either way the
       // content must be reachable and the move must not throw a spurious conflict.
-      const dir = await fs.readdir(path.join(root, 'databank/auth'));
+      const dir = await fs.readdir(path.join(root, 'loops/auth'));
       expect(dir).toContain('A.md');
       expect(dir).not.toContain('a.md');
     });
 
     it('rejects moving a file onto an existing folder of the same name', async () => {
       const files = createFilesService(root);
-      await writeAdrFile('databank/auth/a.md', 'A');
-      await writeAdrFile('databank/api/a.md/inner.md', 'Inner'); // makes databank/api/a.md a dir
-      await expect(files.moveAdr('databank/auth/a.md', 'databank/api/a.md')).rejects.toMatchObject({
+      await writeAdrFile('loops/auth/a.md', 'A');
+      await writeAdrFile('loops/api/a.md/inner.md', 'Inner'); // makes loops/api/a.md a dir
+      await expect(files.moveAdr('loops/auth/a.md', 'loops/api/a.md')).rejects.toMatchObject({
         code: 'conflict',
       });
     });
 
     it('rejects moving a folder onto an existing file of the same name', async () => {
       const files = createFilesService(root);
-      await writeAdrFile('databank/auth/a.md', 'A');
-      await writeAdrFile('databank/api/auth', 'NotAFolder'); // a *file* literally named "auth"
-      await expect(files.moveAdr('databank/auth', 'databank/api/auth')).rejects.toMatchObject({
+      await writeAdrFile('loops/auth/a.md', 'A');
+      await writeAdrFile('loops/api/auth', 'NotAFolder'); // a *file* literally named "auth"
+      await expect(files.moveAdr('loops/auth', 'loops/api/auth')).rejects.toMatchObject({
         code: 'conflict',
       });
     });
 
     it('leaves a folder merge fully un-applied when any descendant collides (all-or-nothing)', async () => {
       const files = createFilesService(root);
-      await writeAdrFile('databank/auth/a.md', 'A');
-      await writeAdrFile('databank/auth/b.md', 'B');
-      await writeAdrFile('databank/api/auth/b.md', 'Existing B'); // collides with auth/b.md
-      await expect(files.moveAdr('databank/auth', 'databank/api/auth')).rejects.toMatchObject({
+      await writeAdrFile('loops/auth/a.md', 'A');
+      await writeAdrFile('loops/auth/b.md', 'B');
+      await writeAdrFile('loops/api/auth/b.md', 'Existing B'); // collides with auth/b.md
+      await expect(files.moveAdr('loops/auth', 'loops/api/auth')).rejects.toMatchObject({
         code: 'conflict',
       });
       // The non-colliding sibling (a.md) must NOT have been moved — the merge is rejected
       // before touching disk, so the source folder stays intact.
-      expect(await fs.access(path.join(root, 'databank/auth/a.md')).then(() => true)).toBe(true);
-      expect(await fs.access(path.join(root, 'databank/auth/b.md')).then(() => true)).toBe(true);
-      await expect(fs.access(path.join(root, 'databank/api/auth/a.md'))).rejects.toThrow();
+      expect(await fs.access(path.join(root, 'loops/auth/a.md')).then(() => true)).toBe(true);
+      expect(await fs.access(path.join(root, 'loops/auth/b.md')).then(() => true)).toBe(true);
+      await expect(fs.access(path.join(root, 'loops/api/auth/a.md'))).rejects.toThrow();
     });
 
     it('rejects moving a folder into its own descendant', async () => {
       const files = createFilesService(root);
-      await writeAdrFile('databank/auth/a.md', 'A');
-      await expect(files.moveAdr('databank/auth', 'databank/auth/sub')).rejects.toMatchObject({
+      await writeAdrFile('loops/auth/a.md', 'A');
+      await expect(files.moveAdr('loops/auth', 'loops/auth/sub')).rejects.toMatchObject({
         code: 'conflict',
       });
     });
 
-    it('rejects a path that escapes databank/', async () => {
+    it('rejects a path that escapes loops/', async () => {
       const files = createFilesService(root);
-      await writeAdrFile('databank/auth/a.md', 'A');
-      await expect(files.moveAdr('databank/auth/a.md', 'databank/../evil.md')).rejects.toMatchObject({
+      await writeAdrFile('loops/auth/a.md', 'A');
+      await expect(files.moveAdr('loops/auth/a.md', 'loops/../evil.md')).rejects.toMatchObject({
         code: 'invalid',
       });
     });
 
     it('throws not_found when the source does not exist', async () => {
       const files = createFilesService(root);
-      const p = files.moveAdr('databank/nope.md', 'databank/x.md');
+      const p = files.moveAdr('loops/nope.md', 'loops/x.md');
       await expect(p).rejects.toBeInstanceOf(MoveError);
       await expect(p).rejects.toMatchObject({ code: 'not_found' });
     });
@@ -370,49 +376,49 @@ describe('FilesService', () => {
 
     it('deletes a single file and prunes the emptied parent dir', async () => {
       const files = createFilesService(root);
-      await writeAdrFile('databank/auth/a.md', 'A');
-      await files.deleteAdr('databank/auth/a.md');
-      await expect(fs.access(path.join(root, 'databank/auth/a.md'))).rejects.toThrow();
-      await expect(fs.access(path.join(root, 'databank/auth'))).rejects.toThrow(); // pruned
+      await writeAdrFile('loops/auth/a.md', 'A');
+      await files.deleteAdr('loops/auth/a.md');
+      await expect(fs.access(path.join(root, 'loops/auth/a.md'))).rejects.toThrow();
+      await expect(fs.access(path.join(root, 'loops/auth'))).rejects.toThrow(); // pruned
     });
 
     it('keeps sibling files when deleting one of them', async () => {
       const files = createFilesService(root);
-      await writeAdrFile('databank/auth/a.md', 'A');
-      await writeAdrFile('databank/auth/b.md', 'B');
-      await files.deleteAdr('databank/auth/a.md');
-      await expect(fs.access(path.join(root, 'databank/auth/a.md'))).rejects.toThrow();
-      expect(await fs.access(path.join(root, 'databank/auth/b.md')).then(() => true)).toBe(true);
+      await writeAdrFile('loops/auth/a.md', 'A');
+      await writeAdrFile('loops/auth/b.md', 'B');
+      await files.deleteAdr('loops/auth/a.md');
+      await expect(fs.access(path.join(root, 'loops/auth/a.md'))).rejects.toThrow();
+      expect(await fs.access(path.join(root, 'loops/auth/b.md')).then(() => true)).toBe(true);
     });
 
     it('deletes a whole folder with all its descendants', async () => {
       const files = createFilesService(root);
-      await writeAdrFile('databank/auth/a.md', 'A');
-      await writeAdrFile('databank/auth/oauth/b.md', 'B');
-      await writeAdrFile('databank/api/keep.md', 'Keep');
-      await files.deleteAdr('databank/auth');
-      await expect(fs.access(path.join(root, 'databank/auth'))).rejects.toThrow();
-      expect(await fs.access(path.join(root, 'databank/api/keep.md')).then(() => true)).toBe(true);
+      await writeAdrFile('loops/auth/a.md', 'A');
+      await writeAdrFile('loops/auth/oauth/b.md', 'B');
+      await writeAdrFile('loops/api/keep.md', 'Keep');
+      await files.deleteAdr('loops/auth');
+      await expect(fs.access(path.join(root, 'loops/auth'))).rejects.toThrow();
+      expect(await fs.access(path.join(root, 'loops/api/keep.md')).then(() => true)).toBe(true);
     });
 
-    it('rejects a path that escapes databank/', async () => {
+    it('rejects a path that escapes loops/', async () => {
       const files = createFilesService(root);
-      await writeAdrFile('databank/auth/a.md', 'A');
-      await expect(files.deleteAdr('databank/../evil.md')).rejects.toMatchObject({
+      await writeAdrFile('loops/auth/a.md', 'A');
+      await expect(files.deleteAdr('loops/../evil.md')).rejects.toMatchObject({
         code: 'invalid',
       });
     });
 
-    it('refuses to delete the databank/ root itself', async () => {
+    it('refuses to delete the loops/ root itself', async () => {
       const files = createFilesService(root);
-      await writeAdrFile('databank/auth/a.md', 'A');
-      await expect(files.deleteAdr('databank')).rejects.toMatchObject({ code: 'invalid' });
-      expect(await fs.access(path.join(root, 'databank/auth/a.md')).then(() => true)).toBe(true);
+      await writeAdrFile('loops/auth/a.md', 'A');
+      await expect(files.deleteAdr('loops')).rejects.toMatchObject({ code: 'invalid' });
+      expect(await fs.access(path.join(root, 'loops/auth/a.md')).then(() => true)).toBe(true);
     });
 
     it('throws not_found when the target does not exist', async () => {
       const files = createFilesService(root);
-      const p = files.deleteAdr('databank/nope.md');
+      const p = files.deleteAdr('loops/nope.md');
       await expect(p).rejects.toBeInstanceOf(DeleteError);
       await expect(p).rejects.toMatchObject({ code: 'not_found' });
     });

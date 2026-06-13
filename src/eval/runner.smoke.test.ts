@@ -25,7 +25,7 @@ const task: EvalTask = {
   source: 'handmade',
   repo: 'toolkit',
   baseRef: 'main',
-  adrPath: 'databank/adr-030-slugify.md',
+  adrPath: 'loops/adr-030-slugify.md',
   heldOut: ['node --test test/slugify.test.js', 'node --test test/regression.test.js'],
   modelMixes: [{ plan: 'opus', execute: 'haiku' }],
   body: '# Add slugify\n\nAdd a `slugify` function to src/index.js.',
