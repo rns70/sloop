@@ -37,16 +37,24 @@ const loop = (): LoopDoc => ({
 });
 
 describe('FilesService', () => {
-  it('writes a loop then reads back an equal LoopDoc, creating dirs as needed', async () => {
+  it('writes a loop (criteria in body) then reads back an equal LoopDoc', async () => {
     const files = createFilesService(root);
     const original = loop();
 
     await files.writeLoop(original);
     const readBack = await files.readLoop(original.relPath);
 
+    // Frontmatter (incl. acceptanceCriteria, re-parsed from the body) round-trips.
     expect(readBack.relPath).toBe(original.relPath);
     expect(readBack.frontmatter).toEqual(original.frontmatter);
-    expect(readBack.body).toBe(original.body);
+    // The prose body is preserved and the criteria section is appended.
+    expect(readBack.body).toContain('Do the thing.');
+    expect(readBack.body).toContain('## Acceptance criteria');
+    expect(readBack.body).toContain('**ac-1** It works — verify: `npm test -- x`');
+
+    // Criteria are no longer in frontmatter on disk.
+    const raw = await fs.readFile(path.join(root, original.relPath), 'utf8');
+    expect(raw).not.toContain('acceptanceCriteria:');
   });
 
   it('lists loops in a cascade recursively, excluding _cascade.md', async () => {

@@ -91,13 +91,23 @@ export class FilesServiceImpl implements FilesService {
   async readLoop(relPath: string): Promise<LoopDoc> {
     const raw = await fs.readFile(this.abs(relPath), 'utf8');
     const { data, body } = parseFrontmatter<LoopFrontmatter>(raw);
+    const parsed = parseCriteriaFromBody(body);
+    // Body is the on-disk source; fall back to legacy frontmatter criteria.
+    data.acceptanceCriteria = parsed.hasSection
+      ? parsed.criteria
+      : normalizeCriteria(data.acceptanceCriteria);
     return { frontmatter: data, body, relPath };
   }
 
   async writeLoop(loop: LoopDoc): Promise<void> {
+    // The engine mutates loop.frontmatter.acceptanceCriteria (passed/verdicts), so
+    // the structured field is the source for loops. Serialize it into the body and
+    // drop it from frontmatter.
+    const { acceptanceCriteria, ...frontmatter } = loop.frontmatter;
+    const body = upsertCriteriaInBody(loop.body, acceptanceCriteria);
     await this.writeFile(
       loop.relPath,
-      serializeFrontmatter(loop.frontmatter as unknown as Record<string, unknown>, loop.body),
+      serializeFrontmatter(frontmatter as unknown as Record<string, unknown>, body),
     );
   }
 
