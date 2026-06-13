@@ -10,6 +10,7 @@ export interface FilesService {
   readLoop(relPath: string): Promise<LoopDoc>;
   writeLoop(loop: LoopDoc): Promise<void>;
   listLoops(cascadeId: string): Promise<LoopDoc[]>;
+  listCascadeIds(): Promise<string[]>;           // subdirectory names under cascades/
   listTemplates(): Promise<TemplateDef[]>;
   listRoles(): Promise<RoleDef[]>;
   readModelRegistry(): Promise<ModelRegistry>;   // from .sloop/config.md frontmatter

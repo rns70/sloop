@@ -2,11 +2,7 @@ import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import { cx } from './cx';
 
 type Variant = 'primary' | 'subtle' | 'ghost';
-
-export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: Variant;
-  children: ReactNode;
-}
+type Size = 'sm' | 'md';
 
 const VARIANT: Record<Variant, string> = {
   // Solid dark — the one strong affordance (e.g. Save), matching the mockup.
@@ -17,16 +13,68 @@ const VARIANT: Record<Variant, string> = {
   ghost: 'text-ink-muted hover:bg-line-soft',
 };
 
+/** Size scale. `min-h` is the hit-area floor: 24px clears WCAG 2.5.8 (AA) while
+ *  staying dense enough for the Notion-quiet language. `md` is the default. */
+const SIZE: Record<Size, string> = {
+  sm: 'min-h-6 gap-1 px-2 text-[12px]',
+  md: 'min-h-7 gap-1.5 px-2.5 text-[12.5px]',
+};
+
+/** Square hit-area for icon-only buttons, mirroring SIZE's min-h floors. */
+const ICON_SIZE: Record<Size, string> = {
+  sm: 'h-6 w-6',
+  md: 'h-7 w-7',
+};
+
+const BASE =
+  'inline-flex items-center justify-center rounded-md font-medium leading-none transition-colors disabled:cursor-not-allowed disabled:opacity-50';
+
+export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: Variant;
+  size?: Size;
+  children: ReactNode;
+}
+
 /** Notion-quiet button. Small, rounded, restrained — primary is the only loud one. */
-export function Button({ variant = 'subtle', className, children, ...rest }: ButtonProps) {
+export function Button({
+  variant = 'subtle',
+  size = 'md',
+  className,
+  children,
+  ...rest
+}: ButtonProps) {
   return (
     <button
       type="button"
-      className={cx(
-        'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12.5px] font-medium leading-none transition-colors disabled:cursor-not-allowed disabled:opacity-50',
-        VARIANT[variant],
-        className,
-      )}
+      className={cx(BASE, SIZE[size], VARIANT[variant], className)}
+      {...rest}
+    >
+      {children}
+    </button>
+  );
+}
+
+export interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: Variant;
+  size?: Size;
+  /** Required: icon-only buttons have no visible text label. */
+  'aria-label': string;
+  children: ReactNode;
+}
+
+/** Icon-only button with an enforced square hit-area so single-glyph controls
+ *  (close, disclosure, remove) stay tappable instead of shrinking to the glyph. */
+export function IconButton({
+  variant = 'ghost',
+  size = 'sm',
+  className,
+  children,
+  ...rest
+}: IconButtonProps) {
+  return (
+    <button
+      type="button"
+      className={cx(BASE, ICON_SIZE[size], 'shrink-0', VARIANT[variant], className)}
       {...rest}
     >
       {children}
