@@ -7,6 +7,10 @@ export interface FilesService {
   listAdrs(): Promise<AdrDoc[]>;
   readAdr(relPath: string): Promise<AdrDoc>;
   writeAdr(doc: AdrDoc): Promise<void>;
+  /** Move/rename an ADR file, or a whole folder prefix, on the working tree.
+   *  `from`/`to` are databank-prefixed paths. Throws MoveError on collision,
+   *  cycle, traversal, or a missing source. */
+  moveAdr(from: string, to: string): Promise<void>;
   readLoop(relPath: string): Promise<LoopDoc>;
   writeLoop(loop: LoopDoc): Promise<void>;
   listLoops(cascadeId: string): Promise<LoopDoc[]>;

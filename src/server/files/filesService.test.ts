@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it, expect } from 'vitest';
 import type { LoopDoc, AdrDoc } from '../../shared';
-import { createFilesService } from './filesService';
+import { createFilesService, MoveError } from './filesService';
 
 let root: string;
 
@@ -211,5 +211,79 @@ describe('FilesService', () => {
     expect(raw).not.toContain('acceptanceCriteria:');
     expect(raw).toContain('## Acceptance criteria');
     expect(raw).toContain('🔒');
+  });
+
+  describe('moveAdr', () => {
+    const writeAdrFile = async (rel: string, title: string) => {
+      const abs = path.join(root, rel);
+      await fs.mkdir(path.dirname(abs), { recursive: true });
+      await fs.writeFile(abs, `---\nid: ${path.basename(rel, '.md')}\ntitle: ${title}\n---\n\nBody.\n`, 'utf8');
+    };
+
+    it('moves a file into another folder and prunes the emptied source dir', async () => {
+      const files = createFilesService(root);
+      await writeAdrFile('databank/auth/a.md', 'A');
+      await files.moveAdr('databank/auth/a.md', 'databank/api/a.md');
+      expect(await fs.readFile(path.join(root, 'databank/api/a.md'), 'utf8')).toContain('title: A');
+      await expect(fs.access(path.join(root, 'databank/auth'))).rejects.toThrow(); // pruned
+    });
+
+    it('renames a file in place (same dir, new slug)', async () => {
+      const files = createFilesService(root);
+      await writeAdrFile('databank/auth/a.md', 'A');
+      await files.moveAdr('databank/auth/a.md', 'databank/auth/b.md');
+      expect(await fs.access(path.join(root, 'databank/auth/b.md')).then(() => true)).toBe(true);
+      await expect(fs.access(path.join(root, 'databank/auth/a.md'))).rejects.toThrow();
+    });
+
+    it('moves a whole folder (atomic rename) carrying all descendants', async () => {
+      const files = createFilesService(root);
+      await writeAdrFile('databank/auth/a.md', 'A');
+      await writeAdrFile('databank/auth/oauth/b.md', 'B');
+      await files.moveAdr('databank/auth', 'databank/api/auth');
+      expect(await fs.access(path.join(root, 'databank/api/auth/a.md')).then(() => true)).toBe(true);
+      expect(await fs.access(path.join(root, 'databank/api/auth/oauth/b.md')).then(() => true)).toBe(true);
+    });
+
+    it('merges a folder into an existing destination folder (per-file fallback)', async () => {
+      const files = createFilesService(root);
+      await writeAdrFile('databank/auth/a.md', 'A');
+      await writeAdrFile('databank/api/keep.md', 'Keep');
+      await files.moveAdr('databank/auth', 'databank/api/auth');
+      expect(await fs.access(path.join(root, 'databank/api/keep.md')).then(() => true)).toBe(true);
+      expect(await fs.access(path.join(root, 'databank/api/auth/a.md')).then(() => true)).toBe(true);
+    });
+
+    it('rejects a destination collision with a Conflict MoveError', async () => {
+      const files = createFilesService(root);
+      await writeAdrFile('databank/auth/a.md', 'A');
+      await writeAdrFile('databank/api/a.md', 'Other');
+      await expect(files.moveAdr('databank/auth/a.md', 'databank/api/a.md')).rejects.toMatchObject({
+        code: 'conflict',
+      });
+    });
+
+    it('rejects moving a folder into its own descendant', async () => {
+      const files = createFilesService(root);
+      await writeAdrFile('databank/auth/a.md', 'A');
+      await expect(files.moveAdr('databank/auth', 'databank/auth/sub')).rejects.toMatchObject({
+        code: 'conflict',
+      });
+    });
+
+    it('rejects a path that escapes databank/', async () => {
+      const files = createFilesService(root);
+      await writeAdrFile('databank/auth/a.md', 'A');
+      await expect(files.moveAdr('databank/auth/a.md', 'databank/../evil.md')).rejects.toMatchObject({
+        code: 'invalid',
+      });
+    });
+
+    it('throws not_found when the source does not exist', async () => {
+      const files = createFilesService(root);
+      const p = files.moveAdr('databank/nope.md', 'databank/x.md');
+      await expect(p).rejects.toBeInstanceOf(MoveError);
+      await expect(p).rejects.toMatchObject({ code: 'not_found' });
+    });
   });
 });

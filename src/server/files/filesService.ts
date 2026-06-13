@@ -14,7 +14,20 @@ import { parseFrontmatter, serializeFrontmatter } from './frontmatter';
 import { parseCriteriaFromBody, upsertCriteriaInBody } from './criteriaMarkdown';
 
 const DATABANK_DIR = 'databank';
+const DATABANK_PREFIX = `${DATABANK_DIR}/`;
 const CASCADES_DIR = 'cascades';
+
+/** Failure modes of `moveAdr`, discriminated by `code` so the API layer can map
+ *  them to HTTP statuses without importing fs-specific error types. */
+export class MoveError extends Error {
+  constructor(
+    readonly code: 'not_found' | 'conflict' | 'invalid',
+    message: string,
+  ) {
+    super(message);
+    this.name = 'MoveError';
+  }
+}
 const TEMPLATES_DIR = path.join('.sloop', 'templates');
 const ROLES_DIR = path.join('.sloop', 'roles');
 const CONFIG_FILE = path.join('.sloop', 'config.md');
@@ -86,6 +99,85 @@ export class FilesServiceImpl implements FilesService {
     const body = upsertCriteriaInBody(doc.body, criteria);
     const frontmatter = { id: doc.id, title: doc.title };
     await this.writeFile(doc.relPath, serializeFrontmatter(frontmatter, body));
+  }
+
+  async moveAdr(from: string, to: string): Promise<void> {
+    this.assertInDatabank(from);
+    this.assertInDatabank(to);
+    if (from === to) return;
+
+    const adrs = await this.listAdrs();
+    const relPaths = adrs.map((a) => a.relPath);
+    const isFile = relPaths.includes(from);
+    const isFolder = relPaths.some((p) => p.startsWith(`${from}/`));
+    if (!isFile && !isFolder) {
+      throw new MoveError('not_found', `Nothing to move at: ${from}`);
+    }
+
+    if (isFolder) {
+      // Cycle guard: cannot move a folder into itself or a descendant of itself.
+      if (to === from || to.startsWith(`${from}/`)) {
+        throw new MoveError('conflict', `Cannot move ${from} into its own subtree`);
+      }
+      await this.moveFolder(from, to, relPaths);
+      return;
+    }
+
+    // Single file.
+    if (await pathExists(this.abs(to))) {
+      throw new MoveError('conflict', `Destination already exists: ${to}`);
+    }
+    await this.renamePath(from, to);
+  }
+
+  /** Move a folder prefix. Atomic dir rename when the destination is free; otherwise
+   *  a per-descendant-file move (merge into an existing destination folder). */
+  private async moveFolder(from: string, to: string, relPaths: string[]): Promise<void> {
+    if (!(await pathExists(this.abs(to)))) {
+      await this.renamePath(from, to);
+      return;
+    }
+    // Merge: move each descendant file individually, failing fast on any collision.
+    const descendants = relPaths.filter((p) => p.startsWith(`${from}/`));
+    const targets = descendants.map((p) => `${to}/${p.slice(from.length + 1)}`);
+    for (const target of targets) {
+      if (await pathExists(this.abs(target))) {
+        throw new MoveError('conflict', `Destination already exists: ${target}`);
+      }
+    }
+    for (let i = 0; i < descendants.length; i += 1) {
+      await this.renamePath(descendants[i], targets[i]);
+    }
+  }
+
+  /** fs.rename with parent-dir creation and empty-source-dir pruning, all under root. */
+  private async renamePath(fromRel: string, toRel: string): Promise<void> {
+    const fromAbs = this.abs(fromRel);
+    const toAbs = this.abs(toRel);
+    await fs.mkdir(path.dirname(toAbs), { recursive: true });
+    await fs.rename(fromAbs, toAbs);
+    await this.pruneEmptyDirs(path.dirname(fromRel));
+  }
+
+  /** Remove now-empty directories from `relDir` up to (but not including) databank/. */
+  private async pruneEmptyDirs(relDir: string): Promise<void> {
+    let dir = relDir;
+    while (dir.startsWith(DATABANK_PREFIX)) {
+      try {
+        await fs.rmdir(this.abs(dir)); // only succeeds when empty
+      } catch {
+        return; // non-empty or already gone — stop climbing
+      }
+      dir = path.dirname(dir);
+    }
+  }
+
+  /** Reject paths that normalize outside databank/ (traversal defense). */
+  private assertInDatabank(relPath: string): void {
+    const norm = path.normalize(relPath);
+    if (norm !== DATABANK_DIR && !norm.startsWith(DATABANK_PREFIX)) {
+      throw new MoveError('invalid', `Path is outside databank/: ${relPath}`);
+    }
   }
 
   async readLoop(relPath: string): Promise<LoopDoc> {
@@ -209,6 +301,16 @@ function normalizeCriteria(value: unknown): AcceptanceCriterion[] {
     if (c.locked !== undefined) criterion.locked = Boolean(c.locked);
     return criterion;
   });
+}
+
+/** True if `abs` exists on disk. */
+async function pathExists(abs: string): Promise<boolean> {
+  try {
+    await fs.access(abs);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** List `*.md` basenames directly in `dir`; `[]` if the directory is absent. */
