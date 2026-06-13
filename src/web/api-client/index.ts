@@ -7,15 +7,15 @@ import type {
   AdrRunEvent, RunHistoryEntry,
 } from '../../shared/index';
 import type {
-  AdrDiffResponse, GetAdrRunResponse, GetModelsResponse, RunStartedResponse, Ok,
+  AdrDiffResponse, AdrChangesResponse, GetAdrRunResponse, GetModelsResponse, RunStartedResponse, Ok,
 } from '../../server/api/contract';
 
 export type {
-  AdrDoc, WorkflowDef, RoleDef, AcceptanceCriterion, AdrStatus,
+  AdrDoc, WorkflowDef, RoleDef, AcceptanceCriterion, AdrStatus, Delta,
   AssistantChatRequest, AssistantStreamEvent, ModelOption,
   AdrRunEvent, RunHistoryEntry,
 } from '../../shared/index';
-export type { AdrDiffResponse } from '../../server/api/contract';
+export type { AdrDiffResponse, AdrChangesResponse } from '../../server/api/contract';
 
 const BASE = '/api';
 
@@ -78,6 +78,8 @@ export const putAdr = (relPath: string, doc: AdrDoc): Promise<Ok> =>
   http(`/adrs/${enc(relPath)}`, { method: 'PUT', body: JSON.stringify(doc) });
 export const getAdrDiff = (relPath: string): Promise<AdrDiffResponse> =>
   http(`/adrs/${enc(relPath)}/diff`);
+/** Lean pending-change list (relPath + delta, no file contents) for the sidebar. */
+export const getAdrChanges = (): Promise<AdrChangesResponse> => http('/adrs/changes');
 /** Move/rename an ADR file, or a whole folder prefix. `from`/`to` are loops-prefixed
  *  paths (e.g. `loops/auth/a.md`). Folder moves carry all descendants. */
 export const moveAdr = (from: string, to: string): Promise<Ok> =>
