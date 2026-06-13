@@ -34,7 +34,6 @@ The prototype includes:
 - A Vite + React document UI with a quiet sidebar, editable loop metadata, bottom status sections, history, diff views, and run controls.
 - A local Node server for workspace discovery, Markdown/frontmatter parsing, Git diffs, run history, controller-doc materialization, deterministic eval commands, and Pi orchestration.
 - Code-stage controller docs that turn implementation work into explicit Markdown contracts with allowed output paths, commands, retries, and failure evidence.
-- A reveal.js idea deck in [`presentations/sloop-idea`](presentations/sloop-idea).
 
 ### Agent Workflow We Designed
 
@@ -97,7 +96,7 @@ Sloop runs as a CLI that operates on **the directory you launch it from** — yo
 ```bash
 # from inside the project you want to work on
 sloop              # initialize if needed, then serve the UI + API (opens a browser)
-sloop init         # scaffold a sloop workspace here (.sloop/, databank/, git)
+sloop init         # scaffold a sloop workspace here (.sloop/, loops/, git)
 sloop --port 5500  # serve on a specific port (default 5174)
 sloop --no-open    # serve without opening a browser
 sloop --help       # full usage
@@ -107,7 +106,7 @@ sloop --version    # print the version
 On first run in a fresh directory, Sloop scaffolds a workspace in place:
 
 - `.sloop/` — per-run agent session state and Sloop's own runtime data.
-- `databank/` — the paper surface: loop docs, ADRs, and other Markdown.
+- `loops/` — the paper surface: loop docs, ADRs, and other Markdown.
 - a Git repo (initialized if the directory isn't already one) so every agent change is a diff you can inspect, history you can browse, and a commit you can roll back.
 
 The local server owns filesystem access, Git status/diffs, and agent orchestration; the browser UI is the paper-first editing surface. Because Sloop binds to the current directory, you can run an isolated instance per project simply by launching it from a different folder.
@@ -161,7 +160,14 @@ Each Sloop run uses a per-run Pi session directory under `.sloop/pi-sessions` fo
 
 - [`README.md`](README.md) - project overview.
 - [`assets/sloop-concept.png`](assets/sloop-concept.png) - current concept image.
+- [`bin/sloop`](bin/sloop) — CLI launcher; entry at [`src/cli/index.ts`](src/cli/index.ts).
+- [`src/server`](src/server) — local Node/Express worker: files, Git, ADR runner, executor, Pi orchestration.
+- [`src/web`](src/web) — Vite + React paper-first UI.
+- [`fixtures/sample-workspace`](fixtures/sample-workspace) — sample `loops/` + `code/` used by the demo and tests.
+- [`scripts/verify-demo.ts`](scripts/verify-demo.ts) — offline end-to-end happy-path check (`npm run verify:demo`).
 
 ## Status
 
-Sloop is in early design/prototype mode. The product thesis is set; implementation is next.
+Sloop is a working hackathon prototype: the CLI, local server, ADR run/executor cascade,
+and React UI are implemented, with a green test suite (`npm test`) and an offline
+end-to-end check (`npm run verify:demo`). Tauri/Rust remain intentionally deferred.
