@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sloop Minimal Document Mockup</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f7f7f5;
+      --paper: #fff;
+      --text: #191919;
+      --muted: #74716d;
+      --line: #e7e4de;
+      --green: #207a43;
+      --green-bg: #edf7ef;
+      --red: #a13b32;
+      --red-bg: #fbefee;
+      --amber: #8a6200;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 14px/1.55 ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .app {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 56px minmax(0, 1fr);
+    }
+
+    .rail {
+      border-right: 1px solid var(--line);
+      background: #fbfbfa;
+      padding: 14px 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .mark {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      display: grid;
+      place-items: center;
+    }
+
+    .mark.active {
+      background: #191919;
+      color: #fff;
+      font-weight: 700;
+    }
+
+    .workspace {
+      display: flex;
+      justify-content: center;
+      padding: 38px 28px 72px;
+    }
+
+    .paper {
+      width: min(780px, 100%);
+      background: var(--paper);
+      padding: 44px 56px 52px;
+      min-height: calc(100vh - 110px);
+      box-shadow: 0 1px 0 rgba(25, 25, 25, 0.04);
+    }
+
+    .topline {
+      display: flex;
+      align-items: center;
+      color: var(--muted);
+      font-size: 13px;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .topline button,
+    .status-actions button {
+      appearance: none;
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      font: inherit;
+      padding: 0;
+      cursor: default;
+    }
+
+    .topline .spacer {
+      flex: 1;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 38px;
+      line-height: 1.15;
+      font-weight: 680;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 34px 0 10px;
+      font-size: 19px;
+      line-height: 1.3;
+      font-weight: 620;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 8px 0;
+      max-width: 68ch;
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+
+    ul {
+      margin: 8px 0 0 22px;
+      padding: 0;
+    }
+
+    li {
+      margin: 5px 0;
+    }
+
+    .diff {
+      margin: 12px 0 0;
+      border-left: 2px solid var(--line);
+      padding-left: 14px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 13px;
+      line-height: 1.7;
+      max-width: 72ch;
+    }
+
+    .minus,
+    .plus {
+      display: block;
+      padding: 1px 6px;
+      margin-left: -6px;
+    }
+
+    .minus {
+      color: var(--red);
+      background: var(--red-bg);
+      text-decoration: line-through;
+      text-decoration-thickness: 1px;
+    }
+
+    .plus {
+      color: var(--green);
+      background: var(--green-bg);
+    }
+
+    .status {
+      margin-top: 52px;
+      padding-top: 18px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .status-head {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 10px;
+    }
+
+    .status-head strong {
+      color: var(--text);
+      font-weight: 620;
+    }
+
+    .status-actions {
+      margin-left: auto;
+      display: flex;
+      gap: 14px;
+    }
+
+    .status-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .status-list li {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      gap: 16px;
+      padding: 5px 0;
+      border: 0;
+    }
+
+    .running {
+      color: var(--amber);
+    }
+
+    .passed {
+      color: var(--green);
+    }
+
+    .archived {
+      color: var(--muted);
+    }
+
+    .history {
+      margin-top: 20px;
+      padding-top: 14px;
+      border-top: 1px solid var(--line);
+    }
+
+    .history summary {
+      cursor: default;
+      color: var(--muted);
+    }
+
+    .history ol {
+      margin: 10px 0 0 20px;
+      padding: 0;
+    }
+
+    .history li {
+      padding: 3px 0;
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <nav class="rail" aria-label="Workspace">
+      <div class="mark active">S</div>
+      <div class="mark">D</div>
+      <div class="mark">G</div>
+    </nav>
+
+    <section class="workspace">
+      <article class="paper">
+        <div class="topline">
+          <span>PRD.md</span>
+          <span>main</span>
+          <span class="spacer"></span>
+          <button>History</button>
+        </div>
+
+        <h1>Authentication Requirements</h1>
+        <p class="muted">Product requirements document.</p>
+
+        <h2>Goal</h2>
+        <p>Users can sign in, maintain a session, and recover access without creating support burden or weakening account security.</p>
+
+        <h2>Requirement: Sessions</h2>
+        <p>Sessions must be long enough for normal product use and short enough to limit stale access risk.</p>
+
+        <div class="diff" aria-label="Inline diff">
+          <span class="minus">- Session expiry TBD</span>
+          <span class="minus">- Refresh behavior unspecified</span>
+          <span class="plus">+ Sessions expire after 30 days</span>
+          <span class="plus">+ Refresh behavior covered by implementation tests</span>
+        </div>
+
+        <h2>Evaluation Criteria</h2>
+        <ul>
+          <li>Every authentication requirement has a downstream architecture decision.</li>
+          <li>Every session behavior has an implementation plan with deterministic tests.</li>
+          <li>No generated child doc introduces behavior not traceable to this document.</li>
+        </ul>
+
+        <footer class="status">
+          <div class="status-head">
+            <strong>Loop status</strong>
+            <span>PRD loop passing. Two child loops active. Auto-apply after passing evals.</span>
+            <div class="status-actions">
+              <button>Pause</button>
+              <button>Run eval</button>
+            </div>
+          </div>
+
+          <ul class="status-list">
+            <li>
+              <span>architecture/auth-a.md</span>
+              <span class="running">evaluating</span>
+              <span>open</span>
+            </li>
+            <li>
+              <span>architecture/auth-b.md</span>
+              <span class="archived">archived</span>
+              <span>open</span>
+            </li>
+            <li>
+              <span>plans/auth/session.md</span>
+              <span class="passed">passed</span>
+              <span>open</span>
+            </li>
+          </ul>
+
+          <details class="history">
+            <summary>History</summary>
+            <ol>
+              <li>Cascade run updated three downstream docs.</li>
+              <li>Session implementation eval passed.</li>
+              <li>Alternative architecture archived.</li>
+              <li>User paused loop and edited this document.</li>
+            </ol>
+          </details>
+        </footer>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

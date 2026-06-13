@@ -1,0 +1,599 @@
+:root {
+  color-scheme: light;
+  --bg: #f7f7f5;
+  --paper: #fff;
+  --text: #191919;
+  --muted: #74716d;
+  --line: #e7e4de;
+  --green: #207a43;
+  --green-bg: #edf7ef;
+  --red: #a13b32;
+  --red-bg: #fbefee;
+  --amber: #8a6200;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.55 Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+button {
+  font: inherit;
+}
+
+.app-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 248px minmax(0, 1fr);
+}
+
+.rail {
+  border-right: 1px solid var(--line);
+  background: #fbfbfa;
+  padding: 18px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  color: var(--muted);
+  font-size: 12px;
+  min-width: 0;
+}
+
+.rail-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 6px 8px;
+}
+
+.rail-title strong {
+  color: var(--text);
+  font-weight: 650;
+}
+
+.rail-title span {
+  color: var(--muted);
+}
+
+.file-tree,
+.file-branch {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.file-branch {
+  margin-top: 2px;
+}
+
+.folder-label {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 620;
+  padding: 9px 8px 3px calc(8px + (var(--depth) * 13px));
+  text-transform: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-tree button,
+.file-branch button {
+  width: 100%;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr);
+  gap: 9px;
+  align-items: center;
+  text-align: left;
+  padding: 7px 8px 7px calc(8px + (var(--depth) * 13px));
+  border-radius: 6px;
+}
+
+.file-tree button:hover,
+.file-branch button:hover,
+.file-tree button.selected,
+.file-branch button.selected {
+  background: #f0efeb;
+  color: var(--text);
+}
+
+.file-status {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--muted);
+}
+
+.file-status.running,
+.file-status.evaluating {
+  background: var(--amber);
+}
+
+.file-status.passed,
+.file-status.passing {
+  background: var(--green);
+}
+
+.file-status.failed {
+  background: var(--red);
+}
+
+.file-text {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.file-text span,
+.file-text small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-text span {
+  color: inherit;
+}
+
+.file-text small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.workspace {
+  display: flex;
+  justify-content: center;
+  padding: 38px 28px 72px;
+}
+
+.paper {
+  width: min(820px, 100%);
+  background: var(--paper);
+  padding: 44px 56px 52px;
+  min-height: calc(100vh - 110px);
+  box-shadow: 0 1px 0 rgba(25, 25, 25, 0.04);
+}
+
+.topline {
+  color: var(--muted);
+  font-size: 13px;
+  margin-bottom: 24px;
+  overflow-wrap: anywhere;
+}
+
+.section-header,
+.status-actions button,
+.surface-actions button,
+.status-list button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 0;
+  cursor: pointer;
+}
+
+.notice {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 8px 0 16px;
+}
+
+.notice.error {
+  color: var(--red);
+}
+
+.sloop-editor {
+  --bn-colors-editor-background: transparent;
+  --bn-colors-menu-background: #fff;
+  --bn-font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  margin-left: -54px;
+  margin-right: -54px;
+}
+
+.sloop-editor .bn-editor {
+  padding-inline: 54px;
+}
+
+.inline-diff {
+  margin: 28px 0 0;
+  border-left: 2px solid var(--line);
+  padding-left: 14px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.7;
+  max-width: 72ch;
+}
+
+.diff-line {
+  display: block;
+  padding: 1px 6px;
+  margin-left: -6px;
+}
+
+.diff-line.remove {
+  color: var(--red);
+  background: var(--red-bg);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.diff-line.add {
+  color: var(--green);
+  background: var(--green-bg);
+}
+
+.diff-line.context {
+  color: var(--muted);
+}
+
+.loop-status {
+  margin-top: 52px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.bottom-sections {
+  margin-bottom: 28px;
+  border-top: 1px solid var(--line);
+}
+
+.bottom-section {
+  border-bottom: 1px solid var(--line);
+}
+
+.section-header {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 16px;
+  padding: 12px 0;
+  text-align: left;
+}
+
+.section-header strong {
+  color: var(--text);
+  font-weight: 620;
+}
+
+.section-header span {
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.section-header:disabled {
+  cursor: default;
+  opacity: 0.65;
+}
+
+.section-body {
+  margin: 0;
+  padding: 0 0 14px;
+  color: var(--muted);
+}
+
+.section-body p {
+  margin: 0 0 8px;
+}
+
+.section-body button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+}
+
+.section-body button:hover {
+  color: var(--text);
+}
+
+.bottom-section .secondary-surface {
+  margin: 0;
+  padding: 0 0 14px;
+  border: 0;
+}
+
+.status-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 10px;
+}
+
+.status-head strong {
+  color: var(--text);
+  font-weight: 620;
+}
+
+.status-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 14px;
+}
+
+.status-actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.secondary-surface {
+  margin: 26px 0 8px;
+  padding: 16px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.surface-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.surface-head strong {
+  color: var(--text);
+  font-weight: 620;
+}
+
+.surface-actions {
+  margin-left: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.surface-actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.dag-text {
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.dag-text span,
+.dag-text button {
+  display: block;
+}
+
+.dag-text button {
+  width: 100%;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  padding: 0;
+  cursor: pointer;
+}
+
+.dag-text button:hover,
+.section-header:hover strong,
+.status-actions button:hover,
+.surface-actions button:hover,
+.status-list button:hover {
+  color: var(--text);
+}
+
+.runtime-info {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin: 0 0 14px;
+}
+
+.runtime-info div {
+  min-width: 0;
+}
+
+.runtime-info dt {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.runtime-info dd {
+  margin: 0;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.run-detail {
+  margin: 16px 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.run-detail > strong {
+  display: block;
+  color: var(--text);
+  font-weight: 620;
+  margin-bottom: 10px;
+}
+
+.evidence-list {
+  margin: 0;
+  padding-left: 18px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.evidence-list li {
+  padding: 2px 0;
+  overflow-wrap: anywhere;
+}
+
+.console-log {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.console-log li {
+  padding: 5px 0;
+  border-top: 1px solid var(--line);
+}
+
+.console-log time,
+.console-log strong,
+.console-log span {
+  display: block;
+}
+
+.console-log strong {
+  color: var(--text);
+  font-weight: 620;
+}
+
+.status-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.status-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 16px;
+  padding: 5px 0;
+}
+
+.running,
+.evaluating {
+  color: var(--amber);
+}
+
+.passed,
+.passing {
+  color: var(--green);
+}
+
+.failed {
+  color: var(--red);
+}
+
+.archived,
+.idle,
+.paused {
+  color: var(--muted);
+}
+
+.history {
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+}
+
+.history summary {
+  cursor: pointer;
+}
+
+.history ol {
+  margin: 10px 0 0 20px;
+  padding: 0;
+}
+
+.history li {
+  padding: 3px 0;
+}
+
+.history li span {
+  display: block;
+}
+
+@media (max-width: 760px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .rail {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    padding: 10px 12px;
+    max-height: 40vh;
+    overflow: auto;
+  }
+
+  .file-tree {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  }
+
+  .workspace {
+    padding: 0;
+  }
+
+  .paper {
+    min-height: 100vh;
+    padding: 28px 22px 42px;
+  }
+
+  .sloop-editor {
+    margin-left: -20px;
+    margin-right: -20px;
+  }
+
+  .sloop-editor .bn-editor {
+    padding-inline: 20px;
+  }
+
+  .status-head,
+  .surface-head,
+  .section-header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .section-header {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+
+  .section-header span {
+    text-align: left;
+  }
+
+  .surface-actions {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .runtime-info {
+    grid-template-columns: 1fr;
+  }
+}

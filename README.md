@@ -30,7 +30,7 @@ The main interface is a Notion-like paper surface backed by plain Markdown. A lo
 - **Every loop has evals.** Evaluation criteria are written in text first, then agents can derive deterministic checks such as tests, schemas, fixtures, or commands.
 - **Git is the audit trail.** Sloop uses diffs, branches, and worktrees to make every agent change inspectable and reversible.
 - **Cascades are diff-driven.** When a parent doc changes, agents inspect the Git diff and update only the affected downstream docs or code.
-- **Agents run locally.** The hackathon build uses external CLI workers, starting with Codex and Claude adapters.
+- **Agents run locally through Pi.** The hackathon build uses Pi as the only external coding agent runtime.
 
 ## How It Works
 
@@ -53,7 +53,7 @@ flowchart TD
 ---
 kind: loop-doc
 status: running
-agent: codex
+agent: pi
 evals:
   - Requirements are complete and non-ambiguous.
   - Each downstream architecture option traces back to this PRD.
@@ -75,6 +75,20 @@ Define the product, its constraints, and the criteria every child loop must sati
 The hackathon version is a Vite + TypeScript app with a local Node worker/server. The frontend owns the paper-first editing experience, diff views, and loop status UI. The local worker owns filesystem access, Git operations, worktree lifecycle, and agent process orchestration.
 
 Tauri and Rust are intentionally deferred for now so the prototype can move quickly.
+
+## Pi Runtime
+
+Sloop expects Pi to be installed globally and available as `pi` on `PATH`. Before running Sloop agent loops, log in with `pi /login`, or start interactive `pi` and run `/login`.
+
+The runtime is configured with environment variables:
+
+- `SLOOP_PI_COMMAND=pi` - Pi CLI command to invoke.
+- `SLOOP_PI_MODEL=openai-codex/gpt-5.3-codex` - default Pi model.
+- `SLOOP_PI_PROVIDER` - optional provider override.
+- `SLOOP_PI_ARGS` - optional extra CLI arguments appended to the Pi invocation.
+- `SLOOP_PI_SESSION_ROOT=.sloop/pi-sessions` - optional root for per-run Pi session directories.
+
+Each Sloop run should use a per-run Pi session directory under `.sloop/pi-sessions` so runtime state is isolated.
 
 ## Repo Map
 
