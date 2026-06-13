@@ -14,7 +14,8 @@
     "build": "tsc -p tsconfig.json --noEmit && vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "start": "tsx src/server/index.ts"
+    "start": "tsx src/server/index.ts",
+    "verify:demo": "tsx scripts/verify-demo.ts"
   },
   "dependencies": {
     "@blocknote/core": "^0.51.4",
