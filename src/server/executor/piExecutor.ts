@@ -134,11 +134,16 @@ export function resolveMaxAttempts(env: NodeJS.ProcessEnv): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 3;
 }
 
-export function createExecutor(resolveLeafModel: ResolveLeafModel): Executor {
+export function createExecutor(
+  resolveLeafModel: ResolveLeafModel,
+  opts?: { targetRepo?: string },
+): Executor {
   return {
     async run(loop, onOutput) {
       const env = process.env;
-      const cwd = resolveTargetRepo(env);
+      // An explicitly threaded target repo wins; otherwise fall back to the env-driven
+      // default (SLOOP_WORKSPACE || cwd) so the env path and existing tests still work.
+      const cwd = opts?.targetRepo ?? resolveTargetRepo(env);
       const dry = isDryRun(env);
       if (dry) onOutput('[sloop] SLOOP_DRY_RUN — skipping Pi agent, running verify only.\n');
 

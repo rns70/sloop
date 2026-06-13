@@ -187,7 +187,7 @@ async function runOne(
   const clock = opts.clock ?? (() => Date.now());
   const timeoutMs = opts.convergenceTimeoutMs ?? DEFAULT_CONVERGENCE_TIMEOUT_MS;
   const log = opts.onLog ?? (() => {});
-  const env = { ...opts.env, SLOOP_TARGET_REPO: target.dir };
+  const env = { ...opts.env };
 
   let converged = false;
   let error: string | null = null;

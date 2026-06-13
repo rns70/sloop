@@ -38,15 +38,15 @@ function leaf(criteria: AcceptanceCriterion[]): LoopDoc {
 /** Run the executor in dry-run mode with env restored afterward. */
 async function runDry(loop: LoopDoc): Promise<{ ok: boolean }> {
   const prevDryRun = process.env.SLOOP_DRY_RUN;
-  const prevTarget = process.env.SLOOP_TARGET_REPO;
+  const prevTarget = process.env.SLOOP_WORKSPACE;
   process.env.SLOOP_DRY_RUN = '1';
-  process.env.SLOOP_TARGET_REPO = CWD;
+  process.env.SLOOP_WORKSPACE = CWD;
   try {
     const executor = createExecutor(() => DUMMY_MODEL);
     return await executor.run(loop, () => {});
   } finally {
     restoreEnv('SLOOP_DRY_RUN', prevDryRun);
-    restoreEnv('SLOOP_TARGET_REPO', prevTarget);
+    restoreEnv('SLOOP_WORKSPACE', prevTarget);
   }
 }
 

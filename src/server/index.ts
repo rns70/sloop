@@ -67,6 +67,10 @@ async function main(): Promise<void> {
   }
   const port = Number(process.env.PORT ?? DEFAULT_PORT);
   const workspace = resolve(process.env.SLOOP_WORKSPACE ?? 'fixtures/sample-workspace');
+  // Keep the canonical workspace signal consistent for any other env reader (the
+  // executor target is now threaded explicitly via createRealApi). Only set when unset
+  // so an explicit override still wins. Mirrors startServer.
+  process.env.SLOOP_WORKSPACE ??= workspace;
   const api = await createRealApi(workspace, process.env);
   const { server } = buildServer({ api, workspaceRoot: workspace, distDir: DIST_DIR });
   await listen(server, port);

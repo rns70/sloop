@@ -238,7 +238,9 @@ export class RealApi implements StreamingSloopApi {
     const registry = await files.readModelRegistry();
     bootstrapPi(registry, env);
 
-    const executor = createExecutor((loop) => resolveLeafModel(loop, registry, env));
+    const executor = createExecutor((loop) => resolveLeafModel(loop, registry, env), {
+      targetRepo: root,
+    });
 
     // Late-bound holder so the writeLoop decorator can reach the not-yet-created instance.
     const ref: { api?: RealApi } = {};
