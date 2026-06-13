@@ -20,6 +20,7 @@ export { Tag } from './Tag';
 export type { TagProps } from './Tag';
 export { Button, IconButton } from './Button';
 export type { ButtonProps, IconButtonProps } from './Button';
+export { CriteriaWarning } from './CriteriaWarning';
 export { Label } from './Label';
 export type { LabelProps } from './Label';
 export { Card } from './Card';
