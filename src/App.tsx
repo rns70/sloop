@@ -177,6 +177,8 @@ interface DirectoryEntry {
   path: string;
   name: string;
   doc?: LoopDoc;
+  children?: DirectoryEntry[];
+  stageIndex?: number;
 }
 
 function createDirectoryNode(name: string, path: string): DirectoryNode {
@@ -188,10 +190,46 @@ function createDirectoryNode(name: string, path: string): DirectoryNode {
   };
 }
 
+function createLoopDocEntries(docs: LoopDoc[]): DirectoryEntry[] {
+  const docsByPath = new Map(docs.map((doc) => [doc.path, doc]));
+  const childPaths = new Set<string>();
+
+  docs.forEach((workspaceDoc) => {
+    workspaceDoc.stages.forEach((stage) => {
+      if (docsByPath.has(stage.doc)) childPaths.add(stage.doc);
+    });
+  });
+
+  function buildEntry(doc: LoopDoc, ancestors: Set<string>, stageIndex?: number): DirectoryEntry {
+    const nextAncestors = new Set(ancestors).add(doc.path);
+    const children = doc.stages
+      .map((stage, index) => {
+        const childDoc = docsByPath.get(stage.doc);
+        if (!childDoc || nextAncestors.has(childDoc.path)) return undefined;
+        return buildEntry(childDoc, nextAncestors, index);
+      })
+      .filter((entry): entry is DirectoryEntry => Boolean(entry));
+
+    return {
+      path: doc.path,
+      name: shortDocName(doc.path),
+      doc,
+      children,
+      stageIndex
+    };
+  }
+
+  const roots = docs
+    .filter((doc) => !childPaths.has(doc.path))
+    .sort((left, right) => left.path.localeCompare(right.path));
+
+  return roots.map((doc) => buildEntry(doc, new Set()));
+}
+
 function buildDirectoryTree(files: string[], docs: LoopDoc[]): DirectoryNode {
   const root = createDirectoryNode("", "");
   const docsByPath = new Map(docs.map((doc) => [doc.path, doc]));
-  const paths = [...new Set([...files, ...docs.map((doc) => doc.path)])].sort((a, b) =>
+  const paths = [...new Set(files.filter((path) => !docsByPath.has(path)))].sort((a, b) =>
     a.localeCompare(b)
   );
 
@@ -220,109 +258,87 @@ function buildDirectoryTree(files: string[], docs: LoopDoc[]): DirectoryNode {
     });
   });
 
+  root.entries.push(...createLoopDocEntries(docs));
   return root;
-}
-
-function buildDirectoryNumbers(docs: LoopDoc[]): Map<string, string> {
-  const directorySteps = new Map<string, string[]>();
-  const childPaths = new Set<string>();
-
-  docs.forEach((workspaceDoc) => {
-    workspaceDoc.stages.forEach((stage) => childPaths.add(stage.doc.trim()));
-  });
-
-  const rootLoopDocs = docs.filter(
-    (workspaceDoc) => workspaceDoc.stages.length > 0 && !childPaths.has(workspaceDoc.path)
-  );
-  const numberingSources = rootLoopDocs.length > 0 ? rootLoopDocs : docs;
-
-  numberingSources.forEach((workspaceDoc) => {
-    workspaceDoc.stages.forEach((stage, index) => {
-      const directory = stage.doc.trim().split("/").slice(0, -1).join("/");
-      if (!directory) return;
-
-      directorySteps.set(directory, [...(directorySteps.get(directory) ?? []), stepPrefix(index)]);
-    });
-  });
-
-  const numbers = new Map<string, string>();
-  directorySteps.forEach((steps, directory) => {
-    const uniqueSteps = [...new Set(steps)].sort();
-    numbers.set(
-      directory,
-      uniqueSteps.length === 1 ? uniqueSteps[0] : `${uniqueSteps[0]}-${uniqueSteps.at(-1)}`
-    );
-  });
-
-  return numbers;
 }
 
 function DirectoryTree({
   node,
   selectedPath,
-  directoryNumbers,
   onOpenDoc,
   depth = 0
 }: {
   node: DirectoryNode;
   selectedPath: string;
-  directoryNumbers: Map<string, string>;
   onOpenDoc: (path: string) => void;
   depth?: number;
 }) {
   const directories = [...node.directories.values()].sort((left, right) =>
     left.name.localeCompare(right.name)
   );
-  const entries = [...node.entries].sort((left, right) => left.path.localeCompare(right.path));
+  const entries = [...node.entries].sort((left, right) => {
+    if (left.doc && right.doc) return left.path.localeCompare(right.path);
+    if (left.doc) return -1;
+    if (right.doc) return 1;
+    return left.path.localeCompare(right.path);
+  });
+
+  function renderEntry(entry: DirectoryEntry, entryDepth: number) {
+    const selected = entry.path === selectedPath;
+    const stagePrefix =
+      typeof entry.stageIndex === "number" ? `${stepPrefix(entry.stageIndex + 1)} ` : "";
+
+    return (
+      <li key={entry.path}>
+        {entry.doc ? (
+          <button
+            type="button"
+            className={selected ? "selected" : undefined}
+            onClick={() => onOpenDoc(entry.path)}
+            aria-current={selected ? "page" : undefined}
+            style={{ "--depth": entryDepth } as CSSProperties}
+          >
+            <span className={`file-status ${entry.doc.loop.status}`} aria-hidden="true" />
+            <span className="file-text">
+              <span>
+                {stagePrefix}
+                {entry.name}
+              </span>
+            </span>
+          </button>
+        ) : (
+          <div className="file-entry" style={{ "--depth": entryDepth } as CSSProperties}>
+            <span className="file-status plain" aria-hidden="true" />
+            <span className="file-text">
+              <span>{entry.name}</span>
+            </span>
+          </div>
+        )}
+        {entry.children && entry.children.length > 0 ? (
+          <ol className="file-branch">
+            {entry.children.map((child) => renderEntry(child, entryDepth + 1))}
+          </ol>
+        ) : null}
+      </li>
+    );
+  }
 
   return (
     <ol className={depth === 0 ? "file-tree" : "file-branch"}>
       {directories.map((directory) => (
         <li key={directory.path}>
           <div className="folder-label" style={{ "--depth": depth } as CSSProperties}>
-            {directoryNumbers.has(directory.path)
-              ? `${directoryNumbers.get(directory.path)} ${directory.name}`
-              : directory.name}
+            {directory.name}
           </div>
           <DirectoryTree
             node={directory}
             selectedPath={selectedPath}
-            directoryNumbers={directoryNumbers}
             onOpenDoc={onOpenDoc}
             depth={depth + 1}
           />
         </li>
       ))}
-      {entries.map((entry) => {
-        const selected = entry.path === selectedPath;
-        const label = entry.doc ? shortDocName(entry.path) : entry.name;
-
-        return (
-          <li key={entry.path}>
-            {entry.doc ? (
-              <button
-                type="button"
-                className={selected ? "selected" : undefined}
-                onClick={() => onOpenDoc(entry.path)}
-                aria-current={selected ? "page" : undefined}
-                style={{ "--depth": depth } as CSSProperties}
-              >
-                <span className={`file-status ${entry.doc.loop.status}`} aria-hidden="true" />
-                <span className="file-text">
-                  <span>{label}</span>
-                </span>
-              </button>
-            ) : (
-              <div className="file-entry" style={{ "--depth": depth } as CSSProperties}>
-                <span className="file-status plain" aria-hidden="true" />
-              <span className="file-text">
-                <span>{label}</span>
-              </span>
-              </div>
-            )}
-          </li>
-        );
-      })}
+      {entries.map((entry) => renderEntry(entry, depth))}
     </ol>
   );
 }
@@ -345,7 +361,6 @@ function DocumentRail({
   onOpenDoc: (path: string) => void;
 }) {
   const tree = buildDirectoryTree(files, docs);
-  const directoryNumbers = buildDirectoryNumbers(docs);
 
   return (
     <nav className="rail" aria-label="Files">
@@ -367,7 +382,6 @@ function DocumentRail({
       <DirectoryTree
         node={tree}
         selectedPath={selectedPath}
-        directoryNumbers={directoryNumbers}
         onOpenDoc={onOpenDoc}
       />
     </nav>
