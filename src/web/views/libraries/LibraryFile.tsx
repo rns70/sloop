@@ -7,15 +7,19 @@
 import { useEffect, useState } from 'react';
 import { Navigate, useParams, useSearchParams } from 'react-router-dom';
 import {
+  getModels,
   getRoles,
   getWorkflows,
   putFile,
+  type ModelOption,
   type RoleDef,
   type WorkflowDef,
 } from '../../api-client/index';
 import { Button, EditableTitle, MarkdownEditor, Page, Tag, roleTone } from '../../design/index';
 import { serializeRole, serializeWorkflow } from '../../shell/createItem';
 import { useRegisterSave } from '../../shell/EditorActionsContext';
+import { WorkflowStepsEditor } from './WorkflowStepsEditor';
+import { validateSteps, type WorkflowStep } from './workflowSteps';
 
 type LibType = 'roles' | 'workflows';
 
@@ -43,6 +47,9 @@ function LibraryEditor({ type, id }: { type: LibType; id: string }) {
   const [original, setOriginal] = useState('');
   const [saving, setSaving] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  const [steps, setSteps] = useState<WorkflowStep[]>([]);
+  const [roles, setRoles] = useState<RoleDef[]>([]);
+  const [models, setModels] = useState<ModelOption[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -71,6 +78,7 @@ function LibraryEditor({ type, id }: { type: LibType; id: string }) {
           setOriginalName(def.name);
           setContent(def.guidance);
           setOriginal(def.guidance);
+          setSteps(def.steps);
         });
 
     load.catch((e: unknown) => {
@@ -81,18 +89,39 @@ function LibraryEditor({ type, id }: { type: LibType; id: string }) {
     };
   }, [isRole, id]);
 
+  // Workflows need the role/model option lists for the steps editor's dropdowns.
+  useEffect(() => {
+    if (isRole) return;
+    let cancelled = false;
+    getRoles()
+      .then((r) => !cancelled && setRoles(r))
+      .catch(() => undefined);
+    getModels()
+      .then((m) => !cancelled && setModels(m))
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [isRole]);
+
   const def = isRole ? role : workflow;
-  const dirty = def !== null && (content !== original || name !== originalName);
+  const stepsDirty = workflow !== null && JSON.stringify(steps) !== JSON.stringify(workflow.steps);
+  const dirty = def !== null && (content !== original || name !== originalName || stepsDirty);
+  const stepsError = workflow !== null ? validateSteps(steps) : null;
 
   const save = () => {
     if (!def) return;
+    if (stepsError) {
+      setNote(stepsError);
+      return;
+    }
     setSaving(true);
     setNote(null);
     // Reconstruct the whole file (frontmatter + body) — putFile writes raw content, so
     // sending only the body would drop the role's model / workflow's steps.
     const fileContent = role
       ? serializeRole({ id: role.id, name, defaultModel: role.defaultModel, color: role.color }, content)
-      : serializeWorkflow({ id: (workflow as WorkflowDef).id, name, steps: (workflow as WorkflowDef).steps }, content);
+      : serializeWorkflow({ id: (workflow as WorkflowDef).id, name, steps }, content);
     putFile(relPath, fileContent)
       .then(() => {
         setOriginal(content);
@@ -104,7 +133,7 @@ function LibraryEditor({ type, id }: { type: LibType; id: string }) {
   };
 
   // Expose Save to the app-level Cmd+S hotkey and the command palette.
-  useRegisterSave(save, dirty && !saving);
+  useRegisterSave(save, dirty && !saving && !stepsError);
 
   return (
     <Page
@@ -118,7 +147,7 @@ function LibraryEditor({ type, id }: { type: LibType; id: string }) {
         def && (
           <>
             {note && <span className="text-[12px] text-ink-faint">{note}</span>}
-            <Button variant="primary" onClick={save} disabled={!dirty || saving}>
+            <Button variant="primary" onClick={save} disabled={!dirty || saving || Boolean(stepsError)}>
               {saving ? 'Saving…' : 'Save'}
             </Button>
           </>
@@ -138,9 +167,7 @@ function LibraryEditor({ type, id }: { type: LibType; id: string }) {
               <Tag tone={roleTone(role.id)}>{name || role.name}</Tag>
             </div>
           ) : workflow ? (
-            <div className="mb-5 mt-1 text-[13px] text-ink-faint">
-              {workflow.steps.map((s) => s.name).join(' → ')}
-            </div>
+            <WorkflowStepsEditor steps={steps} roles={roles} models={models} onChange={setSteps} />
           ) : null}
           <MarkdownEditor key={relPath} value={content} onChange={setContent} />
         </>

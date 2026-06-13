@@ -101,7 +101,7 @@ export function LoopEditor({ cascadeId, loop, onSaved, onCancel }: LoopEditorPro
           <Button variant="ghost" onClick={onCancel} disabled={saving}>
             Cancel
           </Button>
-          <Button variant="primary" onClick={save} disabled={saving || !dirty}>
+          <Button variant="primary" onClick={save} loading={saving} disabled={!dirty}>
             {saving ? 'Saving…' : 'Save'}
           </Button>
         </div>

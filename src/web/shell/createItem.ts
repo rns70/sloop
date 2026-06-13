@@ -4,6 +4,7 @@
 // go through the structured putAdr, so the backend serializes those.
 
 import { getAdr, putAdr, putFile, type RoleDef, type WorkflowDef } from '../api-client/index';
+import { ADR_BODY_TEMPLATE } from '../../shared/index';
 
 /** kebab-case a display name into a filename-safe id; never empty. */
 export function slugify(name: string): string {
@@ -28,8 +29,13 @@ export function uniqueSlug(base: string, taken: Set<string>): string {
 // ---- Markdown serializers (roles/workflows) --------------------------------
 // Minimal, deterministic YAML — only the known fields, escaped conservatively.
 
+// Bare scalars that YAML would coerce to a non-string (booleans, null, numbers) or that
+// contain special chars must be quoted, so e.g. a step named "true" or "123" round-trips
+// as a string rather than a boolean/number.
+const YAML_COERCED =
+  /^(?:true|false|yes|no|on|off|null|~|[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)$/i;
 const yamlScalar = (v: string): string =>
-  /^[\w .,/@-]*$/.test(v) ? v : JSON.stringify(v); // quote anything with YAML-special chars
+  v !== '' && /^[\w .,/@-]*$/.test(v) && !YAML_COERCED.test(v) ? v : JSON.stringify(v);
 
 /** Full role file content (frontmatter + brief body). */
 export function serializeRole(meta: Omit<RoleDef, 'brief'>, body: string): string {
@@ -61,7 +67,6 @@ export function serializeWorkflow(meta: Omit<WorkflowDef, 'guidance'>, body: str
 
 // ---- Create -----------------------------------------------------------------
 
-const ADR_PLACEHOLDER = 'Describe the requirement this ADR captures.';
 const ROLE_PLACEHOLDER = 'Describe what this role does and how it should approach its work.';
 const WORKFLOW_PLACEHOLDER =
   'Guidance the architect follows when decomposing work under this workflow.';
@@ -84,7 +89,7 @@ export async function createDatabankItem(existingRelPaths: string[], folder = ''
     id,
     relPath,
     title: 'Untitled',
-    body: `\n${ADR_PLACEHOLDER}\n`,
+    body: ADR_BODY_TEMPLATE,
     acceptanceCriteria: [],
   });
   return relPath.replace(/^databank\//, '');

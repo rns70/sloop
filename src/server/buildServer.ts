@@ -103,7 +103,11 @@ export function buildServer(opts: BuildServerOptions): { server: Server; uiMount
     });
     res.flushHeaders();
     const ac = new AbortController();
-    req.on('close', () => ac.abort());
+    // Abort when the *response* connection closes (client disconnect / browser
+    // navigation). NOT req.on('close') — on a POST that fires the instant
+    // body-parser finishes reading the request body, which would abort the
+    // agent before its first iteration and end the turn with an empty `done`.
+    res.on('close', () => ac.abort());
     api.assistantStream(req.body, (e) => {
       if (!res.writableEnded) res.write(`data: ${JSON.stringify(e)}\n\n`);
     }, ac.signal).catch((err: unknown) => {

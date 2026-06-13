@@ -23,4 +23,24 @@ describe('serializeWorkflow round-trip', () => {
     );
     expect(raw).not.toContain('gate');
   });
+
+  it('keeps boolean-like step names as strings', () => {
+    const raw = serializeWorkflow(
+      { id: 'w', name: 'W', steps: [{ name: 'true', role: 'engineer', model: 'haiku' }] },
+      'body',
+    );
+    const { data } = parseFrontmatter<Partial<WorkflowDef>>(raw);
+    expect(data.steps?.[0].name).toBe('true');
+    expect(typeof data.steps?.[0].name).toBe('string');
+  });
+
+  it('keeps numeric-like step names as strings', () => {
+    const raw = serializeWorkflow(
+      { id: 'w', name: 'W', steps: [{ name: '123', role: 'engineer', model: 'haiku' }] },
+      'body',
+    );
+    const { data } = parseFrontmatter<Partial<WorkflowDef>>(raw);
+    expect(data.steps?.[0].name).toBe('123');
+    expect(typeof data.steps?.[0].name).toBe('string');
+  });
 });

@@ -22,11 +22,13 @@ Notion-quiet primitives + the shared markdown editor. **WP-5 imports from
 |--------|---------|
 | `Page` | Routed content area: quiet breadcrumb top bar + body (`prose` = constrained editor column, default = wide). No top tabs. |
 | `Tag` | Soft-pastel role pill. `tone`: `blue` \| `purple` \| `green` \| `pink` \| `gray`. |
-| `Button` | Quiet button. `variant`: `primary` (solid dark) \| `subtle` \| `ghost`. |
+| `Button` | Quiet button. `variant`: `primary` (solid dark) \| `subtle` \| `ghost`. `loading` shows a leading spinner and blocks clicks while an async action is in flight. |
 | `Label` | Small uppercase section label. |
 | `Card` | Light hairline container (use sparingly; prefer divided rows). |
 | `PropertyRow` | Notion-style `label` / value metadata row. |
 | `StatusDot` | Status label with a single colored dot (`running`/`done`/`blocked`/`failed`/`queued`/`planned`). |
+| `Spinner` | Activity spinner (`sm`/`md`/`lg`). Inherits `currentColor`; spins under motion-safe, pulses under reduced-motion. |
+| `Skeleton` | Shimmer placeholder block. Compose several to mirror a layout's shape on load. Decorative (hidden from assistive tech). |
 | `MarkdownEditor` | **The shared BlockNote editor.** Edit / inline-diff / proposal modes. File-agnostic — edits any markdown string. |
 | `InlineDiffView` | In-document add/remove line diff renderer (used by `MarkdownEditor`). |
 

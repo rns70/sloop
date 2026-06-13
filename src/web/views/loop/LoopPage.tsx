@@ -11,6 +11,7 @@ import { useCascade } from '../mission-control/CascadeContext';
 import { humanizeCascade, loopTitle } from '../mission-control/text';
 import { useRoleLabel } from '../mission-control/useRoleLabel';
 import { LoopEditor } from './LoopEditor';
+import { LoopSkeleton } from './LoopSkeleton';
 import { OutputStream } from './OutputStream';
 
 /** plan ✓ → execute ● → review — derived from status (spec §5 loop state machine). */
@@ -83,7 +84,7 @@ export function LoopPage() {
   if (!detail) {
     return (
       <Page prose breadcrumb={breadcrumb}>
-        <p className="text-[13px] text-ink-faint">Loading…</p>
+        <LoopSkeleton />
       </Page>
     );
   }
