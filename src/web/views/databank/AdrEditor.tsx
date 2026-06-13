@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { getAdr, getAdrDiff, putAdr, type AdrDoc } from '../../api-client/index';
-import { Button, EditableTitle, MarkdownEditor, Page, cx, type MarkdownEditorHandle } from '../../design/index';
+import { bodyHasNoCriteria, CRITERIA_ASSISTANT_INSTRUCTION } from '../../../shared/index';
+import { Button, CriteriaWarning, EditableTitle, MarkdownEditor, Page, cx, type MarkdownEditorHandle } from '../../design/index';
 import { useAssistant } from '../../assistant/AssistantContext';
 import { useRegisterSave } from '../../shell/EditorActionsContext';
 import { InlineDiff } from './InlineDiff';
@@ -30,7 +31,7 @@ export function AdrEditor() {
   const [error, setError] = useState<string | null>(null);
 
   const editorRef = useRef<MarkdownEditorHandle>(null);
-  const { registerOpenDoc } = useAssistant();
+  const { registerOpenDoc, runAssistant } = useAssistant();
 
   useEffect(() => {
     let cancelled = false;
@@ -68,6 +69,7 @@ export function AdrEditor() {
   }, [relPath, body, registerOpenDoc]);
 
   const dirty = adr !== null && (body !== adr.body || title !== adr.title);
+  const missingCriteria = bodyHasNoCriteria(body);
 
   async function save() {
     if (!adr) return;
@@ -116,6 +118,7 @@ export function AdrEditor() {
       actions={
         adr && (
           <>
+            {missingCriteria && <CriteriaWarning variant="badge" />}
             {toggle}
             <Button variant="primary" onClick={() => void save()} disabled={!dirty || saving}>
               {saving ? 'Saving…' : 'Save'}
@@ -131,6 +134,22 @@ export function AdrEditor() {
         <>
           <EditableTitle value={title} onChange={setTitle} autoFocus={isNew} />
           <div className="mb-5 mt-1 font-mono text-[12px] text-ink-faint">{file}</div>
+
+          {mode === 'edit' && missingCriteria && (
+            <CriteriaWarning
+              action={
+                <Button
+                  variant="subtle"
+                  onClick={async () => {
+                    await save(); // persist the buffer so the agent edits the latest on-disk content
+                    runAssistant(`Edit the design file \`${relPath}\`. ${CRITERIA_ASSISTANT_INSTRUCTION}`);
+                  }}
+                >
+                  Add with assistant
+                </Button>
+              }
+            />
+          )}
 
           {mode === 'edit' ? (
             <MarkdownEditor ref={editorRef} value={body} onChange={setBody} />
