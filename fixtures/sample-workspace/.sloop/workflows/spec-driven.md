@@ -1,7 +1,7 @@
 ---
 id: spec-driven
 name: Spec-driven
-stages:
+steps:
   - { name: plan,      role: architect, model: opus }
   - { name: implement, role: engineer,  model: haiku }
   - { name: verify,    role: qa,         model: sonnet, gate: true }

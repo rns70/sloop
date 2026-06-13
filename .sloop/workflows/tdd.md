@@ -1,7 +1,7 @@
 ---
 id: tdd
 name: Test-driven
-stages:
+steps:
   - { name: write-failing-test, role: engineer, model: sonnet, gate: true }
   - { name: implement,          role: engineer, model: haiku }
   - { name: refactor,           role: engineer, model: haiku, gate: true }
@@ -22,3 +22,12 @@ Per unit, loop: **write a failing test → implement to green → refactor**.
 
 The failing test is the verify gate, so the convergence invariant holds by construction:
 the unit is done exactly when its locked test exits 0.
+
+## Defect repair (reproduce-first)
+
+Fixing a bug is TDD applied to a defect: the failing test is a **reproduction**.
+**reproduce** — write a failing regression test that triggers the defect and confirm it
+fails for the right reason; lock it as the leaf's `verify`. **localize** — trace the
+failure to its root cause with `path:line` evidence. **implement/refactor** as above. The
+gate is the reproduction test plus the existing suite, both green. Reproducing the bug as
+a locked test first is what makes the fix verifiable rather than plausible.
