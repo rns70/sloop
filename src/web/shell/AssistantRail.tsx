@@ -14,7 +14,7 @@ async function loadExisting(): Promise<ExistingIds> {
   return {
     adrPaths: adrs.map((a) => a.relPath),
     roleIds: roles.map((r) => r.id),
-    templateIds: workflows.map((t) => t.id),
+    workflowIds: workflows.map((t) => t.id),
   };
 }
 

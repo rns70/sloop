@@ -35,7 +35,7 @@ function LibraryEditor({ type, id }: { type: LibType; id: string }) {
   const isNew = searchParams.get('new') === '1';
 
   const [role, setRole] = useState<RoleDef | null>(null);
-  const [workflow, setTemplate] = useState<WorkflowDef | null>(null);
+  const [workflow, setWorkflow] = useState<WorkflowDef | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [originalName, setOriginalName] = useState('');
@@ -49,7 +49,7 @@ function LibraryEditor({ type, id }: { type: LibType; id: string }) {
     setError(null);
     setNote(null);
     setRole(null);
-    setTemplate(null);
+    setWorkflow(null);
 
     const load = isRole
       ? getRoles().then((rs) => {
@@ -66,7 +66,7 @@ function LibraryEditor({ type, id }: { type: LibType; id: string }) {
           const def = ts.find((t) => t.id === id);
           if (cancelled) return;
           if (!def) return setError(`No workflow "${id}"`);
-          setTemplate(def);
+          setWorkflow(def);
           setName(def.name);
           setOriginalName(def.name);
           setContent(def.guidance);
@@ -111,7 +111,7 @@ function LibraryEditor({ type, id }: { type: LibType; id: string }) {
       prose
       breadcrumb={
         <span>
-          Libraries / {isRole ? 'Roles' : 'Templates'} / {def?.name ?? id}
+          Libraries / {isRole ? 'Roles' : 'Workflows'} / {def?.name ?? id}
         </span>
       }
       actions={

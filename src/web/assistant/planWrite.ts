@@ -8,7 +8,7 @@ export type WritePlan =
   | { kind: 'create-adr'; relPath: string; doc: AdrDoc }
   | { kind: 'create-file'; relPath: string; content: string; libKind: 'roles' | 'workflows' };
 
-export interface ExistingIds { adrPaths: string[]; roleIds: string[]; templateIds: string[]; }
+export interface ExistingIds { adrPaths: string[]; roleIds: string[]; workflowIds: string[]; }
 
 /** basename without extension, e.g. 'databank/x/auth.md' -> 'auth'. */
 function baseId(path: string | undefined): string {
@@ -35,6 +35,6 @@ export function planWrite(p: AssistantProposal, existing: ExistingIds): WritePla
 
   const libKind: 'roles' | 'workflows' = p.action === 'create-role' ? 'roles' : 'workflows';
   const base = baseId(p.targetPath) || slugify(p.summary || libKind);
-  const id = uniqueSlug(base, new Set(libKind === 'roles' ? existing.roleIds : existing.templateIds));
+  const id = uniqueSlug(base, new Set(libKind === 'roles' ? existing.roleIds : existing.workflowIds));
   return { kind: 'create-file', relPath: `.sloop/${libKind}/${id}.md`, content: p.content, libKind };
 }

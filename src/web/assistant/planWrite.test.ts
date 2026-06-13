@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { AssistantProposal } from '../api-client/index';
 import { planWrite } from './planWrite';
 
-const existing = { adrPaths: ['databank/auth.md'], roleIds: ['architect'], templateIds: ['default'] };
+const existing = { adrPaths: ['databank/auth.md'], roleIds: ['architect'], workflowIds: ['default'] };
 
 describe('planWrite', () => {
   it('plans an answer with no write', () => {

@@ -105,7 +105,7 @@ export function buildArchitectPrompt(
     '- Copy each acceptance criterion onto the leaf that satisfies it (stable id + text +',
     '  verify). Set "locked": true on every criterion you author — a locked criterion may',
     '  not be weakened by the leaf that executes it.',
-    '- Stages marked [GATE] are hard verification checkpoints; their criteria must be',
+    '- Steps marked [GATE] are hard verification checkpoints; their criteria must be',
     '  locked and backed by a concrete verify command.',
     '',
     'Respond with STRICT JSON only (no prose, no markdown fences) of this shape:',
@@ -129,7 +129,7 @@ export function buildArchitectPrompt(
 
   const userPrompt = [
     `# Process workflow: ${workflow.name} (${workflow.id})`,
-    'Stages:',
+    'Steps:',
     stepLines || '- (none)',
     '',
     'Guidance:',

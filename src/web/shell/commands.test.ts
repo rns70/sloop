@@ -21,7 +21,7 @@ const handlers = () => ({
   navigate: vi.fn(),
   newAdr: vi.fn(),
   newRole: vi.fn(),
-  newTemplate: vi.fn(),
+  newWorkflow: vi.fn(),
   saveDoc: null,
 });
 

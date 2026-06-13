@@ -14,7 +14,7 @@ import type { ArchitectInput, ArchitectPlanner } from '../planner/architect';
 import type { ArchitectPlan } from '../planner/prompt';
 import { createCascadeEngine } from './cascadeEngine';
 
-const TEMPLATE: WorkflowDef = {
+const WORKFLOW: WorkflowDef = {
   id: 'spec-driven',
   name: 'Spec-driven',
   steps: [
@@ -104,7 +104,7 @@ class FakeFiles implements FilesService {
     return [...ids].sort();
   }
   async listWorkflows(): Promise<WorkflowDef[]> {
-    return [TEMPLATE];
+    return [WORKFLOW];
   }
   async listRoles(): Promise<RoleDef[]> {
     return ROLES;

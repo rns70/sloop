@@ -35,7 +35,7 @@ export interface CommandHandlers {
   navigate: (to: string) => void;
   newAdr: () => void;
   newRole: () => void;
-  newTemplate: () => void;
+  newWorkflow: () => void;
   /** The active editor's save, if any. `null` when no document is open. */
   saveDoc: { canSave: boolean; save: () => void } | null;
 }
@@ -80,7 +80,7 @@ export function buildCommands(sources: CommandSources, handlers: CommandHandlers
       title: 'New workflow',
       group: 'Actions',
       keywords: 'create add library',
-      run: handlers.newTemplate,
+      run: handlers.newWorkflow,
     },
   );
   if (handlers.saveDoc) {
@@ -127,7 +127,7 @@ export function buildCommands(sources: CommandSources, handlers: CommandHandlers
     items.push({
       id: `nav:workflow:${t.id}`,
       title: t.name,
-      group: 'Templates',
+      group: 'Workflows',
       keywords: t.id,
       run: () => handlers.navigate(`/libraries/workflows/${enc(t.id)}`),
     });

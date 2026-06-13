@@ -1,5 +1,5 @@
 // The sidebar navigation tree. File-backed sections list their files directly: Databank
-// is a nested folder tree (see DatabankTree), Roles/Templates are flat lists, Cascades is
+// is a nested folder tree (see DatabankTree), Roles/Workflows are flat lists, Cascades is
 // a live run list. Each section can create new items inline — a quiet, hover-revealed "+"
 // on its header (Notion-style); Databank also gets a "new folder". Lists refresh on every
 // navigation, so a freshly-created item (or kicked-off cascade) shows up immediately.
@@ -182,7 +182,7 @@ export function SidebarNav() {
     cascades.map((c) => ({ to: `/cascades/${enc(c.id)}`, label: humanizeCascade(c.id) }));
   const roleLeaves: Leaf[] | null =
     roles && roles.map((r) => ({ to: `/libraries/roles/${enc(r.id)}`, label: r.name }));
-  const templateLeaves: Leaf[] | null =
+  const workflowLeaves: Leaf[] | null =
     workflows && workflows.map((t) => ({ to: `/libraries/workflows/${enc(t.id)}`, label: t.name }));
 
   return (
@@ -238,8 +238,8 @@ export function SidebarNav() {
       />
 
       <NavGroup
-        label="Templates"
-        items={templateLeaves}
+        label="Workflows"
+        items={workflowLeaves}
         error={errs.workflows ?? null}
         actions={
           workflows && (

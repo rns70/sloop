@@ -107,7 +107,7 @@ export function CommandPalette() {
           void createLibraryItem('roles', roles.map((r) => r.id))
             .then((id) => navigate(`/libraries/roles/${id}?new=1`))
             .catch(() => undefined),
-        newTemplate: () =>
+        newWorkflow: () =>
           void createLibraryItem('workflows', workflows.map((t) => t.id))
             .then((id) => navigate(`/libraries/workflows/${id}?new=1`))
             .catch(() => undefined),
