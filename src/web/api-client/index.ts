@@ -68,21 +68,30 @@ export function streamAssistant(
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(req), signal: controller.signal,
     });
+    if (!res.ok) {
+      let detail = `HTTP ${res.status}`;
+      try { const j = await res.json(); if (j?.error) detail = String(j.error); } catch { /* non-JSON body */ }
+      throw new Error(`assistant: ${detail}`);
+    }
     if (!res.body) throw new Error('assistant: no response stream');
     const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buf = '';
-    for (;;) {
-      const { value, done: streamDone } = await reader.read();
-      if (streamDone) break;
-      buf += decoder.decode(value, { stream: true });
-      const frames = buf.split('\n\n');
-      buf = frames.pop() ?? '';
-      for (const frame of frames) {
-        const line = frame.split('\n').find((l) => l.startsWith('data:'));
-        if (!line) continue;
-        try { onEvent(JSON.parse(line.slice(5).trim()) as AssistantStreamEvent); } catch { /* ignore partial */ }
+    try {
+      const decoder = new TextDecoder();
+      let buf = '';
+      for (;;) {
+        const { value, done: streamDone } = await reader.read();
+        if (streamDone) break;
+        buf += decoder.decode(value, { stream: true });
+        const frames = buf.split('\n\n');
+        buf = frames.pop() ?? '';
+        for (const frame of frames) {
+          const line = frame.split('\n').find((l) => l.startsWith('data:'));
+          if (!line) continue;
+          try { onEvent(JSON.parse(line.slice(5).trim()) as AssistantStreamEvent); } catch { /* ignore partial */ }
+        }
       }
+    } finally {
+      reader.releaseLock();
     }
   })();
   return { done, abort: () => controller.abort() };
