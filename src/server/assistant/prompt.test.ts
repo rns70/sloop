@@ -8,6 +8,15 @@ describe('buildAssistantSystemPrompt', () => {
     expect(s).toContain('apply immediately');
   });
 
+  it('forbids the assistant from writing implementation code (deliverables are ADRs/roles/workflows, a loop writes the code)', () => {
+    const s = buildAssistantSystemPrompt();
+    expect(s).toMatch(/never write implementation code/i);
+    // The hand-off: a loop/cascade seeded from the ADR produces the code, not the assistant.
+    expect(s).toMatch(/loop|cascade/i);
+    // Explicitly covers the build/make/implement framing that triggers code dumps.
+    expect(s).toMatch(/build|make|implement/i);
+  });
+
   it('mandates the ADR template with acceptance criteria', () => {
     const s = buildAssistantSystemPrompt();
     // Template sections
