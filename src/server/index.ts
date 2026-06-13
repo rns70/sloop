@@ -42,9 +42,10 @@ export async function startServer(opts: { root: string; port?: number }): Promis
   const root = resolve(opts.root);
   const port = opts.port ?? DEFAULT_PORT;
 
-  // The executor resolves its target repo from SLOOP_TARGET_REPO; point it at root so the
-  // agent edits this project. Only set when unset so an explicit override still wins.
-  process.env.SLOOP_TARGET_REPO ??= root;
+  // The executor resolves its target (where leaves write code/ and verify runs) from
+  // SLOOP_WORKSPACE; point it at root so the agent edits this project even if the process
+  // cwd differs. Only set when unset so an explicit override still wins.
+  process.env.SLOOP_WORKSPACE ??= root;
 
   const api = await createRealApi(root, process.env);
   const { server, uiMounted } = buildServer({ api, workspaceRoot: root, distDir: DIST_DIR });

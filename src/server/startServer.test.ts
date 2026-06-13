@@ -20,9 +20,9 @@ beforeAll(async () => {
     cwd: root,
   });
 
-  for (const k of ['SLOOP_TARGET_REPO', 'SLOOP_DRY_RUN']) saved[k] = process.env[k];
+  for (const k of ['SLOOP_WORKSPACE', 'SLOOP_DRY_RUN']) saved[k] = process.env[k];
   process.env.SLOOP_DRY_RUN = '1';
-  delete process.env.SLOOP_TARGET_REPO;
+  delete process.env.SLOOP_WORKSPACE;
 
   // Fixed high port so `started.url` matches the bound port (no ephemeral-port mismatch).
   started = await startServer({ root, port: 5199 });
@@ -46,7 +46,7 @@ describe('startServer', () => {
     expect(body.workspace).toBe(root);
   });
 
-  it('points the executor target repo at root', () => {
-    expect(process.env.SLOOP_TARGET_REPO).toBe(root);
+  it('points the executor target (workspace) at root', () => {
+    expect(process.env.SLOOP_WORKSPACE).toBe(root);
   });
 });

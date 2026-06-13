@@ -1,0 +1,10 @@
+{
+  "name": "sample-workspace",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Demo workspace sloop reconciles to its databank/. The converged code lives in code/; npm test runs code/'s suites, mapping to ADR-007's verify commands (npm test -- rotation / -- reuse-detection).",
+  "scripts": {
+    "test": "node code/test/run.mjs"
+  }
+}

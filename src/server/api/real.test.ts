@@ -16,7 +16,6 @@ import type { ModelRegistry } from '../../shared/index';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..', '..', '..');
 const SAMPLE = path.join(REPO_ROOT, 'fixtures', 'sample-workspace');
-const TARGET = path.join(REPO_ROOT, 'fixtures', 'sample-target-repo');
 const ADR_REL = 'databank/adr-007-token-rotation.md';
 
 function git(cwd: string, args: string[]): void {
@@ -53,7 +52,6 @@ describe('RealApi happy path (dry-run, offline)', () => {
 
     for (const key of [
       'SLOOP_DRY_RUN',
-      'SLOOP_TARGET_REPO',
       'SLOOP_MAX_DEPTH',
       'SLOOP_PLANNER_MODEL',
       'SLOOP_WORKSPACE',
@@ -61,7 +59,6 @@ describe('RealApi happy path (dry-run, offline)', () => {
       savedEnv[key] = process.env[key];
     }
     process.env.SLOOP_DRY_RUN = '1';
-    process.env.SLOOP_TARGET_REPO = TARGET;
     process.env.SLOOP_MAX_DEPTH = '2';
     process.env.SLOOP_PLANNER_MODEL = 'opus';
     process.env.SLOOP_WORKSPACE = workspace;

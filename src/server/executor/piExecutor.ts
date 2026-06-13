@@ -25,9 +25,15 @@ function isDryRun(env: NodeJS.ProcessEnv): boolean {
   return v !== '0' && v !== 'false' && v !== 'no' && v !== 'off';
 }
 
-/** The execution target is the workspace itself; leaves write into its `code/` dir. */
-function resolveTargetRepo(_env: NodeJS.ProcessEnv): string {
-  return process.cwd();
+/**
+ * The execution target is the workspace itself; leaves write into its `code/` dir and
+ * verify commands run there. Resolved from `SLOOP_WORKSPACE` (the canonical workspace
+ * signal, set by the entrypoints) so the executor targets the served workspace even when
+ * the process cwd differs (e.g. the CLI serving an arbitrary project dir, or tests).
+ * Falls back to `process.cwd()` when unset.
+ */
+function resolveTargetRepo(env: NodeJS.ProcessEnv): string {
+  return env.SLOOP_WORKSPACE || process.cwd();
 }
 
 function resolveExecutorTimeoutMs(env: NodeJS.ProcessEnv): number {
