@@ -1,5 +1,13 @@
 # Sloop
 
+<p>
+  <img alt="Rust" src="https://img.shields.io/badge/Rust-core-orange?style=flat-square&amp;logo=rust">
+  <img alt="Tauri" src="https://img.shields.io/badge/Tauri-desktop-24c8db?style=flat-square&amp;logo=tauri">
+  <img alt="Markdown source of truth" src="https://img.shields.io/badge/Markdown-source%20of%20truth-111827?style=flat-square&amp;logo=markdown">
+  <img alt="Local first" src="https://img.shields.io/badge/local--first-workspace-22c55e?style=flat-square">
+  <img alt="Git backed" src="https://img.shields.io/badge/Git-backed-f05032?style=flat-square&amp;logo=git">
+</p>
+
 <img src="assets/sloop-concept.png" alt="Sloop concept" width="420">
 
 Sloop is a local-first Rust/Tauri meta-IDE for designing, running, and supervising nested agent loops. It feels like a Notion-style paper workspace: users edit loop documents through a polished block editor, while the canonical source of truth remains Markdown, likely with frontmatter for loop type, dependencies, evaluation criteria, and runtime policy.
