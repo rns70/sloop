@@ -63,11 +63,10 @@ export class FilesServiceImpl implements FilesService {
     const acceptanceCriteria = parsed.hasSection
       ? parsed.criteria
       : normalizeCriteria(data.acceptanceCriteria);
-    const outBody = parsed.hasSection
-      ? body
-      : acceptanceCriteria.length > 0
-        ? upsertCriteriaInBody(body, acceptanceCriteria)
-        : body;
+    let outBody = body;
+    if (!parsed.hasSection && acceptanceCriteria.length > 0) {
+      outBody = upsertCriteriaInBody(body, acceptanceCriteria);
+    }
     return {
       id: String(data.id ?? ''),
       relPath,
@@ -83,6 +82,7 @@ export class FilesServiceImpl implements FilesService {
     // (covers programmatic creation, e.g. createDatabankItem with an empty list).
     const parsed = parseCriteriaFromBody(doc.body);
     const criteria = parsed.hasSection ? parsed.criteria : doc.acceptanceCriteria;
+    // Always re-serialize so the on-disk section is canonical (ids filled, format normalized).
     const body = upsertCriteriaInBody(doc.body, criteria);
     const frontmatter = { id: doc.id, title: doc.title };
     await this.writeFile(doc.relPath, serializeFrontmatter(frontmatter, body));
@@ -91,13 +91,23 @@ export class FilesServiceImpl implements FilesService {
   async readLoop(relPath: string): Promise<LoopDoc> {
     const raw = await fs.readFile(this.abs(relPath), 'utf8');
     const { data, body } = parseFrontmatter<LoopFrontmatter>(raw);
+    const parsed = parseCriteriaFromBody(body);
+    // Body is the on-disk source; fall back to legacy frontmatter criteria.
+    data.acceptanceCriteria = parsed.hasSection
+      ? parsed.criteria
+      : normalizeCriteria(data.acceptanceCriteria);
     return { frontmatter: data, body, relPath };
   }
 
   async writeLoop(loop: LoopDoc): Promise<void> {
+    // The engine mutates loop.frontmatter.acceptanceCriteria (passed/verdicts), so
+    // the structured field is the source for loops. Serialize it into the body and
+    // drop it from frontmatter.
+    const { acceptanceCriteria, ...frontmatter } = loop.frontmatter;
+    const body = upsertCriteriaInBody(loop.body, acceptanceCriteria);
     await this.writeFile(
       loop.relPath,
-      serializeFrontmatter(loop.frontmatter as unknown as Record<string, unknown>, loop.body),
+      serializeFrontmatter(frontmatter as unknown as Record<string, unknown>, body),
     );
   }
 
