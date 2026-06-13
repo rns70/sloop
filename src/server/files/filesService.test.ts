@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it, expect } from 'vitest';
 import type { LoopDoc, AdrDoc } from '../../shared';
-import { createFilesService, MoveError } from './filesService';
+import { createFilesService, MoveError, DeleteError } from './filesService';
 
 let root: string;
 
@@ -310,6 +310,63 @@ describe('FilesService', () => {
       const files = createFilesService(root);
       const p = files.moveAdr('databank/nope.md', 'databank/x.md');
       await expect(p).rejects.toBeInstanceOf(MoveError);
+      await expect(p).rejects.toMatchObject({ code: 'not_found' });
+    });
+  });
+
+  describe('deleteAdr', () => {
+    const writeAdrFile = async (rel: string, title: string) => {
+      const abs = path.join(root, rel);
+      await fs.mkdir(path.dirname(abs), { recursive: true });
+      await fs.writeFile(abs, `---\nid: ${path.basename(rel, '.md')}\ntitle: ${title}\n---\n\nBody.\n`, 'utf8');
+    };
+
+    it('deletes a single file and prunes the emptied parent dir', async () => {
+      const files = createFilesService(root);
+      await writeAdrFile('databank/auth/a.md', 'A');
+      await files.deleteAdr('databank/auth/a.md');
+      await expect(fs.access(path.join(root, 'databank/auth/a.md'))).rejects.toThrow();
+      await expect(fs.access(path.join(root, 'databank/auth'))).rejects.toThrow(); // pruned
+    });
+
+    it('keeps sibling files when deleting one of them', async () => {
+      const files = createFilesService(root);
+      await writeAdrFile('databank/auth/a.md', 'A');
+      await writeAdrFile('databank/auth/b.md', 'B');
+      await files.deleteAdr('databank/auth/a.md');
+      await expect(fs.access(path.join(root, 'databank/auth/a.md'))).rejects.toThrow();
+      expect(await fs.access(path.join(root, 'databank/auth/b.md')).then(() => true)).toBe(true);
+    });
+
+    it('deletes a whole folder with all its descendants', async () => {
+      const files = createFilesService(root);
+      await writeAdrFile('databank/auth/a.md', 'A');
+      await writeAdrFile('databank/auth/oauth/b.md', 'B');
+      await writeAdrFile('databank/api/keep.md', 'Keep');
+      await files.deleteAdr('databank/auth');
+      await expect(fs.access(path.join(root, 'databank/auth'))).rejects.toThrow();
+      expect(await fs.access(path.join(root, 'databank/api/keep.md')).then(() => true)).toBe(true);
+    });
+
+    it('rejects a path that escapes databank/', async () => {
+      const files = createFilesService(root);
+      await writeAdrFile('databank/auth/a.md', 'A');
+      await expect(files.deleteAdr('databank/../evil.md')).rejects.toMatchObject({
+        code: 'invalid',
+      });
+    });
+
+    it('refuses to delete the databank/ root itself', async () => {
+      const files = createFilesService(root);
+      await writeAdrFile('databank/auth/a.md', 'A');
+      await expect(files.deleteAdr('databank')).rejects.toMatchObject({ code: 'invalid' });
+      expect(await fs.access(path.join(root, 'databank/auth/a.md')).then(() => true)).toBe(true);
+    });
+
+    it('throws not_found when the target does not exist', async () => {
+      const files = createFilesService(root);
+      const p = files.deleteAdr('databank/nope.md');
+      await expect(p).rejects.toBeInstanceOf(DeleteError);
       await expect(p).rejects.toMatchObject({ code: 'not_found' });
     });
   });

@@ -26,4 +26,16 @@ describe('toModelOptions', () => {
   it('returns [] for an empty registry', () => {
     expect(toModelOptions({ models: {}, providers: registry.providers })).toEqual([]);
   });
+
+  it('marks availability per provider key when env is supplied', () => {
+    const opts = toModelOptions(registry, { ANTHROPIC_API_KEY: 'set' });
+    const byAlias = Object.fromEntries(opts.map((o) => [o.alias, o.available]));
+    expect(byAlias).toEqual({ opus: true, nemotron: false }); // only anthropic key present
+  });
+
+  it('omits availability entirely when env is not supplied', () => {
+    for (const opt of toModelOptions(registry)) {
+      expect(opt).not.toHaveProperty('available');
+    }
+  });
 });

@@ -216,7 +216,10 @@ export class RealApi implements StreamingSloopApi {
     const registry = await files.readModelRegistry();
     bootstrapPi(registry, env);
 
-    const executor = createExecutor(buildExecutorModel(registry, env));
+    // NOTE(merge): adapter to the new per-leaf createExecutor(ResolveLeafModel) signature
+    // landed on dev-jelle. buildExecutorModel resolves one model for all leaves, so ignore
+    // the leaf. The parallel per-leaf refactor (resolveLeafModel) will replace this.
+    const executor = createExecutor(() => buildExecutorModel(registry, env));
     const assistantService = createAssistantService({ files, env });
 
     // Late-bound holder so the writeLoop decorator can reach the not-yet-created instance.
@@ -437,6 +440,7 @@ function decorateFiles(inner: FilesService, onWrite: (loop: LoopDoc) => void): F
     readAdr: (p) => inner.readAdr(p),
     writeAdr: (d) => inner.writeAdr(d),
     moveAdr: (from, to) => inner.moveAdr(from, to),
+    deleteAdr: (p) => inner.deleteAdr(p),
     readLoop: (p) => inner.readLoop(p),
     listLoops: (c) => inner.listLoops(c),
     listCascadeIds: () => inner.listCascadeIds(),

@@ -81,6 +81,7 @@ class FakeFiles implements FilesService {
   }
   async writeAdr(): Promise<void> {}
   async moveAdr(): Promise<void> {}
+  async deleteAdr(): Promise<void> {}
   async readLoop(relPath: string): Promise<LoopDoc> {
     const found = this.loops.get(relPath);
     if (!found) throw new Error(`no loop ${relPath}`);

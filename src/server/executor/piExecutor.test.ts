@@ -42,7 +42,7 @@ async function runDry(loop: LoopDoc): Promise<{ ok: boolean }> {
   process.env.SLOOP_DRY_RUN = '1';
   process.env.SLOOP_TARGET_REPO = CWD;
   try {
-    const executor = createExecutor(DUMMY_MODEL);
+    const executor = createExecutor(() => DUMMY_MODEL);
     return await executor.run(loop, () => {});
   } finally {
     restoreEnv('SLOOP_DRY_RUN', prevDryRun);
