@@ -53,6 +53,7 @@ export function serializeWorkflow(meta: Omit<WorkflowDef, 'guidance'>, body: str
       `    role: ${yamlScalar(s.role)}`,
       `    model: ${yamlScalar(s.model)}`,
     );
+    if (s.gate) lines.push('    gate: true');
   }
   lines.push('---', '', body.replace(/^\n+/, ''), '');
   return lines.join('\n');
