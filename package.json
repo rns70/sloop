@@ -15,7 +15,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "start": "tsx src/server/index.ts",
-    "verify:demo": "tsx scripts/verify-demo.ts"
+    "verify:demo": "tsx scripts/verify-demo.ts",
+    "eval": "tsx src/eval/cli.ts"
   },
   "dependencies": {
     "@blocknote/core": "^0.51.4",

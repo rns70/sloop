@@ -19,3 +19,11 @@ npm-debug.log*
 # The sample workspace is a git repo in its own right at runtime; ignore any
 # nested git metadata that gets initialized under it during a cascade demo.
 fixtures/sample-workspace/.git/
+
+# Eval harness (WP-8): target repos get an on-demand .git at runtime; results are
+# regenerated per run. Keep committed summary.md + meta.json, ignore runs.jsonl etc.
+evals/repos/**/.git/
+evals/results/**
+!evals/results/**/
+!evals/results/**/summary.md
+!evals/results/**/meta.json
