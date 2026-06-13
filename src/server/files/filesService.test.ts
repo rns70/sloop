@@ -105,6 +105,29 @@ describe('FilesService', () => {
     expect(registry.providers.nebius.baseUrl).toContain('nebius');
   });
 
+  it('carries the locked flag on acceptance criteria through normalizeCriteria', async () => {
+    await fs.mkdir(path.join(root, 'databank'), { recursive: true });
+    await fs.writeFile(
+      path.join(root, 'databank/adr-100.md'),
+      [
+        '---',
+        'id: adr-100',
+        'title: Locked criterion',
+        'acceptanceCriteria:',
+        '  - { id: ac-1, text: "stays locked", verify: "npm test", locked: true }',
+        '  - { id: ac-2, text: "unlocked default" }',
+        '---',
+        '',
+        'body',
+      ].join('\n'),
+      'utf8',
+    );
+    const files = createFilesService(root);
+    const adr = (await files.listAdrs()).find((a) => a.id === 'adr-100');
+    expect(adr?.acceptanceCriteria[0].locked).toBe(true);
+    expect(adr?.acceptanceCriteria[1].locked).toBeUndefined();
+  });
+
   it('returns empty lists when optional directories are absent', async () => {
     const files = createFilesService(root);
     expect(await files.listAdrs()).toEqual([]);
