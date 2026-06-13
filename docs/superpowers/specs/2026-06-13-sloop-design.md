@@ -222,6 +222,15 @@ Everything shown is a view over markdown on disk; there is no hidden state.
 
 **Navigation is the left sidebar only** (Databank · Cascades · Libraries) — there are no top tabs. The approved visual target lives in `docs/superpowers/mockups/` (with a locked visual-language note); frontend WPs build to it.
 
+### 7.1 Authoring assistant (Cursor-style)
+AI assistance for *writing the databank itself* — distinct from cascades, which reconcile code to the databank. It lives in the shared markdown editor and uses `pi-ai` (any provider, incl. Nemotron), with proposed changes always surfaced as **inline diffs** the user accepts or rejects (never silent writes). Three scopes, increasingly wide:
+
+1. **Selection edit** — select text in the editor, ask ("tighten this", "add an acceptance criterion for rate limiting"), and the assistant returns a replacement shown as an inline diff in place. *(MVP — highest value, reuses inline-diff.)*
+2. **Document chat** — a side panel scoped to the current doc: ask questions or request edits; edits land as inline diffs.
+3. **Wide / multi-doc context** — attach several databank docs (or the whole databank) as context, to reason or edit across requirements at once.
+
+Because the databank is markdown under git, every assistant edit is reviewable and revertible like any other change. This is the natural front-half of the loop: author requirements with AI, then run a cascade to make the code match.
+
 ---
 
 ## 8. Cross-cutting concerns

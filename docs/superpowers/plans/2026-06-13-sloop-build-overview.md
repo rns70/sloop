@@ -44,7 +44,8 @@ Stage 3 │  WP-6  Integration + demo + polish        │   ← serial, one agen
 | 2 | **WP-3 Executor** | WP-0 | WP-1, WP-2, WP-4, WP-5 |
 | 2 | **WP-4 Frontend shell + Databank** | WP-0 (mock API) | all Stage-2 |
 | 2 | **WP-5 Frontend MissionControl + Loop + Libraries** | WP-0 (mock API) | all Stage-2 |
-| 3 | **WP-6 Integration + demo** | WP-1…WP-5 | (alone) |
+| 2b | **WP-7 Author assistant (Cursor-style)** | WP-0 (pi-ai) + WP-4 (the `MarkdownEditor`) | WP-5, WP-6 — starts once WP-4's editor merges |
+| 3 | **WP-6 Integration + demo** | WP-1…WP-5, WP-7 | (alone) |
 
 If you have fewer than 5 agents: prioritize WP-1 → WP-2 (backend critical path) and WP-4 → WP-5 (frontend), interleaving. WP-3 (executor) can be faked last if time is short — the demo can stub leaf execution.
 
@@ -74,6 +75,9 @@ src/web/views/mission-control/  WP-5
 src/web/views/loop/             WP-5
 src/web/views/libraries/        WP-5
 src/web/api-client/             WP-5  (replaces WP-0 stub)
+
+src/server/author/       WP-7  (POST /api/author via pi-ai)
+src/web/author/          WP-7  (assistant panel + selection toolbar; integrates via MarkdownEditor props, does not edit it)
 
 src/server/api/          WP-0 (contract + mock) → WP-6 (real handlers)
 src/server/index.ts      WP-0 (skeleton) → WP-6 (final wiring)
@@ -181,6 +185,15 @@ export interface ResolvedModel {
   baseUrl?: string;
   apiKey: string;
 }
+
+// ---- Authoring assistant (Cursor-style editing of databank docs) ----
+export interface AuthorRequest {
+  scope: 'selection' | 'doc' | 'multi';
+  instruction: string;       // the user's ask
+  docPaths: string[];        // current doc; plus extra docs when scope='multi'
+  selectionText?: string;    // required when scope='selection'
+  model?: string;            // registry alias; falls back to a config default
+}
 ```
 
 ### `src/shared/services.ts` (backend internal interfaces)
@@ -233,6 +246,7 @@ GET  /api/templates               -> TemplateDef[]
 GET  /api/roles                   -> RoleDef[]
 GET  /api/files/:relPath          -> { content: string }   // raw markdown of a role/template file
 PUT  /api/files/:relPath          -> { ok: true }          body: { content: string }
+POST /api/author                  -> { proposal: string }    body: AuthorRequest  (Cursor-style edit; streaming variant optional)
 POST /api/cascades                -> CascadeSummary          body: { templateId }
 GET  /api/cascades/:id            -> { summary: CascadeSummary; loops: LoopDoc[] }
 POST /api/cascades/:id/approve    -> { ok: true }
