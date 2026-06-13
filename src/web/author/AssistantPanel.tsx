@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Button, Label, cx } from '../design/index';
+import { Button, IconButton, Label, cx } from '../design/index';
 import { useAuthor } from './useAuthor';
 
 export interface DocRef {
@@ -154,14 +154,15 @@ function Chip({ label, onRemove }: { label: string; onRemove?: () => void }) {
     <span className="inline-flex items-center gap-1 rounded bg-line-soft px-1.5 py-0.5 text-[12px] text-ink-muted">
       {label}
       {onRemove && (
-        <button
-          type="button"
+        <IconButton
+          size="sm"
+          variant="ghost"
           onClick={onRemove}
           aria-label={`Remove ${label} from context`}
-          className="text-ink-faint hover:text-ink"
+          className="-mr-1 text-ink-faint hover:text-ink"
         >
           ×
-        </button>
+        </IconButton>
       )}
     </span>
   );
