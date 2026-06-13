@@ -5,7 +5,10 @@ import {
   SessionManager,
   createAgentSession,
 } from '@earendil-works/pi-coding-agent';
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
 import type { LoopDoc, ResolvedModel } from '../../shared/types';
+import { diffPathSets, gitDirtySet } from './captureWrites';
 import { buildModel } from './piExecutor';
 import { validateOutputs } from './sandbox';
 
@@ -110,17 +113,24 @@ export async function runPiAgentOnce(loop: LoopDoc, deps: AttemptDeps, priorEvid
 }
 
 /**
- * Build the per-leaf attempt runner. FOUNDATION: runs the agent (or skips in dry-run)
- * and returns no captured writes. Task 1 implements file capture; Task 2's
- * `validateOutputs` then turns captured writes into violations.
+ * Build the per-leaf attempt runner. Ensures the in-workspace `code/` target exists,
+ * snapshots the working tree before/after the agent run, and captures the files the
+ * attempt wrote via a git working-tree diff. Task 2's `validateOutputs` then turns
+ * captured writes into violations.
  */
 export function makeExecuteAttempt(ctx: {
   resolveAttemptDeps: (loop: LoopDoc) => AttemptDeps | null; // null = dry-run (skip agent)
 }): ExecuteAttempt {
   return async (loop, { priorEvidence }) => {
     const deps = ctx.resolveAttemptDeps(loop);
+    const cwd = deps?.cwd ?? process.cwd();
+    await fs.mkdir(path.join(cwd, 'code'), { recursive: true }); // in-workspace target
+
+    const before = await gitDirtySet(cwd);
     if (deps) await runPiAgentOnce(loop, deps, priorEvidence);
-    const writtenFiles: string[] = []; // TODO(Task 1): capture via git working-tree diff
+    const after = await gitDirtySet(cwd);
+
+    const writtenFiles = diffPathSets(before, after);
     const violations = validateOutputs(writtenFiles, loop.frontmatter.allowedOutputs);
     return { writtenFiles, violations };
   };
