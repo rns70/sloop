@@ -76,4 +76,34 @@ describe('createToolExecutor', () => {
     const r = await exec.run({ type: 'toolCall', id: '6', name: 'frobnicate', arguments: {} });
     expect(r.ok).toBe(false);
   });
+
+  it('create_template writes the full file verbatim to .sloop/templates', async () => {
+    const { ws, writes } = fakeWorkspace();
+    const exec = createToolExecutor(ws);
+    const full = '---\nid: rev\nname: Review\nstages: []\n---\n\nguidance';
+    const r = await exec.run({ type: 'toolCall', id: '7', name: 'create_template', arguments: { content: full, slug: 'rev' } });
+    expect(r.path).toBe('.sloop/templates/rev.md');
+    expect(writes).toContainEqual({ path: '.sloop/templates/rev.md', body: full });
+  });
+
+  it('read_doc truncates long bodies with …[truncated]', async () => {
+    const longBody = 'x'.repeat(7000);
+    const { ws } = fakeWorkspace({
+      listAdrs: async () => [{ id: 'big', relPath: 'databank/big.md', title: 'Big', body: longBody, acceptanceCriteria: [] }],
+      readAdr: async () => ({ id: 'big', relPath: 'databank/big.md', title: 'Big', body: longBody, acceptanceCriteria: [] }),
+    });
+    const exec = createToolExecutor(ws);
+    const r = await exec.run({ type: 'toolCall', id: '8', name: 'read_doc', arguments: { path: 'databank/big.md' } });
+    expect(r.ok).toBe(true);
+    expect(r.text).toContain('…[truncated]');
+    expect(r.text.length).toBeLessThan(longBody.length);
+  });
+
+  it('search finds a matching role', async () => {
+    const { ws } = fakeWorkspace();
+    const exec = createToolExecutor(ws);
+    const r = await exec.run({ type: 'toolCall', id: '9', name: 'search', arguments: { query: 'architect' } });
+    expect(r.ok).toBe(true);
+    expect(r.text).toContain('architect');
+  });
 });

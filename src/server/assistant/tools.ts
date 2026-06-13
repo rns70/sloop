@@ -48,12 +48,12 @@ export const ASSISTANT_TOOLS: Tool[] = [
   },
   {
     name: 'read_doc',
-    description: 'Read the full markdown body of one document by its workspace-relative path.',
+    description: 'Read the full markdown body of one databank ADR by its workspace-relative path (e.g. databank/auth.md).',
     parameters: Type.Object({ path: Type.String({ description: 'e.g. databank/auth.md' }) }),
   },
   {
     name: 'search',
-    description: 'Find documents whose body or path contains the query (case-insensitive substring).',
+    description: 'Find databank ADRs, roles, or templates whose id/path or body contains the query (case-insensitive substring).',
     parameters: Type.Object({ query: Type.String() }),
   },
   {
@@ -104,9 +104,18 @@ export function createToolExecutor(ws: AssistantWorkspace): ToolExecutor {
           }
           case 'search': {
             const q = String(a.query ?? '').toLowerCase();
-            const adrs = await ws.listAdrs();
-            const hits = adrs.filter((d) => d.relPath.toLowerCase().includes(q) || d.body.toLowerCase().includes(q));
-            return { ok: true, text: hits.length ? hits.map((d) => `${d.relPath} — ${d.title}`).join('\n') : 'No matches.' };
+            const [adrs, roles, templates] = await Promise.all([ws.listAdrs(), ws.listRoles(), ws.listTemplates()]);
+            const adrLines = adrs
+              .filter((d) => d.relPath.toLowerCase().includes(q) || d.body.toLowerCase().includes(q))
+              .map((d) => `${d.relPath} — ${d.title}`);
+            const roleLines = roles
+              .filter((r) => r.id.toLowerCase().includes(q) || r.brief.toLowerCase().includes(q))
+              .map((r) => `role  ${r.id}`);
+            const templateLines = templates
+              .filter((t) => t.id.toLowerCase().includes(q) || t.guidance.toLowerCase().includes(q))
+              .map((t) => `template  ${t.id}`);
+            const lines = [...adrLines, ...roleLines, ...templateLines];
+            return { ok: true, text: lines.length ? lines.join('\n') : 'No matches.' };
           }
           case 'edit_doc': {
             const path = String(a.path);
@@ -130,7 +139,8 @@ export function createToolExecutor(ws: AssistantWorkspace): ToolExecutor {
           case 'create_template': {
             const kind = call.name === 'create_role' ? 'roles' : 'templates';
             const taken = new Set((kind === 'roles' ? await ws.listRoles() : await ws.listTemplates()).map((x) => x.id));
-            const id = uniqueSlug(baseId(String(a.slug ?? '')) || slugify(String(a.slug ?? kind)), taken);
+            const rawSlug = String(a.slug ?? '');
+            const id = uniqueSlug(rawSlug ? baseId(rawSlug) : slugify(kind), taken);
             const relPath = `.sloop/${kind}/${id}.md`;
             await ws.writeRaw(relPath, String(a.content ?? ''));
             return { ok: true, text: `Created ${relPath}.`, path: relPath };
