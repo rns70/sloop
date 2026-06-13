@@ -1,19 +1,86 @@
-# Sloop
+<div align="center">
+  <img src="assets/sloop-concept.png" alt="Sloop concept mark" width="220">
 
-<p>
-  <img alt="Rust" src="https://img.shields.io/badge/Rust-core-orange?style=flat-square&amp;logo=rust">
-  <img alt="Tauri" src="https://img.shields.io/badge/Tauri-desktop-24c8db?style=flat-square&amp;logo=tauri">
-  <img alt="Markdown source of truth" src="https://img.shields.io/badge/Markdown-source%20of%20truth-111827?style=flat-square&amp;logo=markdown">
-  <img alt="Local first" src="https://img.shields.io/badge/local--first-workspace-22c55e?style=flat-square">
-  <img alt="Git backed" src="https://img.shields.io/badge/Git-backed-f05032?style=flat-square&amp;logo=git">
-</p>
+  <h1>Sloop</h1>
 
-<img src="assets/sloop-concept.png" alt="Sloop concept" width="420">
+  <p><strong>choose sloop not slop</strong></p>
 
-Sloop is a local-first Rust/Tauri meta-IDE for designing, running, and supervising nested agent loops. It feels like a Notion-style paper workspace: users edit loop documents through a polished block editor, while the canonical source of truth remains Markdown, likely with frontmatter for loop type, dependencies, evaluation criteria, and runtime policy.
+  <p>A paper-first meta-IDE for defining, running, and supervising nested agent loops.</p>
 
-A Sloop project is a Git-backed document graph. A top-level PRD loop can define requirements and eval criteria; downstream architecture loops generate module docs; implementation-planning loops generate build plans; builder agents then execute from those plans. Every loop is user or agent definable, and every loop must include strict evaluation criteria before its outputs can be accepted.
+  <p>
+    <img alt="Status" src="https://img.shields.io/badge/status-hackathon%20prototype-7c3aed?style=flat-square">
+    <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-first-3178c6?style=flat-square&amp;logo=typescript&amp;logoColor=white">
+    <img alt="Vite" src="https://img.shields.io/badge/Vite-powered-646cff?style=flat-square&amp;logo=vite&amp;logoColor=white">
+    <img alt="Node worker" src="https://img.shields.io/badge/Node-local%20worker-5fa04e?style=flat-square&amp;logo=nodedotjs&amp;logoColor=white">
+    <img alt="Markdown" src="https://img.shields.io/badge/Markdown-source%20of%20truth-111827?style=flat-square&amp;logo=markdown">
+    <img alt="Git backed" src="https://img.shields.io/badge/Git-backed-f05032?style=flat-square&amp;logo=git&amp;logoColor=white">
+  </p>
+</div>
 
-When a document changes, Sloop uses Git diffs and agent analysis to cascade the change downward through affected child loops only. If evals pass, downstream docs are auto-applied, with Git providing the diff viewer, audit trail, rollback path, and review surface. No hidden stable block IDs are required in the Markdown; agents inspect the actual diff and relevant documents to decide what needs updating.
+## What Is Sloop?
 
-The UI always shows the live state of a loop and its child loops: running, paused, evaluating, failed, or complete. Clicking a child status opens its underlying loop document. Any loop can be paused, manually edited by the user, and resumed, causing the downstream cascade to run again from that changed point.
+Sloop is a local-first workspace for building software through definable agent loops. Instead of treating agents as one-off chat sessions, Sloop makes their work explicit as Markdown documents, evaluation criteria, diffs, and nested pipelines.
+
+The main interface is a Notion-like paper surface backed by plain Markdown. A loop document can define its own child stages inline: product requirements, architecture alternatives, implementation plans, build agents, review loops, or any other workflow the user wants to invent.
+
+## Core Ideas
+
+- **Markdown is canonical.** Loop definitions, generated docs, maintained docs, and evaluation criteria live in Markdown, optionally with frontmatter.
+- **Pipelines are user-definable.** Any loop doc can define lower stages, and those stages can define their own lower stages.
+- **Every loop has evals.** Evaluation criteria are written in text first, then agents can derive deterministic checks such as tests, schemas, fixtures, or commands.
+- **Git is the audit trail.** Sloop uses diffs, branches, and worktrees to make every agent change inspectable and reversible.
+- **Cascades are diff-driven.** When a parent doc changes, agents inspect the Git diff and update only the affected downstream docs or code.
+- **Agents run locally.** The hackathon build uses external CLI workers, starting with Codex and Claude adapters.
+
+## How It Works
+
+```mermaid
+flowchart TD
+  A["Markdown loop doc"] --> B["Inline child stage definitions"]
+  B --> C["Agent run in isolated Git worktree"]
+  C --> D["Generated or updated downstream docs"]
+  D --> E["Text eval criteria + derived checks"]
+  E --> F{"Passes?"}
+  F -->|yes| G["Auto-apply changes"]
+  F -->|no| H["Pause, inspect, edit, rerun"]
+  G --> I["Git diff, history, rollback"]
+  I --> A
+```
+
+## Example Loop Shape
+
+```md
+---
+kind: loop-doc
+status: running
+agent: codex
+evals:
+  - Requirements are complete and non-ambiguous.
+  - Each downstream architecture option traces back to this PRD.
+children:
+  - stage: architecture
+    mode: alternatives
+    count: 3
+  - stage: implementation-plan
+    from: selected-architecture
+---
+
+# Product Requirements
+
+Define the product, its constraints, and the criteria every child loop must satisfy.
+```
+
+## Current Direction
+
+The hackathon version is a Vite + TypeScript app with a local Node worker/server. The frontend owns the paper-first editing experience, diff views, and loop status UI. The local worker owns filesystem access, Git operations, worktree lifecycle, and agent process orchestration.
+
+Tauri and Rust are intentionally deferred for now so the prototype can move quickly.
+
+## Repo Map
+
+- [`README.md`](README.md) - project overview.
+- [`assets/sloop-concept.png`](assets/sloop-concept.png) - current concept image.
+
+## Status
+
+Sloop is in early design/prototype mode. The product thesis is set; implementation is next.
