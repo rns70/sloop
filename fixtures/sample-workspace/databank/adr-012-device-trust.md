@@ -1,13 +1,7 @@
 ---
 id: adr-012
 title: Device trust on sign-in
-acceptanceCriteria:
-  - id: ac-1
-    text: "An unrecognized device must pass a second factor before a session is issued."
-    verify: "npm test -- device-trust"
-    passed: false
 ---
-
 # ADR-012 — Device trust on sign-in
 
 ## Context
@@ -21,3 +15,7 @@ We want to bind sessions to known devices and step up auth for new ones.
 ## Consequences
 - First sign-in on any device incurs a step-up challenge.
 - Device fingerprints are stored hashed, never raw.
+
+## Acceptance criteria
+
+- [ ] **ac-1** An unrecognized device must pass a second factor before a session is issued. — verify: `npm test -- device-trust`
