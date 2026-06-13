@@ -57,6 +57,7 @@ export const putFile = (relPath: string, content: string): Promise<Ok> =>
 export const requestAuthor = (req: AuthorRequest): Promise<AuthorResponse> =>
   http('/author', { method: 'POST', body: JSON.stringify(req) });
 
+export const getCascades = (): Promise<CascadeSummary[]> => http('/cascades');
 export const createCascade = (req: CreateCascadeRequest): Promise<CascadeSummary> =>
   http('/cascades', { method: 'POST', body: JSON.stringify(req) });
 export const getCascade = (id: string): Promise<CascadeDetail> => http(`/cascades/${enc(id)}`);

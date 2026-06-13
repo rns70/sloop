@@ -95,6 +95,14 @@ class FakeFiles implements FilesService {
       .filter((l) => l.relPath.startsWith(prefix))
       .map((l) => JSON.parse(JSON.stringify(l)) as LoopDoc);
   }
+  async listCascadeIds(): Promise<string[]> {
+    const ids = new Set<string>();
+    for (const relPath of this.loops.keys()) {
+      const m = /^cascades\/([^/]+)\//.exec(relPath);
+      if (m) ids.add(m[1]);
+    }
+    return [...ids].sort();
+  }
   async listTemplates(): Promise<TemplateDef[]> {
     return [TEMPLATE];
   }

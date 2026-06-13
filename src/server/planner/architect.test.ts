@@ -60,6 +60,7 @@ function fakeFiles(): FilesService {
     readLoop: async () => ({}) as LoopDoc,
     writeLoop: async () => {},
     listLoops: async () => [],
+    listCascadeIds: async () => [],
     listTemplates: async () => [template],
     listRoles: async () => roles,
     readModelRegistry: async () => registry,

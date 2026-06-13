@@ -43,9 +43,11 @@ export class FilesServiceImpl implements FilesService {
   }
 
   async listAdrs(): Promise<AdrDoc[]> {
-    const files = await listMarkdown(this.abs(DATABANK_DIR));
+    // Recursive so ADRs organised into subfolders (databank/auth/adr-007.md) are listed
+    // with their full relPath — the web sidebar derives its folder tree from those paths.
+    const files = await listMarkdownRecursive(this.abs(DATABANK_DIR));
     const adrs = await Promise.all(
-      files.map((name) => this.readAdr(path.join(DATABANK_DIR, name))),
+      files.map((rel) => this.readAdr(path.join(DATABANK_DIR, rel))),
     );
     return adrs.sort((a, b) => a.relPath.localeCompare(b.relPath));
   }
@@ -92,6 +94,23 @@ export class FilesServiceImpl implements FilesService {
       loopFiles.map((rel) => this.readLoop(path.join(dir, rel))),
     );
     return loops.sort((a, b) => a.relPath.localeCompare(b.relPath));
+  }
+
+  /** Every cascade id (subdirectory name under `cascades/`); `[]` if the dir is absent.
+   *  Cascade-level summary lives across the dir's loops + engine meta, so the API layer
+   *  rebuilds each summary via the engine — this only enumerates the ids. */
+  async listCascadeIds(): Promise<string[]> {
+    let entries: import('node:fs').Dirent[];
+    try {
+      entries = await fs.readdir(this.abs(CASCADES_DIR), { withFileTypes: true });
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') return [];
+      throw err;
+    }
+    return entries
+      .filter((e) => e.isDirectory())
+      .map((e) => e.name)
+      .sort();
   }
 
   async listTemplates(): Promise<TemplateDef[]> {

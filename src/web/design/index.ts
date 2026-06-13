@@ -18,8 +18,8 @@ export { Page } from './Page';
 export type { PageProps } from './Page';
 export { Tag } from './Tag';
 export type { TagProps } from './Tag';
-export { Button } from './Button';
-export type { ButtonProps } from './Button';
+export { Button, IconButton } from './Button';
+export type { ButtonProps, IconButtonProps } from './Button';
 export { Label } from './Label';
 export type { LabelProps } from './Label';
 export { Card } from './Card';
@@ -28,6 +28,8 @@ export { PropertyRow } from './PropertyRow';
 export type { PropertyRowProps } from './PropertyRow';
 export { StatusDot } from './StatusDot';
 export type { StatusDotProps } from './StatusDot';
+export { EditableTitle } from './EditableTitle';
+export type { EditableTitleProps } from './EditableTitle';
 export { MarkdownEditor } from './MarkdownEditor';
 export type {
   MarkdownEditorProps,

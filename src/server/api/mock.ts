@@ -202,6 +202,13 @@ export class MockApi implements SloopApi {
     return { proposal: `${body}\n\n_Assistant (${req.scope}): ${note}_` };
   }
 
+  async listCascades(): Promise<CascadeSummary[]> {
+    // Newest first: ids are date-prefixed, so a descending id sort is chronological.
+    return [...this.cascades.values()]
+      .map((c) => clone(c.summary))
+      .sort((a, b) => b.id.localeCompare(a.id));
+  }
+
   async createCascade(req: CreateCascadeRequest): Promise<CascadeSummary> {
     // Fake the architect: clone the sample tree under a fresh id, awaiting approval.
     this.kickoffCount += 1;
