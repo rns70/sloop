@@ -13,11 +13,12 @@ import type {
   AdrDoc, TemplateDef, RoleDef, LoopDoc, LoopFrontmatter, CascadeSummary,
   ModelRegistry, AcceptanceCriterion,
 } from '../../shared/index';
-import type { AuthorRequest } from '../../shared/index';
+import type { AssistantRequest } from '../../shared/index';
 import type {
   SloopApi, AdrDiffResponse, CascadeDetail, CreateCascadeRequest, CascadeStreamEvent,
-  AuthorResponse, Ok,
+  AssistantResponse, GetModelsResponse, Ok,
 } from './contract';
+import { toModelOptions } from '../assistant/index';
 
 const OK: Ok = { ok: true };
 
@@ -188,18 +189,40 @@ export class MockApi implements SloopApi {
     return clone(this.roles);
   }
 
-  async author(req: AuthorRequest): Promise<AuthorResponse> {
-    // Deterministic stand-in for the real pi-ai call (WP-6 swaps in createAuthorService).
-    // Returns a visibly-changed proposal so the editor's inline-diff accept/reject flow
-    // can be exercised end to end against the mock — never writes anything itself.
-    const note = req.instruction.trim();
-    if (req.scope === 'selection') {
-      const sel = (req.selectionText ?? '').trim();
-      return { proposal: sel ? `${sel} (revised: ${note})` : `(revised: ${note})` };
+  async listModels(): Promise<GetModelsResponse> {
+    return toModelOptions(this.registry);
+  }
+
+  /**
+   * Deterministic stand-in for the real pi-ai assistant (WP-6 swaps in createAssistantService).
+   * Keyword-routes the instruction to a plausible typed proposal so the rail's preview +
+   * confirm + write flow can be exercised end to end against the mock — never writes itself.
+   */
+  async assistant(req: AssistantRequest): Promise<AssistantResponse> {
+    const text = req.instruction.trim();
+    const lower = text.toLowerCase();
+    if (lower.includes('role')) {
+      const slug = 'security-reviewer';
+      return { action: 'create-role', summary: `Create role at .sloop/roles/${slug}.md`,
+        targetPath: `.sloop/roles/${slug}.md`,
+        content: `---\nid: ${slug}\nname: Security Reviewer\ndefaultModel: opus\n---\n\n${text}\n` };
     }
-    const primary = this.adrs.find((a) => a.relPath === req.docPaths[0]);
-    const body = primary?.body ?? '';
-    return { proposal: `${body}\n\n_Assistant (${req.scope}): ${note}_` };
+    if (lower.includes('template')) {
+      const slug = 'review-pipeline';
+      return { action: 'create-template', summary: `Create template at .sloop/templates/${slug}.md`,
+        targetPath: `.sloop/templates/${slug}.md`,
+        content: `---\nid: ${slug}\nname: Review Pipeline\nstages:\n  - name: architect\n    role: architect\n    model: opus\n---\n\n${text}\n` };
+    }
+    if (lower.includes('adr') || lower.includes('requirement') || lower.includes('document')) {
+      return { action: 'create-adr', summary: 'Create a new databank ADR',
+        targetPath: 'databank/untitled.md', title: 'Untitled requirement', content: `\n${text}\n` };
+    }
+    const primary = this.adrs.find((a) => a.relPath === req.contextPaths[0]);
+    if (primary) {
+      return { action: 'edit', summary: `Edit ${primary.relPath}`, targetPath: primary.relPath,
+        content: `${primary.body}\n\n_Assistant: ${text}_` };
+    }
+    return { action: 'answer', summary: 'Answer', content: `(mock answer) ${text}` };
   }
 
   async listCascades(): Promise<CascadeSummary[]> {
