@@ -123,6 +123,72 @@ describe('RealApi happy path (dry-run, offline)', () => {
     expect(rootDone).toBe(true);
   });
 
+  it('updateLoop edits a planned leaf (model, role, plan + criteria) before it runs', async () => {
+    const api = await createRealApi(workspace, process.env);
+    const summary = await api.createCascade({ workflowId: 'spec-driven' });
+    const proposed = await api.getCascade(summary.id);
+    const leaf = proposed.loops.find((l) => l.frontmatter.kind === 'leaf');
+    if (!leaf) throw new Error('expected a leaf loop');
+
+    const newBody =
+      `# Leaf — ${leaf.frontmatter.id}\n\n` +
+      `## Brief\nRewritten plan body.\n\n` +
+      `## Acceptance criteria\n\n` +
+      `- [ ] **ac-1** Edited criterion. — verify: \`echo ok\`\n`;
+
+    const updated = await api.updateLoop(summary.id, leaf.frontmatter.id, {
+      body: newBody,
+      model: 'opus',
+      role: 'debugger',
+    });
+    expect(updated.frontmatter.model).toBe('opus');
+    expect(updated.frontmatter.role).toBe('debugger');
+    expect(updated.frontmatter.acceptanceCriteria).toEqual([
+      { id: 'ac-1', text: 'Edited criterion.', passed: false, verify: 'echo ok' },
+    ]);
+    expect(updated.body).toContain('Rewritten plan body.');
+
+    // The edit is persisted: a fresh read sees the same values.
+    const reread = await api.getCascade(summary.id);
+    const sameLeaf = reread.loops.find((l) => l.frontmatter.id === leaf.frontmatter.id);
+    expect(sameLeaf?.frontmatter.model).toBe('opus');
+    expect(sameLeaf?.frontmatter.acceptanceCriteria[0]?.verify).toBe('echo ok');
+  });
+
+  it('updateLoop rejects an empty model and a missing loop', async () => {
+    const api = await createRealApi(workspace, process.env);
+    const summary = await api.createCascade({ workflowId: 'spec-driven' });
+    const proposed = await api.getCascade(summary.id);
+    const leaf = proposed.loops.find((l) => l.frontmatter.kind === 'leaf');
+    if (!leaf) throw new Error('expected a leaf loop');
+
+    await expect(api.updateLoop(summary.id, leaf.frontmatter.id, { model: '   ' })).rejects.toThrow(
+      /model must not be empty/i,
+    );
+    await expect(api.updateLoop(summary.id, 'no-such-loop', { model: 'opus' })).rejects.toThrow(
+      /not found/i,
+    );
+  });
+
+  it('updateLoop refuses to edit a loop once it has finished executing (409)', async () => {
+    const api = await createRealApi(workspace, process.env);
+    const summary = await api.createCascade({ workflowId: 'spec-driven' });
+
+    await new Promise<void>((resolve) => {
+      api.subscribe(summary.id, () => undefined, () => resolve());
+      void api.approveCascade(summary.id);
+    });
+
+    const detail = await api.getCascade(summary.id);
+    const leaf = detail.loops.find((l) => l.frontmatter.kind === 'leaf');
+    if (!leaf) throw new Error('expected a leaf loop');
+    expect(leaf.frontmatter.status).toBe('done');
+
+    await expect(
+      api.updateLoop(summary.id, leaf.frontmatter.id, { model: 'opus' }),
+    ).rejects.toThrow(/can be edited|done/i);
+  });
+
   it('listCascades enumerates created cascades, newest first', async () => {
     const api = await createRealApi(workspace, process.env);
 

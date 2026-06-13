@@ -31,7 +31,9 @@ export interface ParsedCriteria {
 const HEADING_RE = /^##\s+acceptance\s+criteria\s*$/i;
 const ANY_HEADING_RE = /^#{1,6}\s/;
 const ITEM_RE = /^\s*-\s*\[([ xX])\]\s*(.*?)\s*$/;
-const ID_RE = /^\*\*(ac-\d+)\*\*\s*/;
+// Ids are usually `ac-N`, but authors (and the assistant) may use slugs like
+// `ac-logic-tests`; accept either so the `**id**` marker is always parsed out of the text.
+const ID_RE = /^\*\*(ac-[a-z0-9-]+)\*\*\s*/i;
 const VERIFY_RE = /\s*[—–-]\s*verify:\s*`([^`]+)`\s*$/i;
 const LOCKED_RE = /\s*🔒\s*$/u;
 

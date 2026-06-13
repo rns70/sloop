@@ -24,10 +24,11 @@ import type {
   CascadeSummary,
   FilesService,
   LoopDoc,
+  LoopStatus,
   ModelRegistry,
   ResolvedModel,
 } from '../../shared/index';
-import { resolveModel, assignMissingIds } from '../../shared/index';
+import { resolveModel, assignMissingIds, isLoopEditable, parseCriteriaFromBody } from '../../shared/index';
 import { createFilesService } from '../files/index';
 import { createGitService } from '../git/index';
 import { createExecutor } from '../executor/index';
@@ -49,9 +50,11 @@ import type {
   Ok,
   PutAdrRequest,
   SloopApi,
+  UpdateLoopRequest,
 } from './contract';
 import { MoveError, DeleteError } from '../files/filesService';
 import type { AssistantChatRequest, AssistantStreamEvent } from '../../shared/index';
+import { getLogger, type Logger } from '../log';
 
 const OK: Ok = { ok: true };
 
@@ -114,13 +117,17 @@ function cascadeIdOf(relPath: string): string | undefined {
  */
 export function bootstrapPi(registry: ModelRegistry, env: NodeJS.ProcessEnv): void {
   registerBuiltInApiProviders();
-  const lines = Object.entries(registry.providers).map(([name, cfg]) => {
-    const hasKey = Boolean(env[cfg.apiKeyEnv]);
-    const where = cfg.baseUrl ? cfg.baseUrl : 'built-in';
-    return `  ${name}: ${where} · ${cfg.apiKeyEnv}=${hasKey ? 'set ✓' : 'missing'}`;
+  const log = getLogger();
+  log.info('Pi providers registered', {
+    providers: Object.keys(registry.providers).join(',') || '(none)',
   });
-  // eslint-disable-next-line no-console
-  console.log(`[sloop] Pi providers registered. Registry:\n${lines.join('\n') || '  (none)'}`);
+  for (const [name, cfg] of Object.entries(registry.providers)) {
+    const hasKey = Boolean(env[cfg.apiKeyEnv]);
+    log.info(`provider ${name}`, {
+      endpoint: cfg.baseUrl ? cfg.baseUrl : 'built-in',
+      key: `${cfg.apiKeyEnv}=${hasKey ? 'set' : 'missing'}`,
+    });
+  }
 }
 
 /**
@@ -213,6 +220,8 @@ export class RealApi implements StreamingSloopApi {
   private readonly streams = new Map<string, Stream>();
   /** loopId → cascadeId, so the engine's `onOutput(loopId, …)` can route by cascade. */
   private readonly loopCascade = new Map<string, string>();
+  /** loopId → last status logged, so a re-persist at the same status isn't re-announced. */
+  private readonly lastStatus = new Map<string, LoopStatus>();
 
   private constructor(
     private readonly files: FilesService,
@@ -220,6 +229,7 @@ export class RealApi implements StreamingSloopApi {
     private readonly engine: CascadeEngine,
     private readonly root: string,
     private readonly env: NodeJS.ProcessEnv,
+    private readonly log: Logger,
   ) {}
 
   static async create(root: string, env: NodeJS.ProcessEnv): Promise<RealApi> {
@@ -247,7 +257,7 @@ export class RealApi implements StreamingSloopApi {
       onOutput: (loopId, chunk) => ref.api?.onLoopOutput(loopId, chunk),
     });
 
-    const api = new RealApi(files, git, engine, root, env);
+    const api = new RealApi(files, git, engine, root, env, getLogger());
     ref.api = api;
     return api;
   }
@@ -374,7 +384,14 @@ export class RealApi implements StreamingSloopApi {
   }
 
   async createCascade(req: CreateCascadeRequest): Promise<CascadeSummary> {
+    this.log.info('cascade kickoff', { workflow: req.workflowId });
     const summary = await this.engine.kickoff(req.workflowId);
+    const { add, change, delete: del } = summary.deltas;
+    this.log.info('cascade planned — awaiting approval', {
+      cascade: summary.id,
+      workflow: summary.workflow,
+      deltas: `+${add}/~${change}/-${del}`,
+    });
     // Prime a stream buffer so a subscriber can attach the instant approval starts.
     this.streamFor(summary.id);
     return summary;
@@ -393,13 +410,21 @@ export class RealApi implements StreamingSloopApi {
     await this.getCascade(id);
     const stream = this.streamFor(id);
     stream.done = false;
+    this.log.info('cascade approved — executing', { cascade: id });
+    const startedAt = Date.now();
 
     // Run the cascade in the background and return immediately: the UI awaits this
     // POST, then opens the WS. Buffered events guarantee nothing is missed in the gap.
     void this.engine
       .approve(id)
+      .then(async () => {
+        const status = await this.engine.recomputeStatus(id).catch(() => undefined);
+        const ms = Date.now() - startedAt;
+        this.log.info('cascade complete', { cascade: id, status: status ?? 'unknown', durationMs: ms });
+      })
       .catch((err: unknown) => {
         const message = err instanceof Error ? err.message : String(err);
+        this.log.error('cascade failed', { cascade: id, error: message });
         this.emit(id, {
           type: 'output',
           loopId: id,
@@ -411,12 +436,51 @@ export class RealApi implements StreamingSloopApi {
     return OK;
   }
 
+  async updateLoop(cascadeId: string, loopId: string, patch: UpdateLoopRequest): Promise<LoopDoc> {
+    const relPath = `cascades/${cascadeId}/${loopId}.md`;
+    const loop = await this.files.readLoop(relPath).catch(() => {
+      throw new NotFound(`Loop not found: ${cascadeId}/${loopId}`);
+    });
+
+    // Gate on status: a running (or finished) loop is frozen, so an edit can't race the
+    // executing agent or rewrite criteria the convergence invariant already acted on.
+    if (!isLoopEditable(loop.frontmatter.status)) {
+      throw new Conflict(
+        `Loop ${loopId} is ${loop.frontmatter.status}; only loops that have not started executing can be edited.`,
+      );
+    }
+
+    // Validate before mutating (fail fast at the boundary). Empty strings are rejected
+    // rather than silently clearing a required field.
+    const model = patch.model === undefined ? loop.frontmatter.model : patch.model.trim();
+    const role = patch.role === undefined ? loop.frontmatter.role : patch.role.trim();
+    if (!model) throw new Conflict('Loop model must not be empty.');
+    if (!role) throw new Conflict('Loop role must not be empty.');
+
+    // Criteria live in the body's `## Acceptance criteria` checklist (the on-disk source
+    // of truth). Re-derive the structured field from the edited body; `writeLoop` then
+    // canonicalizes the section (stable ids, consistent format) back into the body.
+    const body = patch.body === undefined ? loop.body : patch.body;
+    const acceptanceCriteria = assignMissingIds(parseCriteriaFromBody(body).criteria);
+
+    const updated: LoopDoc = {
+      frontmatter: { ...loop.frontmatter, model, role, acceptanceCriteria },
+      body,
+      relPath,
+    };
+    await this.files.writeLoop(updated);
+    // Surface the edit to any live subscriber (e.g. the tree open in another tab).
+    this.onLoopWrite(updated);
+    return this.files.readLoop(relPath);
+  }
+
   subscribe(
     id: string,
     send: (event: CascadeStreamEvent) => void,
     close: () => void,
   ): () => void {
     const stream = this.streamFor(id);
+    this.log.debug('cascade stream subscribe', { cascade: id, replay: stream.buffer.length });
     // Replay everything buffered so far, then register for live events. No await
     // between replay and registration, so the single-threaded event loop cannot
     // interleave an emit and drop or duplicate a frame.
@@ -444,15 +508,40 @@ export class RealApi implements StreamingSloopApi {
   }
 
   private emit(id: string, event: CascadeStreamEvent): void {
+    this.logEvent(id, event);
     const stream = this.streamFor(id);
     stream.buffer.push(event);
     for (const sink of stream.sinks) sink.send(event);
+  }
+
+  /**
+   * Mirror a cascade stream event to the console. This is the heart of the CLI progress
+   * view: a loop-update becomes a deduped status-transition line, and an output chunk is
+   * streamed raw (agent text + `[tool]`/`[verify]` markers) so the operator watches work
+   * happen live. Verbosity is governed entirely by SLOOP_LOG_LEVEL via the logger.
+   */
+  private logEvent(id: string, event: CascadeStreamEvent): void {
+    if (event.type === 'output') {
+      this.log.stream(event.chunk);
+      return;
+    }
+    const { id: loopId, status, role, model, kind } = event.loop.frontmatter;
+    const prev = this.lastStatus.get(loopId);
+    if (prev === status) return; // a re-persist at the same status isn't progress
+    this.lastStatus.set(loopId, status);
+    this.log.info(`loop ${loopId}: ${prev ?? '∅'} → ${status}`, {
+      cascade: id,
+      kind,
+      role,
+      model,
+    });
   }
 
   private finish(id: string): void {
     const stream = this.streams.get(id);
     if (!stream) return;
     stream.done = true;
+    this.log.debug('cascade stream closed', { cascade: id, subscribers: stream.sinks.size });
     for (const sink of stream.sinks) sink.close();
     stream.sinks.clear();
   }

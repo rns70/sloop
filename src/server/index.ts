@@ -9,6 +9,7 @@ import type { Server } from 'node:http';
 import { createRealApi } from './api/real';
 import { buildServer } from './buildServer';
 import { loadDotEnv } from './env';
+import { getLogger, configureLogger, resolveLogLevel } from './log';
 
 const DEFAULT_PORT = 5174;
 // dist/web lives at the repo root, two levels up from src/server/.
@@ -36,6 +37,8 @@ export interface StartedServer {
  */
 export async function startServer(opts: { root: string; port?: number }): Promise<StartedServer> {
   loadDotEnv(); // Provider keys from a gitignored .env; real shell env still wins.
+  // Re-read SLOOP_LOG_LEVEL now that .env is loaded (the module-load logger predates it).
+  configureLogger({ level: resolveLogLevel(process.env) });
   const root = resolve(opts.root);
   const port = opts.port ?? DEFAULT_PORT;
 
@@ -57,17 +60,16 @@ export async function startServer(opts: { root: string; port?: number }): Promis
 async function main(): Promise<void> {
   // Provider keys from a gitignored .env; real shell env still wins. Log key NAMES only.
   const loaded = loadDotEnv();
+  const log = configureLogger({ level: resolveLogLevel(process.env) });
   if (loaded.length > 0) {
-    // eslint-disable-next-line no-console
-    console.log(`[sloop] loaded ${loaded.length} var(s) from .env: ${loaded.join(', ')}`);
+    log.info(`loaded ${loaded.length} var(s) from .env`, { vars: loaded.join(',') });
   }
   const port = Number(process.env.PORT ?? DEFAULT_PORT);
   const workspace = resolve(process.env.SLOOP_WORKSPACE ?? 'fixtures/sample-workspace');
   const api = await createRealApi(workspace, process.env);
   const { server } = buildServer({ api, workspaceRoot: workspace, distDir: DIST_DIR });
   await listen(server, port);
-  // eslint-disable-next-line no-console
-  console.log(`sloop server on http://localhost:${port}  workspace=${workspace}`);
+  log.info(`server listening on http://localhost:${port}`, { workspace, level: log.level });
 }
 
 // Only run main() when invoked directly (tsx src/server/index.ts), not when imported.
@@ -75,8 +77,7 @@ const invokedDirectly = process.argv[1] === fileURLToPath(import.meta.url) ||
   process.argv[1] === join(dirname(fileURLToPath(import.meta.url)), 'index.ts');
 if (invokedDirectly) {
   void main().catch((err) => {
-    // eslint-disable-next-line no-console
-    console.error('[sloop] failed to start:', err);
+    getLogger().error('failed to start', { error: err instanceof Error ? err.message : String(err) });
     process.exit(1);
   });
 }

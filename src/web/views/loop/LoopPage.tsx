@@ -4,11 +4,13 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { getAdrs, type LoopStatus } from '../../api-client/index';
-import { CriteriaWarning, PropertyRow, StatusDot, Tag, roleTone } from '../../design/index';
+import { isLoopEditable, parseCriteriaFromBody } from '../../../shared/index';
+import { Button, CriteriaWarning, MarkdownEditor, PropertyRow, StatusDot, Tag, roleTone } from '../../design/index';
 import { Page } from '../../design/index';
 import { useCascade } from '../mission-control/CascadeContext';
 import { humanizeCascade, loopTitle } from '../mission-control/text';
 import { useRoleLabel } from '../mission-control/useRoleLabel';
+import { LoopEditor } from './LoopEditor';
 import { OutputStream } from './OutputStream';
 
 /** plan ✓ → execute ● → review — derived from status (spec §5 loop state machine). */
@@ -36,8 +38,9 @@ function stripHeading(body: string): string {
 
 export function LoopPage() {
   const { loopId = '' } = useParams();
-  const { id, detail, error, loopById, outputs } = useCascade();
+  const { id, detail, error, loopById, outputs, refresh } = useCascade();
   const roleLabel = useRoleLabel();
+  const [editing, setEditing] = useState(false);
   const name = humanizeCascade(id);
   const current = loopById(loopId);
 
@@ -99,96 +102,122 @@ export function LoopPage() {
   }
 
   const fm = current.frontmatter;
+  const editable = isLoopEditable(fm.status);
   const criteria = fm.acceptanceCriteria ?? [];
   const missingCriteria = criteria.length === 0;
   const passed = criteria.filter((cr) => cr.passed).length;
-  const plan = stripHeading(current.body);
+  // The criteria section is rendered structurally below; strip it from the prose body so
+  // it isn't duplicated (and so its raw `- [ ]` markdown isn't shown verbatim).
+  const plan = parseCriteriaFromBody(stripHeading(current.body)).bodyWithoutSection;
   const output = outputs[loopId] ?? '';
 
   return (
     <Page prose breadcrumb={breadcrumb}>
-      <div className="flex items-baseline gap-2.5">
-        <h1 className="text-[23px] font-bold tracking-[-0.01em]">
-          {loopTitle(loopId, current.body, id)}
-        </h1>
-        <StatusDot status={fm.status} />
-      </div>
-
-      <div className="mt-4">
-        <PropertyRow label="Role">
-          <Tag tone={roleTone(fm.role)}>{roleLabel(fm.role)}</Tag>
-        </PropertyRow>
-        <PropertyRow label="Model">
-          <span className="text-ink-muted">{fm.model}</span>
-        </PropertyRow>
-        <PropertyRow label="Status">
-          <span className="text-ink-muted">
-            {fm.kind === 'leaf' ? <StageLine status={fm.status} /> : statusWord(fm.status)}
-          </span>
-        </PropertyRow>
-        {fm.sourceAdr && (
-          <PropertyRow label="Source">
-            <span className="text-ink-muted">
-              {fm.sourceAdr.toUpperCase()}
-              {fm.delta ? ` · ${fm.delta}` : ''}
-            </span>
-          </PropertyRow>
-        )}
-        {criteria.length > 0 && (
-          <PropertyRow label="Criteria">
-            <span className="text-ink-muted">
-              {passed} / {criteria.length} passed
-            </span>
-          </PropertyRow>
-        )}
-      </div>
-
-      {plan && (
-        <section className="mt-6 border-t border-line-hair pt-4">
-          <h2 className="mb-1.5 text-[14px] font-semibold">Plan</h2>
-          <p className="whitespace-pre-wrap text-[14px] leading-relaxed text-ink-muted">{plan}</p>
-        </section>
-      )}
-
-      <section className="mt-6">
-        <div className="mb-2 text-[11px] font-medium uppercase tracking-[0.05em] text-ink-faint">
-          Acceptance criteria
+      <div className="flex items-baseline justify-between gap-2.5">
+        <div className="flex items-baseline gap-2.5">
+          <h1 className="text-[23px] font-bold tracking-[-0.01em]">
+            {loopTitle(loopId, current.body, id)}
+          </h1>
+          <StatusDot status={fm.status} />
         </div>
-        {missingCriteria ? (
-          <CriteriaWarning
-            action={
-              sourceAdr ? (
-                <Link
-                  to={
-                    sourceAdrPath
-                      ? `/databank/${sourceAdrPath.replace(/^databank\//, '')}`
-                      : '/databank'
-                  }
-                  className="whitespace-nowrap text-accent hover:underline"
-                >
-                  Add criteria on {sourceAdr.toUpperCase()}
-                </Link>
-              ) : undefined
-            }
-          />
-        ) : (
-          <ul className="space-y-1 text-[13.5px]">
-            {criteria.map((cr) => (
-              <li key={cr.id} className="flex items-baseline gap-2">
-                <span className={cr.passed ? 'text-status-done' : 'text-ink-subtle'}>
-                  {cr.passed ? '✓' : '○'}
-                </span>
-                <span className="text-ink-muted">{cr.text}</span>
-                {cr.verify && (
-                  <span className="ml-auto whitespace-nowrap font-mono text-[11.5px] text-ink-faint">
-                    verify: {cr.verify}
-                  </span>
-                )}
-              </li>
-            ))}
-          </ul>
+        {editable && !editing && (
+          <Button variant="subtle" onClick={() => setEditing(true)} className="shrink-0">
+            Edit
+          </Button>
         )}
-      </section>
+      </div>
+
+      {editing ? (
+        <LoopEditor
+          cascadeId={id}
+          loop={current}
+          onSaved={async () => {
+            await refresh();
+            setEditing(false);
+          }}
+          onCancel={() => setEditing(false)}
+        />
+      ) : (
+        <>
+          <div className="mt-4">
+            <PropertyRow label="Role">
+              <Tag tone={roleTone(fm.role)}>{roleLabel(fm.role)}</Tag>
+            </PropertyRow>
+            <PropertyRow label="Model">
+              <span className="text-ink-muted">{fm.model}</span>
+            </PropertyRow>
+            <PropertyRow label="Status">
+              <span className="text-ink-muted">
+                {fm.kind === 'leaf' ? <StageLine status={fm.status} /> : statusWord(fm.status)}
+              </span>
+            </PropertyRow>
+            {fm.sourceAdr && (
+              <PropertyRow label="Source">
+                <span className="text-ink-muted">
+                  {fm.sourceAdr.toUpperCase()}
+                  {fm.delta ? ` · ${fm.delta}` : ''}
+                </span>
+              </PropertyRow>
+            )}
+            {criteria.length > 0 && (
+              <PropertyRow label="Criteria">
+                <span className="text-ink-muted">
+                  {passed} / {criteria.length} passed
+                </span>
+              </PropertyRow>
+            )}
+          </div>
+
+          {plan && (
+            <section className="mt-6 border-t border-line-hair pt-4">
+              <h2 className="mb-1.5 text-[14px] font-semibold">Plan</h2>
+              <MarkdownEditor value={plan} readOnly />
+            </section>
+          )}
+
+          <section className="mt-6">
+            <div className="mb-2 text-[11px] font-medium uppercase tracking-[0.05em] text-ink-faint">
+              Acceptance criteria
+            </div>
+            {missingCriteria ? (
+              <CriteriaWarning
+                action={
+                  sourceAdr ? (
+                    <Link
+                      to={
+                        sourceAdrPath
+                          ? `/databank/${sourceAdrPath.replace(/^databank\//, '')}`
+                          : '/databank'
+                      }
+                      className="whitespace-nowrap text-accent hover:underline"
+                    >
+                      Add criteria on {sourceAdr.toUpperCase()}
+                    </Link>
+                  ) : undefined
+                }
+              />
+            ) : (
+              <ul className="space-y-1 text-[13.5px]">
+                {criteria.map((cr) => (
+                  <li key={cr.id} className="flex items-baseline gap-2">
+                    <span className={cr.passed ? 'text-status-done' : 'text-ink-subtle'}>
+                      {cr.passed ? '✓' : '○'}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <span className="text-ink-muted">{cr.text}</span>
+                      {cr.verify && (
+                        <div className="mt-0.5 break-all font-mono text-[11.5px] text-ink-faint">
+                          verify: {cr.verify}
+                        </div>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </>
+      )}
 
       <section className="mt-6">
         <div className="mb-2 text-[11px] font-medium uppercase tracking-[0.05em] text-ink-faint">

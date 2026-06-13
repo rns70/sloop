@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { streamAssistant } from '../api-client/index';
 import type { ChatMessage, ToolActivity, AssistantStreamEvent } from '../../shared/index';
 
@@ -40,17 +40,45 @@ export function applyEvent(
   }
 }
 
+const SESSION_KEY = 'sloop.assistant.thread';
+
+function loadThread(): ChatMessage[] {
+  if (typeof sessionStorage === 'undefined') return [];
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return (parsed as ChatMessage[]).filter(
+      (m) => m.role === 'user' || (m.text && m.text.trim()) || (m.tools && m.tools.length > 0),
+    );
+  } catch {
+    return [];
+  }
+}
+
 /** Holds the conversation thread, streams agent turns, and reports written paths. */
 export function useAssistantChat(opts: {
   model?: string;
   onWrote?: (paths: string[]) => void;
 }): UseAssistantChat {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => loadThread());
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<(() => void) | null>(null);
   const sendingRef = useRef(false);
   const cancelledRef = useRef(false);
+
+  // Persist thread to sessionStorage on every change (try/catch for quota/availability).
+  useEffect(() => {
+    try {
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.setItem(SESSION_KEY, JSON.stringify(messages));
+      }
+    } catch {
+      // sessionStorage unavailable or quota exceeded — silently ignore.
+    }
+  }, [messages]);
 
   const send = useCallback(
     async (text: string) => {
@@ -97,7 +125,7 @@ export function useAssistantChat(opts: {
         if (!cancelledRef.current && wrote.length) opts.onWrote?.(wrote);
       }
     },
-    [messages, streaming, opts.model, opts.onWrote],
+    [messages, opts.model, opts.onWrote],
   );
 
   const stop = useCallback(() => {

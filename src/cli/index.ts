@@ -18,7 +18,12 @@ Usage:
   sloop --port <n>   serve on a specific port (default 5174)
   sloop --no-open    serve without opening a browser
   sloop --help       show this help
-  sloop --version    print the version`;
+  sloop --version    print the version
+
+Logging:
+  SLOOP_LOG_LEVEL=<silent|error|warn|info|debug>  console verbosity (default: info).
+                   info streams live cascade progress + agent output; debug adds
+                   internal tracing; warn/error/silent progressively quiet it.`;
 
 export interface CliDeps {
   cwd: string;

@@ -159,9 +159,11 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       return <InlineDiffView before={diffAgainst} after={value} />;
     }
 
-    // --- Edit mode. ---
+    // --- Edit / read-only render. ---
+    // Read-only gets a modifier class so headings render at the quiet page scale (a
+    // rendered document), while edit mode keeps BlockNote's larger, editor-native sizing.
     return (
-      <div className="sloop-editor">
+      <div className={readOnly ? 'sloop-editor sloop-editor--readonly' : 'sloop-editor'}>
         <BlockNoteView editor={editor} editable={!readOnly} theme="light" />
       </div>
     );

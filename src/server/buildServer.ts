@@ -11,6 +11,7 @@ import { WebSocketServer } from 'ws';
 import { NotFound, Conflict, type StreamingSloopApi } from './api/real';
 import type { CascadeStreamEvent } from './api/contract';
 import { mountWebUi } from './webui';
+import { getLogger } from './log';
 
 export interface BuildServerOptions {
   api: StreamingSloopApi;
@@ -118,10 +119,13 @@ export function buildServer(opts: BuildServerOptions): { server: Server; uiMount
   app.post('/api/cascades/:id/approve', h(async (req, res) =>
     res.json(await api.approveCascade(req.params.id)),
   ));
+  app.patch('/api/cascades/:id/loops/:loopId', h(async (req, res) =>
+    res.json(await api.updateLoop(req.params.id, req.params.loopId, req.body ?? {})),
+  ));
 
   const uiMounted = distDir ? mountWebUi(app, distDir) : false;
 
-  app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+  app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
     if (err instanceof NotFound) {
       res.status(404).json({ error: err.message });
       return;
@@ -130,8 +134,11 @@ export function buildServer(opts: BuildServerOptions): { server: Server; uiMount
       res.status(409).json({ error: err.message });
       return;
     }
-    // eslint-disable-next-line no-console
-    console.error('[api] unhandled error:', err);
+    getLogger().error('unhandled API error', {
+      method: req.method,
+      path: req.path,
+      error: err instanceof Error ? err.stack ?? err.message : String(err),
+    });
     res.status(500).json({ error: err instanceof Error ? err.message : 'internal error' });
   });
 
@@ -144,16 +151,21 @@ export function buildServer(opts: BuildServerOptions): { server: Server; uiMount
     const { pathname } = new URL(req.url ?? '', 'http://localhost');
     const match = STREAM_RE.exec(pathname);
     if (!match) {
+      getLogger().debug('WS upgrade rejected', { path: pathname });
       socket.destroy();
       return;
     }
     const cascadeId = decodeURIComponent(match[1]);
     wss.handleUpgrade(req, socket, head, (ws) => {
+      getLogger().debug('WS client connected', { cascade: cascadeId });
       const sendEvent = (event: CascadeStreamEvent) => {
         if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(event));
       };
       const unsubscribe = api.subscribe(cascadeId, sendEvent, () => ws.close());
-      ws.on('close', unsubscribe);
+      ws.on('close', () => {
+        getLogger().debug('WS client disconnected', { cascade: cascadeId });
+        unsubscribe();
+      });
     });
   });
 
