@@ -99,6 +99,21 @@ describe('buildArchitectPrompt', () => {
     expect(userPrompt).toContain('adr-007-token-rotation.md');
     expect(userPrompt).toContain('rotation + reuse detection');
   });
+
+  it('marks gate stages and states the lock + partition rules', () => {
+    const gated: TemplateDef = {
+      ...template,
+      stages: [
+        template.stages[0],
+        template.stages[1],
+        { name: 'verify', role: 'qa', model: 'sonnet', gate: true },
+      ],
+    };
+    const { systemPrompt, userPrompt } = buildArchitectPrompt(diff, gated, roles, 4);
+    expect(userPrompt).toContain('[GATE]');
+    expect(systemPrompt).toMatch(/locked/i);
+    expect(systemPrompt).toMatch(/Partition leaves by file/i);
+  });
 });
 
 describe('parseArchitectResponse', () => {
@@ -135,6 +150,21 @@ describe('parseArchitectResponse', () => {
       ],
     });
     expect(() => parseArchitectResponse(dup, opts)).toThrow(/Duplicate/);
+  });
+
+  it('carries the locked flag through on a criterion', () => {
+    const resp = JSON.stringify({
+      leaves: [
+        {
+          id: 'a',
+          role: 'engineer',
+          brief: 'x',
+          acceptanceCriteria: [{ id: 'ac-1', text: 't', verify: 'npm test', locked: true }],
+        },
+      ],
+    });
+    const plan = parseArchitectResponse(resp, opts);
+    expect(plan.leaves[0].acceptanceCriteria[0].locked).toBe(true);
   });
 
   it('clamps the leaf count to maxLeaves', () => {

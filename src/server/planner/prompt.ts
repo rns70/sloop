@@ -17,6 +17,7 @@ export interface ProposedCriterion {
   id: string;
   text: string;
   verify?: string;
+  locked?: boolean;
 }
 
 /** A leaf loop the architect proposes; the engine turns these into `LoopDoc`s. */
@@ -68,7 +69,7 @@ export function buildArchitectPrompt(
     .join('\n');
 
   const stageLines = template.stages
-    .map((s) => `- ${s.name}: role=${s.role}, model=${s.model}`)
+    .map((s) => `- ${s.name}: role=${s.role}, model=${s.model}${s.gate ? ' [GATE]' : ''}`)
     .join('\n');
 
   const diffBlocks = diff.changed
@@ -96,10 +97,16 @@ export function buildArchitectPrompt(
     'Rules:',
     `- Propose at most ${maxLeaves} leaves. Keep the tree shallow: architect → leaves.`,
     '- Give every leaf a stable kebab-case id, unique within this cascade.',
+    '- Partition leaves by file: no two leaves may edit the same file (they share one',
+    '  checkout and would collide).',
     "- Choose each leaf's role from the roles list and a model alias from the template",
-    '  stage defaults or the role default.',
-    '- Copy each acceptance criterion verbatim (stable id + text + verify) onto the leaf',
-    '  that satisfies it.',
+    '  stage defaults or the role default. The stage model is a floor for bounded work;',
+    "  raise a leaf's model for open-ended or long-horizon tasks.",
+    '- Copy each acceptance criterion onto the leaf that satisfies it (stable id + text +',
+    '  verify). Set "locked": true on every criterion you author — a locked criterion may',
+    '  not be weakened by the leaf that executes it.',
+    '- Stages marked [GATE] are hard verification checkpoints; their criteria must be',
+    '  locked and backed by a concrete verify command.',
     '',
     'Respond with STRICT JSON only (no prose, no markdown fences) of this shape:',
     '{',
@@ -113,7 +120,7 @@ export function buildArchitectPrompt(
     '      "sourceAdr": "adr-007",',
     '      "brief": "what this leaf must do",',
     '      "acceptanceCriteria": [',
-    '        { "id": "ac-1", "text": "…", "verify": "npm test -- rotation" }',
+    '        { "id": "ac-1", "text": "…", "verify": "npm test -- rotation", "locked": true }',
     '      ]',
     '    }',
     '  ]',
@@ -247,6 +254,7 @@ export function parseArchitectResponse(raw: string, opts: ParseOptions): Archite
         text: typeof cc.text === 'string' ? cc.text.trim() : '',
         verify:
           typeof cc.verify === 'string' && cc.verify.trim() ? cc.verify.trim() : undefined,
+        locked: typeof cc.locked === 'boolean' ? cc.locked : undefined,
       };
     });
 
