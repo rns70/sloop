@@ -1,5 +1,6 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import { cx } from './cx';
+import { Spinner } from './Spinner';
 
 type Variant = 'primary' | 'subtle' | 'ghost';
 type Size = 'sm' | 'md';
@@ -32,6 +33,9 @@ const BASE =
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
   size?: Size;
+  /** Show a leading spinner and block clicks while an async action is in flight. The
+   *  label stays visible so the button keeps its width and the affordance stays legible. */
+  loading?: boolean;
   children: ReactNode;
 }
 
@@ -39,16 +43,21 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 export function Button({
   variant = 'subtle',
   size = 'md',
+  loading = false,
   className,
   children,
+  disabled,
   ...rest
 }: ButtonProps) {
   return (
     <button
       type="button"
       className={cx(BASE, SIZE[size], VARIANT[variant], className)}
+      disabled={disabled || loading}
+      aria-busy={loading || undefined}
       {...rest}
     >
+      {loading && <Spinner size="sm" label="" className="-ml-0.5" />}
       {children}
     </button>
   );

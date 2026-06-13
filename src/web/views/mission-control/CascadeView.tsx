@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { Button, Label, Page, StatusDot } from '../../design/index';
 import type { LoopStatus } from '../../api-client/index';
 import { useCascade } from './CascadeContext';
+import { CascadeSkeleton } from './CascadeSkeleton';
 import { Checkpoint } from './Checkpoint';
 import { LoopTree } from './LoopTree';
 import { humanizeCascade } from './text';
@@ -44,7 +45,7 @@ export function CascadeView() {
   if (!detail) {
     return (
       <Page breadcrumb={`Cascades / ${name}`}>
-        <p className="text-[13px] text-ink-faint">Loading cascade…</p>
+        <CascadeSkeleton />
       </Page>
     );
   }
@@ -58,11 +59,17 @@ export function CascadeView() {
       ? 'executing'
       : rootStatus ?? summary.status;
 
-  const total = loops.length;
-  const doneCount = loops.filter((l) => l.frontmatter.status === 'done').length;
+  // Progress is about the work loops the architect proposed; the architect loop itself
+  // isn't "work to be done", so it stays out of the counts (otherwise N is always +1).
+  const workLoops = loops.filter((l) => l.frontmatter.kind !== 'architect');
+  const total = workLoops.length;
+  const doneCount = workLoops.filter((l) => l.frontmatter.status === 'done').length;
   const allCriteria = loops.flatMap((l) => l.frontmatter.acceptanceCriteria ?? []);
   const passedCriteria = allCriteria.filter((cr) => cr.passed).length;
   const deltas = deltaSummary(summary.deltas);
+  const progressText = showCheckpoint
+    ? `${total} loop${total === 1 ? '' : 's'} proposed`
+    : `${doneCount} of ${total} loop${total === 1 ? '' : 's'} done`;
 
   return (
     <Page
@@ -86,20 +93,21 @@ export function CascadeView() {
         <h1 className="text-[22px] font-bold tracking-[-0.01em]">{name}</h1>
         <StatusDot status={displayStatus} />
       </div>
-      <div className="mb-5 mt-1 text-[13px] text-ink-faint">
+      <div className="mb-5 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-ink-faint">
         {deltas && (
           <>
-            {deltas}
-            <span className="mx-3 text-ink-subtle">|</span>
+            <span>
+              <span className="text-ink-subtle">databank</span> {deltas}
+            </span>
+            <span className="text-ink-subtle">|</span>
           </>
         )}
-        {doneCount} of {total} loops done
+        <span>{progressText}</span>
       </div>
 
       {showCheckpoint && (
         <Checkpoint
-          loops={loops}
-          roleLabel={roleLabel}
+          proposedCount={total}
           onApprove={handleApprove}
           approving={approving}
           error={approveError}

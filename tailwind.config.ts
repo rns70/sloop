@@ -79,6 +79,16 @@ export default {
       maxWidth: {
         prose: '700px',
       },
+      keyframes: {
+        // A single soft light sweep for skeleton placeholders. Low-contrast so it reads
+        // as "loading", not as decorative motion (Notion-quiet).
+        shimmer: {
+          '100%': { transform: 'translateX(100%)' },
+        },
+      },
+      animation: {
+        shimmer: 'shimmer 1.6s ease-in-out infinite',
+      },
     },
   },
   plugins: [],
