@@ -83,17 +83,25 @@ export function buildServer(opts: BuildServerOptions): { server: Server; uiMount
 
   app.get('/api/models', h(async (_req, res) => res.json(await api.listModels())));
   app.post('/api/assistant/stream', (req, res) => {
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
+    if (!req.body || !Array.isArray(req.body.messages)) {
+      res.status(400).json({ error: 'assistant: request body must include a messages array' });
+      return;
+    }
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no', // X-Accel-Buffering: disable proxy (nginx) buffering so tokens flush immediately
+    });
     res.flushHeaders();
     const ac = new AbortController();
     req.on('close', () => ac.abort());
     api.assistantStream(req.body, (e) => {
       res.write(`data: ${JSON.stringify(e)}\n\n`);
     }, ac.signal).catch((err: unknown) => {
-      const msg = err instanceof Error ? err.message : 'internal error';
-      res.write(`data: ${JSON.stringify({ type: 'error', message: msg })}\n\n`);
+      if (!res.writableEnded) {
+        res.write(`data: ${JSON.stringify({ type: 'error', message: err instanceof Error ? err.message : 'internal error' })}\n\n`);
+      }
     }).finally(() => res.end());
   });
 

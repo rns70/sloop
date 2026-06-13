@@ -200,7 +200,9 @@ export class MockApi implements SloopApi {
     if (/adr|requirement|document/i.test(text)) {
       const relPath = 'databank/mock-note.md';
       onEvent({ type: 'tool_start', tool: 'create_adr', path: relPath });
-      this.adrs.push({ id: 'mock-note', relPath, title: 'Mock note', body: text, acceptanceCriteria: [] });
+      const note = { id: 'mock-note', relPath, title: 'Mock note', body: text, acceptanceCriteria: [] };
+      const idx = this.adrs.findIndex((a) => a.id === 'mock-note');
+      if (idx === -1) this.adrs.push(note); else this.adrs[idx] = note;
       onEvent({ type: 'tool_result', tool: 'create_adr', path: relPath, ok: true });
     }
     onEvent({ type: 'done' });
