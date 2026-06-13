@@ -1,14 +1,16 @@
 # sloop — Design Document
 
 **Date:** 2026-06-13
-**Status:** Draft for review
+**Status:** Approved — hackathon build
 **Author:** Jelle Maas (with Claude)
+
+> **Hackathon mode:** scope is trimmed for speed. The goal is a compelling demo of the *one* novel idea — the convergence invariant — not a complete product. Anything not on the demo happy path is deferred (see §9).
 
 ---
 
 ## 1. Overview
 
-**sloop is an IDE for agent factories: a desktop app that keeps a codebase continuously reconciled to a databank of requirement documents (ADRs).**
+**sloop is an IDE for agent factories: a local app that keeps a codebase continuously reconciled to a databank of requirement documents (ADRs).**
 
 You maintain your requirements as a corpus of markdown ADR documents — the desired state of the system. When you change that corpus (add, edit, or delete requirements), you kick off a **cascade**: a run that diffs the databank against its previous committed version, and for every actionable delta spawns a tree of **agent loops** that drive the codebase back into agreement with the requirements.
 
@@ -30,7 +32,8 @@ sloop is a **conductor**, not its own coding agent. Leaf work is delegated to an
 | **ADR** | A single requirement document. Contains requirements and **acceptance criteria**. |
 | **Cascade** | A run triggered by a change to the databank. Diffs databank `@HEAD` vs the last committed/accepted version, produces a worklist of deltas, and spawns the root loop. |
 | **Delta** | One actionable change detected by the cascade, classified as `add` / `change` / `delete`. |
-| **Loop** | The unit of work. A markdown file with frontmatter (role, model, status, parent) and a body (its plan / criteria / children). Loops form a tree of unbounded depth. |
+| **Loop** | The unit of work. A markdown file with frontmatter (role, model, status, parent) and a body (its plan / criteria / children). Loops form a tree — conceptually unbounded, but bounded in practice by a configurable depth/loop cap (safety). |
+| **Template** | A reusable definition of *how* the architect decomposes work: the stages, which roles staff each stage, and their ordering. A markdown file in `.sloop/templates/` (e.g. `waterfall.md`, `tdd.md`, `spec-driven.md`). Copyable and editable. See §6. |
 | **Architecture loop** | The root loop of a cascade. A planning loop on a big model: reads the diff, decomposes work, staffs and spawns child loops. Does not write code. |
 | **Inner loop** | A non-root, non-leaf loop. May plan further and spawn its own children. |
 | **Leaf loop** | A loop small enough that its acceptance criteria can be verified directly. Delegates to an external coding agent to do the work. |
@@ -56,7 +59,8 @@ root loop done
 
 Consequences that drive the design:
 - A loop's status is **derived**, not just stored: an inner loop cannot be "done" while a child is failing or running.
-- Tree depth is emergent — however deep it takes to decompose a requirement into verifiable criteria. **No depth cap.**
+- Tree depth is emergent — however deep it takes to decompose a requirement into verifiable criteria. Conceptually unbounded; in practice a **configurable depth/loop cap** prevents runaway cost (a hard requirement for safe live demos).
+- A criterion's truth is established by its **`verify` command** (exit 0 = passed) wherever possible — this is what makes the invariant *real* rather than self-reported. Criteria without a command fall back to QA-role adjudication (Phase 2).
 - The architecture loop is not done when it finishes *planning*; it is done when its whole subtree converges.
 - A failed/blocked leaf propagates upward as a **blocked** root — surfacing exactly where reconciliation stalled.
 
@@ -65,8 +69,11 @@ Consequences that drive the design:
 ## 4. Architecture
 
 ### 4.1 Form factor & stack
-- **Tauri desktop app.** Rust core (orchestration, file watching, git, process management, agent supervision) + web frontend (Notion-style UI).
-- **Local-first.** Operates on a folder (the workspace) on disk. No server required for single-user.
+- **Local TypeScript web app** (chosen for hackathon iteration speed over the originally-considered Tauri/Rust build).
+  - **Frontend:** Vite + React + Tailwind. Notion-style UI ships fastest here.
+  - **Backend:** a thin Node layer (same repo) for file I/O, git (`simple-git`), spawning Claude Code (`child_process`), and streaming agent output to the UI (WebSocket/SSE).
+- **Local-first.** Operates on a folder (the workspace) on disk. Runs on `localhost`; single-user; no hosted service.
+- All orchestration logic lives in TS. There is no Rust core.
 
 ### 4.2 Markdown is the system
 Markdown files are **both the persistence layer and the change-tracking layer.** There is no separate database for loop/cascade state; the files *are* the state, and git *is* the history.
@@ -97,7 +104,11 @@ workspace/
       engineer.md
       qa.md
       security.md
-    config.md                # model routing defaults, executor config
+    templates/               # process templates (the stages — §6)
+      spec-driven.md         # default
+      waterfall.md
+      tdd.md
+    config.md                # model routing defaults, executor config, depth cap
 ```
 
 ### 4.3 Loop file schema (frontmatter)
@@ -115,7 +126,9 @@ source_adr: adr-007
 acceptance_criteria:
   - id: ac-1
     text: "Refresh tokens rotate every ≤15m"
+    verify: "npm test -- rotation"   # exit 0 = passed; optional
     passed: false
+template: spec-driven  # process template the architect followed (§6)
 executor: claude-code  # which external agent runs this (leaves)
 ---
 ```
@@ -133,9 +146,9 @@ Body holds the human-readable plan, the brief handed to the agent, and notes.
 
 1. **Define the change.** User edits the databank (add/edit/delete ADRs) and triggers a cascade.
 2. **Diff.** sloop computes the delta set: databank working tree vs last accepted commit. Each changed ADR yields one or more deltas tagged `add`/`change`/`delete`. (Diff is git-based; a planning agent interprets semantic intent — see Open Questions on semantic vs textual diff.)
-3. **Architecture loop.** A root loop on a big model reads the deltas, decomposes the work into a tree of role-typed child loops with acceptance criteria, and proposes it.
+3. **Architecture loop.** A root loop on a big model reads the deltas and decomposes the work into a tree of role-typed child loops with acceptance criteria, **following the selected process template** (§6) for the stage structure. Proposes the tree.
 4. **Checkpoint (human gate).** The proposed tree is presented for approval: **approve all · edit · skip**. Inner loops do not run until approved. (Confirmed requirement; not optional.)
-5. **Fan out & execute.** Approved loops run. Inner loops may recurse (plan → spawn). Leaf loops delegate to the executor and then verify acceptance criteria.
+5. **Fan out & execute.** Approved loops run. Inner loops may recurse (plan → spawn), up to the configured **depth/loop cap**. Leaf loops delegate to the executor and then verify acceptance criteria (running each criterion's `verify` command).
 6. **Bubble up.** As leaves pass, parents re-evaluate via the convergence invariant. Failures surface as a blocked subtree.
 7. **Done.** Root loop done ⟹ codebase matches databank for this cascade. Result is a git history of the whole run.
 
@@ -148,12 +161,27 @@ planned → awaiting_approval → queued → executing → review → done
 
 ---
 
-## 6. Roles & model routing
+## 6. Roles, templates & model routing
 
+**Roles** = *who* does the work. **Templates** = *the shape of the tree* (the stages). These are orthogonal: a template references roles to staff its stages.
+
+### 6.1 Roles (loop types)
 - **Loop-types library** (`.sloop/roles/*.md`): each role is a markdown file defining its responsibility, default model, and a prompt/brief template. Ships with Architect, Engineer, QA, Security reviewer, Pentester; **user-definable** (`+ New type`).
 - Roles render as colored tags in the UI.
-- **Routing principle:** expensive reasoning at the root, cheap doing at the leaves. Resolution order for a loop's model: explicit per-loop override → role default → global default.
-- Because roles are markdown, routing rules and personas are versioned and diffable like everything else.
+
+### 6.2 Process templates (stages)
+A **template** prescribes how the architect loop decomposes a delta into stages — the staging/methodology, copyable like a starter. Each is a markdown file in `.sloop/templates/`:
+- `spec-driven.md` *(default)* — plan → implement → verify.
+- `waterfall.md` — requirements → design → implement → verify → deploy, sequential (each stage gated on the previous).
+- `tdd.md` — write failing test → implement → refactor, looped per unit.
+
+A template file declares its stages and the role + default model for each (in frontmatter), plus guidance the architect follows when instantiating the tree. The architect reads the chosen template and stamps out child loops to match. **No new runtime machinery** — a template is structured prompt scaffolding plus stage metadata. Users copy and edit templates to invent their own methodology.
+
+The template for a cascade is chosen at kickoff (defaulting to `spec-driven`) and recorded on each loop's `template` field.
+
+### 6.3 Model routing
+- **Principle:** expensive reasoning at the root, cheap doing at the leaves. Resolution order for a loop's model: explicit per-loop override → template-stage default → role default → global default.
+- Because roles and templates are markdown, routing rules, personas, and methodologies are versioned and diffable like everything else.
 
 ---
 
@@ -164,7 +192,7 @@ Aesthetic: clean, light, typographic, minimal — Notion-like. Three primary are
 1. **Databank** — browse/edit ADRs. Markdown editor with **inline diff vs last accepted** (core requested capability).
 2. **Cascades / Mission Control** — the live **loop tree** for a cascade. Nodes show role tag, model chip, status; expandable to children of unbounded depth; root status answers "in sync?". The checkpoint approval lives here.
 3. **Loop page** — a single loop rendered as a Notion page: frontmatter as inline **properties**, body as the plan, children as a nested list. This is just the markdown file, viewed nicely.
-4. **Loop-types library** — manage roles.
+4. **Libraries** — manage roles and process templates (both just markdown lists). Template picker appears at cascade kickoff.
 
 Everything shown is a view over markdown on disk; there is no hidden state.
 
@@ -180,36 +208,40 @@ Everything shown is a view over markdown on disk; there is no hidden state.
 
 ---
 
-## 9. Scope & build sequence
+## 9. Scope & build sequence (hackathon)
 
-This is a large system. It will be built in phases; **Phase 1 is the first implementation-plan target.** Later phases get their own specs/plans.
+**Demo happy path (the only thing that must work end to end):**
+Edit one ADR in the databank → kick off a cascade (pick the `spec-driven` template) → architect loop proposes a small tree → approve at the checkpoint → leaf loops shell out to Claude Code → each leaf's `verify` command runs → statuses bubble up → root flips to **done** → the UI shows "codebase matches databank." That single flow, looking good on screen, IS the demo.
 
-**Phase 1 — MVP (the spine, end to end):**
-- Tauri app shell + Notion-style UI skeleton.
-- Workspace on disk: databank + markdown loop/cascade files + git integration.
-- Databank browse/edit with inline diff.
-- Cascade trigger → git diff → architecture loop (big model) proposes a tree.
-- Checkpoint approval UI.
-- Leaf execution via **one executor: Claude Code subprocess**, with acceptance-criteria verification.
-- Convergence invariant: status bubbles up; root-done = in-sync.
-- Loop-types library with the starter roles + per-loop model override.
+**Build order (each step demoable on its own; stop when the demo lands):**
+1. **Files + git over a sample workspace** — Node layer reads/writes loop & ADR markdown (frontmatter parse/serialize), `simple-git` for diff/commit. Seed a sample databank so there's something real to show.
+2. **UI shell (Vite/React/Tailwind, Notion look)** — Databank view + Mission Control loop-tree view rendering the markdown files.
+3. **Cascade kickoff** — diff the databank, build the architect loop, call the big model to propose the tree (with template), render it + the checkpoint.
+4. **Execute leaves** — spawn Claude Code per approved leaf, stream output to the loop page, run `verify` commands, set `passed`.
+5. **Convergence** — bubble status up; root-done = in sync. This is the money shot — polish it.
 
-**Phase 2+ (deferred):**
-- Pluggable executor adapters (beyond Claude Code).
-- Executor sandboxing/permission policy.
-- Structured metrics/telemetry for agent runs and cost.
-- Multi-user / sync / collaboration.
-- Reconciliation against the codebase or external sources (current design diffs docs-vs-docs only).
-- Cost budgeting / model-routing optimization dashboards.
+**Explicitly cut for the hackathon (do NOT build):**
+- Tauri/native packaging (plain localhost web app).
+- Pluggable executor abstraction — hardcode Claude Code; wrap behind one function only.
+- Real file watcher / external-edit sync — refresh on action is fine.
+- Retries/backoff, sandboxing, telemetry, multi-user, cost dashboards.
+- QA-role adjudication for criteria without a `verify` command — demo only criteria that have one.
+- Deep recursion — cap at ~2 levels (architect → leaves, optionally one inner layer) so a demo can't run away.
+- Waterfall/TDD templates as polished artifacts — ship `spec-driven` working; the others can be stub markdown that proves the picker exists.
+
+**Post-hackathon (only if it has legs):** everything in the cut list, plus reconciliation against code/external sources and structured ADR IDs hardening.
 
 ---
 
 ## 10. Open questions
 
-1. **Diff fidelity:** Is the cascade diff purely git-textual (then the architect agent interprets), or do we want structured ADRs (stable IDs per requirement/criterion) so deltas map deterministically to requirements? *Leaning: structured ADRs with stable criterion IDs to make convergence checkable — to confirm.*
-2. **Concurrency & ordering:** Do sibling inner loops run fully in parallel, or can the architect declare dependencies between them?
-3. **Acceptance-criteria verification:** How is a criterion checked — agent self-report, a test/command the leaf must make pass, or a separate QA-role loop that adjudicates? (Affects trust in "done.")
-4. **Cascade scope on conflict:** What happens if the databank changes again while a cascade is mid-flight?
+**Resolved:**
+- **Diff fidelity** → ADRs carry **stable IDs** per requirement/criterion; the git diff scopes the change and the architect interprets intent. (Hackathon: keep ADRs simple but give criteria stable `id`s.)
+- **Acceptance-criteria verification** → primarily a **`verify` shell command** (exit 0 = passed). QA-role adjudication for command-less criteria is Phase 2.
+
+**Still open (don't block the hackathon):**
+1. **Concurrency & ordering:** Do sibling loops run fully in parallel, or can the architect/template declare dependencies? (`waterfall` implies sequential — templates may end up encoding this.)
+2. **Cascade scope on conflict:** What happens if the databank changes again while a cascade is mid-flight? (Hackathon: assume it doesn't.)
 
 ---
 
