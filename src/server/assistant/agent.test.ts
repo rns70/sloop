@@ -69,4 +69,77 @@ describe('runAssistantAgent', () => {
     expect(streamFn).toHaveBeenCalledTimes(3);
     expect(out.at(-1)).toEqual({ type: 'done' });
   });
+
+  it('stream error event → emits error and does not call exec', async () => {
+    const errorMsg = { ...asstMsg([], 'stop'), errorMessage: 'boom' };
+    const streamFn = vi.fn(() => fakeStream([
+      { type: 'error', error: errorMsg } as any,
+    ]) as any);
+    const exec: ToolExecutor = { run: vi.fn() };
+    const out: AssistantStreamEvent[] = [];
+    await runAssistantAgent({ messages: [{ role: 'user', text: 'hi' }] }, baseDeps(streamFn, exec), (e) => out.push(e));
+    expect(out).toContainEqual(expect.objectContaining({ type: 'error' }));
+    expect(exec.run).not.toHaveBeenCalled();
+  });
+
+  it('abort mid-stream → emits done', async () => {
+    const abortErr = Object.assign(new Error('aborted'), { name: 'AbortError' });
+    const throwingStream = {
+      async *[Symbol.asyncIterator]() { throw abortErr; },
+    };
+    const streamFn = vi.fn(() => throwingStream as any);
+    const exec: ToolExecutor = { run: vi.fn() };
+    const out: AssistantStreamEvent[] = [];
+    const signal = AbortSignal.abort();
+    await runAssistantAgent({ messages: [{ role: 'user', text: 'hi' }] }, baseDeps(streamFn, exec), (e) => out.push(e), signal);
+    expect(out.at(-1)).toEqual({ type: 'done' });
+  });
+
+  it('stream ends with no done event → emits error', async () => {
+    const partial = asstMsg([{ type: 'text', text: 'He' }], 'stop');
+    const streamFn = vi.fn(() => fakeStream([
+      { type: 'text_delta', contentIndex: 0, delta: 'He', partial } as any,
+      // no 'done' event — stream ends here
+    ]) as any);
+    const exec: ToolExecutor = { run: vi.fn() };
+    const out: AssistantStreamEvent[] = [];
+    await runAssistantAgent({ messages: [{ role: 'user', text: 'hi' }] }, baseDeps(streamFn, exec), (e) => out.push(e));
+    expect(out).toContainEqual(expect.objectContaining({ type: 'error' }));
+  });
+
+  it('tool executor throws → emits tool_start then error, no second stream call', async () => {
+    const toolCall: ToolCall = { type: 'toolCall', id: 't1', name: 'edit_doc', arguments: { path: 'a.md' } };
+    const turn1 = asstMsg([toolCall], 'toolUse');
+    const streamFn = vi.fn(() => fakeStream([
+      { type: 'toolcall_end', contentIndex: 0, toolCall, partial: turn1 },
+      { type: 'done', reason: 'toolUse', message: turn1 },
+    ]) as any);
+    const exec: ToolExecutor = { run: vi.fn(async () => { throw new Error('tool boom'); }) };
+    const out: AssistantStreamEvent[] = [];
+    await runAssistantAgent({ messages: [{ role: 'user', text: 'go' }] }, baseDeps(streamFn, exec), (e) => out.push(e));
+    expect(out).toContainEqual(expect.objectContaining({ type: 'tool_start' }));
+    expect(out).toContainEqual(expect.objectContaining({ type: 'error' }));
+    expect(streamFn).toHaveBeenCalledTimes(1);
+  });
+
+  it('tool returns ok:false → emits tool_result with ok:false and still ends with done', async () => {
+    const toolCall: ToolCall = { type: 'toolCall', id: 't1', name: 'edit_doc', arguments: { path: 'a.md' } };
+    const turn1 = asstMsg([toolCall], 'toolUse');
+    const turn2 = asstMsg([{ type: 'text', text: 'sorry' }], 'stop');
+    const streamFn = vi.fn()
+      .mockReturnValueOnce(fakeStream([
+        { type: 'toolcall_end', contentIndex: 0, toolCall, partial: turn1 },
+        { type: 'done', reason: 'toolUse', message: turn1 },
+      ]) as any)
+      .mockReturnValueOnce(fakeStream([
+        { type: 'text_delta', contentIndex: 0, delta: 'sorry', partial: turn2 },
+        { type: 'done', reason: 'stop', message: turn2 },
+      ]) as any);
+    const exec: ToolExecutor = { run: vi.fn(async () => ({ ok: false, text: 'nope' })) };
+    const out: AssistantStreamEvent[] = [];
+    await runAssistantAgent({ messages: [{ role: 'user', text: 'go' }] }, baseDeps(streamFn, exec), (e) => out.push(e));
+    expect(out).toContainEqual(expect.objectContaining({ type: 'tool_result', ok: false }));
+    expect(out.at(-1)).toEqual({ type: 'done' });
+    expect(streamFn).toHaveBeenCalledTimes(2);
+  });
 });

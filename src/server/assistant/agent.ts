@@ -47,18 +47,27 @@ export async function runAssistantAgent(
 
     let final: AssistantMessage | undefined;
     const calls: ToolCall[] = [];
-    for await (const ev of piStream) {
-      if (ev.type === 'text_delta') {
-        emit({ type: 'text_delta', delta: ev.delta });
-      } else if (ev.type === 'toolcall_end') {
-        calls.push(ev.toolCall);
-      } else if (ev.type === 'done') {
-        final = ev.message;
-      } else if (ev.type === 'error') {
-        // ev.error is an AssistantMessage; errorMessage is its optional field
-        emit({ type: 'error', message: ev.error.errorMessage ?? 'stream error' });
+    try {
+      for await (const ev of piStream) {
+        if (ev.type === 'text_delta') {
+          emit({ type: 'text_delta', delta: ev.delta });
+        } else if (ev.type === 'toolcall_end') {
+          calls.push(ev.toolCall);
+        } else if (ev.type === 'done') {
+          final = ev.message;
+        } else if (ev.type === 'error') {
+          // ev.error is an AssistantMessage; errorMessage is its optional field
+          emit({ type: 'error', message: ev.error.errorMessage ?? 'stream error' });
+          return;
+        }
+      }
+    } catch (e) {
+      if (signal?.aborted || (e instanceof Error && e.name === 'AbortError')) {
+        emit({ type: 'done' });
         return;
       }
+      emit({ type: 'error', message: e instanceof Error ? e.message : 'stream error' });
+      return;
     }
 
     if (!final) { emit({ type: 'error', message: 'stream ended without a final message' }); return; }
@@ -67,10 +76,17 @@ export async function runAssistantAgent(
     // Append the assistant turn (with its tool calls), then run each tool and append results.
     messages.push(final);
     for (const call of calls) {
+      // Only surfaces string `path`/`slug` args for the UI chip; falls back to `undefined` otherwise.
       const path = typeof call.arguments?.path === 'string' ? call.arguments.path
         : typeof call.arguments?.slug === 'string' ? call.arguments.slug : undefined;
       emit({ type: 'tool_start', tool: call.name, path });
-      const result = await deps.toolExecutor.run(call);
+      let result: Awaited<ReturnType<typeof deps.toolExecutor.run>>;
+      try {
+        result = await deps.toolExecutor.run(call);
+      } catch (e) {
+        emit({ type: 'error', message: e instanceof Error ? e.message : 'tool execution failed' });
+        return;
+      }
       emit({ type: 'tool_result', tool: call.name, path: result.path ?? path, ok: result.ok });
       const toolResult: Message = {
         role: 'toolResult',
@@ -83,5 +99,6 @@ export async function runAssistantAgent(
       messages.push(toolResult);
     }
   }
+  console.warn(`assistant agent: hit max iterations (${max}); ending turn.`);
   emit({ type: 'done' }); // max-iteration cap reached
 }
