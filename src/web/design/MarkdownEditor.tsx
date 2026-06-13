@@ -47,7 +47,7 @@ function applyProposalText(value: string, p: Proposal): string {
 /**
  * The shared markdown editor for sloop — a BlockNote (block-based rich text) wrapper,
  * not a textarea. It edits whatever markdown string it is given (ADR bodies, role
- * files, templates), so it is deliberately file-agnostic; callers strip/recombine
+ * files, workflows), so it is deliberately file-agnostic; callers strip/recombine
  * their own frontmatter (markdown export is lossy).
  *
  * Three render modes:

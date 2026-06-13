@@ -8,15 +8,9 @@ delta: change
 parent: _architect
 children: []
 sourceAdr: adr-007
-template: spec-driven
+workflow: spec-driven
 executor: pi
-acceptanceCriteria:
-  - id: ac-1
-    text: "Refresh tokens rotate on every use and expire within ≤15 minutes."
-    verify: "npm test -- rotation"
-    passed: false
 ---
-
 # Leaf — rotate-refresh-tokens
 
 ## Brief
@@ -25,3 +19,7 @@ refresh, invalidate the prior one atomically, and cap lifetime at 15 minutes.
 
 ## Acceptance
 `ac-1` passes when `npm test -- rotation` exits 0. Done iff that criterion passes.
+
+## Acceptance criteria
+
+- [ ] **ac-1** Refresh tokens rotate on every use and expire within ≤15 minutes. — verify: `npm test -- rotation`

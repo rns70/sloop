@@ -50,7 +50,7 @@ export function AssistantRail({ className }: { className?: string }) {
       </div>
 
       <div ref={scrollRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3">
-        {messages.length === 0 && <p className="text-[12px] text-ink-faint">Ask a question, or tell me to edit or create an ADR, role, or template. Changes apply directly.</p>}
+        {messages.length === 0 && <p className="text-[12px] text-ink-faint">Ask a question, or tell me to edit or create an ADR, role, or workflow. Changes apply directly.</p>}
         {messages.map((m, i) => (
           <div key={i} className={cx('rounded-md px-3 py-2', m.role === 'user' ? 'bg-line-soft' : 'border border-line-soft bg-paper')}>
             <div className="mb-1 text-[10px] uppercase tracking-[0.07em] text-ink-faint">{m.role}</div>

@@ -69,7 +69,7 @@ export function CascadeView() {
       breadcrumb={`Cascades / ${name}`}
       actions={
         <span className="font-mono text-[11px] text-ink-subtle">
-          {summary.template} · cascade/{name}
+          {summary.workflow} · cascade/{name}
         </span>
       }
     >

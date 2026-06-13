@@ -8,16 +8,16 @@ import type {
   LoopDoc,
   ModelRegistry,
   RoleDef,
-  TemplateDef,
+  WorkflowDef,
 } from '../../shared/index';
 import type { ArchitectInput, ArchitectPlanner } from '../planner/architect';
 import type { ArchitectPlan } from '../planner/prompt';
 import { createCascadeEngine } from './cascadeEngine';
 
-const TEMPLATE: TemplateDef = {
+const WORKFLOW: WorkflowDef = {
   id: 'spec-driven',
   name: 'Spec-driven',
-  stages: [
+  steps: [
     { name: 'plan', role: 'architect', model: 'opus' },
     { name: 'implement', role: 'engineer', model: 'haiku' },
   ],
@@ -80,6 +80,8 @@ class FakeFiles implements FilesService {
     throw new Error('not used');
   }
   async writeAdr(): Promise<void> {}
+  async moveAdr(): Promise<void> {}
+  async deleteAdr(): Promise<void> {}
   async readLoop(relPath: string): Promise<LoopDoc> {
     const found = this.loops.get(relPath);
     if (!found) throw new Error(`no loop ${relPath}`);
@@ -103,8 +105,8 @@ class FakeFiles implements FilesService {
     }
     return [...ids].sort();
   }
-  async listTemplates(): Promise<TemplateDef[]> {
-    return [TEMPLATE];
+  async listWorkflows(): Promise<WorkflowDef[]> {
+    return [WORKFLOW];
   }
   async listRoles(): Promise<RoleDef[]> {
     return ROLES;
@@ -176,7 +178,7 @@ describe('CascadeEngine.kickoff', () => {
 
     expect(summary.id).toBe(CASCADE_ID);
     expect(summary.status).toBe('awaiting_approval');
-    expect(summary.template).toBe('spec-driven');
+    expect(summary.workflow).toBe('spec-driven');
     expect(summary.deltas).toEqual({ add: 0, change: 1, delete: 0 });
     expect(summary.rootLoopId).toBe('_architect');
 
@@ -201,9 +203,9 @@ describe('CascadeEngine.kickoff', () => {
     expect(leaf.frontmatter.executor).toBe('pi');
   });
 
-  it('throws on an unknown template', async () => {
+  it('throws on an unknown workflow', async () => {
     const { engine } = makeEngine();
-    await expect(engine.kickoff('nope')).rejects.toThrow(/Unknown template/);
+    await expect(engine.kickoff('nope')).rejects.toThrow(/Unknown workflow/);
   });
 
   it('enforces the depth cap', async () => {

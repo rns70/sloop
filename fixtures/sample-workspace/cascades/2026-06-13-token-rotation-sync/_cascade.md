@@ -1,7 +1,7 @@
 ---
 id: 2026-06-13-token-rotation-sync
 createdAt: 2026-06-13T09:00:00.000Z
-template: spec-driven
+workflow: spec-driven
 deltas: { add: 0, change: 1, delete: 0 }
 rootLoopId: _architect
 status: awaiting_approval

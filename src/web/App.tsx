@@ -51,7 +51,7 @@ export default function App() {
         <Route
           path="libraries"
           element={
-            <EmptyPane section="Libraries" hint="Select a role or template from the sidebar." />
+            <EmptyPane section="Libraries" hint="Select a role or workflow from the sidebar." />
           }
         />
         <Route path="libraries/:type/:id" element={<LibraryFile />} />

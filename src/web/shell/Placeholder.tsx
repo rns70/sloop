@@ -21,7 +21,7 @@ export function Placeholder({ section }: { section: string }) {
 /**
  * Placeholder for a single cascade. WP-5 replaces this with Mission Control, but it
  * already loads and shows the real summary so the "kick off cascade" flow resolves to
- * something concrete from the mock.
+ * something concrete.
  */
 export function CascadePlaceholder() {
   const { id = '' } = useParams();
@@ -48,7 +48,7 @@ export function CascadePlaceholder() {
               <StatusDot status={detail.summary.status} />
             </div>
             <p className="mt-2 text-[13.5px] text-ink-muted">
-              Template <span className="font-medium text-ink">{detail.summary.template}</span> ·{' '}
+              Workflow <span className="font-medium text-ink">{detail.summary.workflow}</span> ·{' '}
               {detail.loops.length} loops · +{detail.summary.deltas.add} ~
               {detail.summary.deltas.change} −{detail.summary.deltas.delete}
             </p>

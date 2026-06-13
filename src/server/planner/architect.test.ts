@@ -6,16 +6,16 @@ import type {
   LoopDoc,
   ModelRegistry,
   RoleDef,
-  TemplateDef,
+  WorkflowDef,
 } from '../../shared/index';
 import type { ResolvedModel } from '../../shared/index';
 import { buildArchitectPrompt, parseArchitectResponse, type ArchitectPromptParts } from './prompt';
 import { createArchitect, pickPlannerAlias, toPiModel } from './architect';
 
-const template: TemplateDef = {
+const workflow: WorkflowDef = {
   id: 'spec-driven',
   name: 'Spec-driven',
-  stages: [
+  steps: [
     { name: 'plan', role: 'architect', model: 'opus' },
     { name: 'implement', role: 'engineer', model: 'haiku' },
     { name: 'verify', role: 'qa', model: 'sonnet' },
@@ -57,11 +57,13 @@ function fakeFiles(): FilesService {
     listAdrs: async () => [],
     readAdr: async () => ({}) as AdrDoc,
     writeAdr: async () => {},
+    moveAdr: async () => {},
+    deleteAdr: async () => {},
     readLoop: async () => ({}) as LoopDoc,
     writeLoop: async () => {},
     listLoops: async () => [],
     listCascadeIds: async () => [],
-    listTemplates: async () => [template],
+    listWorkflows: async () => [workflow],
     listRoles: async () => roles,
     readModelRegistry: async () => registry,
   };
@@ -91,8 +93,8 @@ const validResponse = JSON.stringify({
 });
 
 describe('buildArchitectPrompt', () => {
-  it('includes the template, roles, diff and leaf cap', () => {
-    const { systemPrompt, userPrompt } = buildArchitectPrompt(diff, template, roles, 4);
+  it('includes the workflow, roles, diff and leaf cap', () => {
+    const { systemPrompt, userPrompt } = buildArchitectPrompt(diff, workflow, roles, 4);
     expect(systemPrompt).toContain('at most 4 leaves');
     expect(systemPrompt).toContain('convergence invariant');
     expect(userPrompt).toContain('Spec-driven');
@@ -101,12 +103,12 @@ describe('buildArchitectPrompt', () => {
     expect(userPrompt).toContain('rotation + reuse detection');
   });
 
-  it('marks gate stages and states the lock + partition rules', () => {
-    const gated: TemplateDef = {
-      ...template,
-      stages: [
-        template.stages[0],
-        template.stages[1],
+  it('marks gate steps and states the lock + partition rules', () => {
+    const gated: WorkflowDef = {
+      ...workflow,
+      steps: [
+        workflow.steps[0],
+        workflow.steps[1],
         { name: 'verify', role: 'qa', model: 'sonnet', gate: true },
       ],
     };
@@ -118,9 +120,9 @@ describe('buildArchitectPrompt', () => {
 });
 
 describe('parseArchitectResponse', () => {
-  const opts = { plannerAlias: 'opus', template, roles, maxLeaves: 6 };
+  const opts = { plannerAlias: 'opus', workflow, roles, maxLeaves: 6 };
 
-  it('parses a valid response and defaults a missing leaf model from role/template', () => {
+  it('parses a valid response and defaults a missing leaf model from role/workflow', () => {
     const plan = parseArchitectResponse(validResponse, opts);
     expect(plan.plannerAlias).toBe('opus');
     expect(plan.leaves).toHaveLength(2);
@@ -188,12 +190,12 @@ describe('parseArchitectResponse', () => {
 describe('pickPlannerAlias', () => {
   it('prefers the SLOOP_PLANNER_MODEL env override', () => {
     expect(
-      pickPlannerAlias({ SLOOP_PLANNER_MODEL: 'nemotron' } as NodeJS.ProcessEnv, template),
+      pickPlannerAlias({ SLOOP_PLANNER_MODEL: 'nemotron' } as NodeJS.ProcessEnv, workflow),
     ).toBe('nemotron');
   });
 
   it('falls back to the architect stage model', () => {
-    expect(pickPlannerAlias({} as NodeJS.ProcessEnv, template)).toBe('opus');
+    expect(pickPlannerAlias({} as NodeJS.ProcessEnv, workflow)).toBe('opus');
   });
 });
 
@@ -226,7 +228,7 @@ describe('createArchitect', () => {
   it('resolves the planner model and returns a parsed plan', async () => {
     const call = vi.fn(async (_resolved: ResolvedModel, _parts: ArchitectPromptParts) => validResponse);
     const planner = createArchitect({ files: fakeFiles(), env, call });
-    const plan = await planner.propose({ cascadeId: 'c1', diff, template, roles });
+    const plan = await planner.propose({ cascadeId: 'c1', diff, workflow, roles });
 
     expect(plan.leaves).toHaveLength(2);
     expect(plan.plannerAlias).toBe('opus');
@@ -243,7 +245,7 @@ describe('createArchitect', () => {
       env: { ...env, SLOOP_PLANNER_MODEL: 'nemotron' } as NodeJS.ProcessEnv,
       call,
     });
-    await planner.propose({ cascadeId: 'c1', diff, template, roles });
+    await planner.propose({ cascadeId: 'c1', diff, workflow, roles });
     const [resolved] = call.mock.calls[0];
     expect(resolved.provider).toBe('nebius');
     expect(resolved.id).toContain('nemotron');

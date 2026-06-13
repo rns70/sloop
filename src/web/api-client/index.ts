@@ -3,7 +3,7 @@
 // after WP-0); the wire types come from the shared contract, the single source of truth.
 
 import type {
-  AdrDoc, TemplateDef, RoleDef, CascadeSummary, AssistantChatRequest, AssistantStreamEvent,
+  AdrDoc, WorkflowDef, RoleDef, CascadeSummary, AssistantChatRequest, AssistantStreamEvent,
 } from '../../shared/index';
 import type {
   AdrDiffResponse, GetModelsResponse,
@@ -11,7 +11,7 @@ import type {
 } from '../../server/api/contract';
 
 export type {
-  AdrDoc, TemplateDef, RoleDef, CascadeSummary, LoopDoc,
+  AdrDoc, WorkflowDef, RoleDef, CascadeSummary, LoopDoc,
   LoopFrontmatter, LoopStatus, LoopKind, Delta, AcceptanceCriterion,
   AssistantChatRequest, AssistantStreamEvent, ModelOption,
 } from '../../shared/index';
@@ -19,14 +19,45 @@ export type { AdrDiffResponse, CascadeDetail, CascadeStreamEvent } from '../../s
 
 const BASE = '/api';
 
+/**
+ * A non-2xx API response. Carries the HTTP `status` and a human-readable `detail`
+ * (the server's `{ error }` field when present, else the raw body) so callers can
+ * branch on the failure — e.g. surface a 409 move conflict inline rather than as a
+ * generic "failed to load". `message` keeps the verbose method/path/status form so
+ * existing `.catch` handlers that only read `.message` are unaffected.
+ */
+export class ApiError extends Error {
+  constructor(
+    readonly status: number,
+    readonly detail: string,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     headers: { 'content-type': 'application/json' },
     ...init,
   });
   if (!res.ok) {
-    const detail = await res.text().catch(() => '');
-    throw new Error(`${init?.method ?? 'GET'} ${path} -> ${res.status} ${res.statusText} ${detail}`);
+    const body = await res.text().catch(() => '');
+    let detail = body;
+    try {
+      const parsed: unknown = JSON.parse(body);
+      if (parsed && typeof (parsed as { error?: unknown }).error === 'string') {
+        detail = (parsed as { error: string }).error;
+      }
+    } catch {
+      // body wasn't JSON — keep the raw text as the detail
+    }
+    throw new ApiError(
+      res.status,
+      detail,
+      `${init?.method ?? 'GET'} ${path} -> ${res.status} ${res.statusText} ${body}`,
+    );
   }
   return (await res.json()) as T;
 }
@@ -39,20 +70,29 @@ export const putAdr = (relPath: string, doc: AdrDoc): Promise<Ok> =>
   http(`/adrs/${enc(relPath)}`, { method: 'PUT', body: JSON.stringify(doc) });
 export const getAdrDiff = (relPath: string): Promise<AdrDiffResponse> =>
   http(`/adrs/${enc(relPath)}/diff`);
+/** Move/rename an ADR file, or a whole folder prefix. `from`/`to` are databank-prefixed
+ *  paths (e.g. `databank/auth/a.md`). Folder moves carry all descendants. */
+export const moveAdr = (from: string, to: string): Promise<Ok> =>
+  http(`/adrs/${enc(from)}/move`, { method: 'POST', body: JSON.stringify({ to }) });
+/** Delete an ADR file, or a whole folder subtree (databank-prefixed path). */
+export const deleteAdr = (relPath: string): Promise<Ok> =>
+  http(`/adrs/${enc(relPath)}`, { method: 'DELETE' });
 
-export const getTemplates = (): Promise<TemplateDef[]> => http('/templates');
+export const getWorkflows = (): Promise<WorkflowDef[]> => http('/workflows');
 export const getRoles = (): Promise<RoleDef[]> => http('/roles');
 
-/** Raw markdown of any workspace file (role/template/config). Per the canonical
- *  contract (`GET/PUT /api/files/:relPath`); the mock backend wires it in WP-6.
- *  Libraries reads role/template content from the typed getRoles/getTemplates
- *  responses, so viewing works today; Save round-trips once /api/files exists. */
+/** Raw markdown of any workspace file (role/workflow/config), via the
+ *  `GET/PUT /api/files/:relPath` bridge. Libraries reads role/workflow content from
+ *  the typed getRoles/getWorkflows responses; Save round-trips through /api/files. */
 export interface FileContent {
   content: string;
 }
 export const getFile = (relPath: string): Promise<FileContent> => http(`/files/${enc(relPath)}`);
 export const putFile = (relPath: string, content: string): Promise<Ok> =>
   http(`/files/${enc(relPath)}`, { method: 'PUT', body: JSON.stringify({ content }) });
+/** Delete a raw workspace file (role/workflow) or directory (a cascade). Recursive. */
+export const deleteFile = (relPath: string): Promise<Ok> =>
+  http(`/files/${enc(relPath)}`, { method: 'DELETE' });
 
 /** Global assistant: configured model aliases for the picker (no keys). */
 export const getModels = (): Promise<GetModelsResponse> => http('/models');

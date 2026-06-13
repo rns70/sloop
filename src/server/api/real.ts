@@ -1,14 +1,12 @@
-// Real backend for the sloop HTTP/WS API — the WP-6 swap for WP-0's MockApi.
+// Backend for the sloop HTTP/WS API.
 //
-// `RealApi` satisfies the exact same `SloopApi` contract the mock does, but every
-// method is backed by the genuine services: FilesService (disk), GitService (the
-// databank diff), CascadeEngine (architect → leaves → convergence), the Pi Executor
-// (leaf execution + verify), and WP-7's AuthorService. The HTTP/WS adapter in
-// `index.ts` is unchanged except for the one-line construction + the live WS path.
+// `RealApi` satisfies the `SloopApi` contract, with every method backed by the
+// genuine services: FilesService (disk), GitService (the databank diff),
+// CascadeEngine (architect → leaves → convergence), the Pi Executor (leaf
+// execution + verify), and the AuthorService.
 //
-// Live streaming: the mock returns a scripted event array from `streamEvents()`. The
-// real engine instead emits events *as work happens* — so `RealApi` also implements
-// `StreamingSloopApi.subscribe()`, which `index.ts` prefers for real runs. Events are
+// Live streaming: the engine emits events *as work happens* via
+// `StreamingSloopApi.subscribe()`, which the WS layer drives. Events are
 // captured two ways and buffered per cascade so a subscriber that connects mid-run
 // (the UI subscribes only after `approve`) still sees the whole progression:
 //   - loop-update — by decorating `FilesService.writeLoop`: every persisted status
@@ -29,7 +27,7 @@ import type {
   ModelRegistry,
   ResolvedModel,
 } from '../../shared/index';
-import { resolveModel } from '../../shared/index';
+import { resolveModel, assignMissingIds } from '../../shared/index';
 import { createFilesService } from '../files/index';
 import { createGitService } from '../git/index';
 import { createExecutor } from '../executor/index';
@@ -45,11 +43,14 @@ import type {
   CascadeDetail,
   CascadeStreamEvent,
   CreateCascadeRequest,
+  DeleteAdrResponse,
   GetModelsResponse,
+  MoveAdrResponse,
   Ok,
   PutAdrRequest,
   SloopApi,
 } from './contract';
+import { MoveError, DeleteError } from '../files/filesService';
 import type { AssistantChatRequest, AssistantStreamEvent } from '../../shared/index';
 
 const OK: Ok = { ok: true };
@@ -57,9 +58,12 @@ const OK: Ok = { ok: true };
 /** Thrown for missing resources; `index.ts`'s error funnel maps it to a 404. */
 export class NotFound extends Error {}
 
+/** Thrown when a move destination already exists; `buildServer.ts`'s error funnel maps it to a 409. */
+export class Conflict extends Error {}
+
 /**
- * `SloopApi` plus live push. `index.ts` feature-detects `subscribe` to drive the
- * WebSocket from real engine events instead of replaying a scripted array.
+ * `SloopApi` plus live push. The WS layer (`buildServer.ts`) drives the socket
+ * from real engine events via `subscribe`.
  */
 export interface StreamingSloopApi extends SloopApi {
   /**
@@ -125,18 +129,18 @@ export function bootstrapPi(registry: ModelRegistry, env: NodeJS.ProcessEnv): vo
  * The real architect calls a big model to decompose the diff; for a reliable demo
  * without API keys we instead derive the plan directly from the databank diff: one
  * engineer leaf per changed ADR, copying that ADR's acceptance criteria (id + text +
- * `verify`) onto the leaf — exactly what the spec-driven template prescribes. This
+ * `verify`) onto the leaf — exactly what the spec-driven workflow prescribes. This
  * exercises the *entire* real engine (files, git, convergence, executor, verify,
  * status bubbling); only the LLM planning call is replaced.
  */
 function createOfflinePlanner(files: FilesService, env: NodeJS.ProcessEnv): ArchitectPlanner {
   return {
-    async propose({ template, diff }): Promise<ArchitectPlan> {
-      const plannerAlias = pickPlannerAlias(env, template);
+    async propose({ workflow, diff }): Promise<ArchitectPlan> {
+      const plannerAlias = pickPlannerAlias(env, workflow);
       const engineerStage =
-        template.stages.find((s) => s.role === 'engineer') ??
-        template.stages[1] ??
-        template.stages[0];
+        workflow.steps.find((s) => s.role === 'engineer') ??
+        workflow.steps[1] ??
+        workflow.steps[0];
       const leafModel = engineerStage?.model ?? 'haiku';
 
       const leaves: ProposedLeaf[] = [];
@@ -154,7 +158,7 @@ function createOfflinePlanner(files: FilesService, env: NodeJS.ProcessEnv): Arch
           brief:
             `Reconcile the codebase to **${adr.title || adr.id}** (${change.delta}). ` +
             `Make the change so every acceptance criterion below passes.`,
-          acceptanceCriteria: adr.acceptanceCriteria.map((c) => ({
+          acceptanceCriteria: assignMissingIds(adr.acceptanceCriteria).map((c) => ({
             id: c.id,
             text: c.text,
             verify: c.verify,
@@ -173,7 +177,7 @@ function createOfflinePlanner(files: FilesService, env: NodeJS.ProcessEnv): Arch
         plannerAlias,
         summary:
           `Offline plan (dry-run): ${leaves.length} engineer leaf loop(s) derived from the ` +
-          `databank diff, following the ${template.name} template. Each leaf carries its ADR's ` +
+          `databank diff, following the ${workflow.name} workflow. Each leaf carries its ADR's ` +
           `acceptance criteria; convergence bubbles up as each \`verify\` command passes.`,
         leaves,
       };
@@ -181,14 +185,23 @@ function createOfflinePlanner(files: FilesService, env: NodeJS.ProcessEnv): Arch
   };
 }
 
-/** Resolve the single model the executor runs leaves on. */
-function buildExecutorModel(registry: ModelRegistry, env: NodeJS.ProcessEnv): ResolvedModel {
-  if (isDryRun(env)) {
-    // The agent is skipped in dry-run (verify-only), so the model is never used —
-    // a placeholder keeps construction independent of any API key being present.
-    return { provider: 'anthropic', id: 'dry-run', apiKey: 'dry-run' };
-  }
-  const alias = env.SLOOP_EXECUTOR_MODEL?.trim() || env.SLOOP_PLANNER_MODEL?.trim() || 'sonnet';
+/**
+ * Resolve the model a single leaf runs on, at run time (never at construction). Honors the
+ * leaf's own planned `model` alias first, then SLOOP_EXECUTOR_MODEL / SLOOP_PLANNER_MODEL,
+ * then a default — so the architect can route different leaves to different providers and
+ * Anthropic/Nebius keys are interchangeable per leaf. A missing key throws here (per-leaf
+ * "blocked"), not at boot, so the server starts with zero or partial keys configured.
+ */
+function resolveLeafModel(
+  loop: LoopDoc,
+  registry: ModelRegistry,
+  env: NodeJS.ProcessEnv,
+): ResolvedModel {
+  const alias =
+    loop.frontmatter.model?.trim() ||
+    env.SLOOP_EXECUTOR_MODEL?.trim() ||
+    env.SLOOP_PLANNER_MODEL?.trim() ||
+    'sonnet';
   return resolveModel(alias, registry, env);
 }
 
@@ -215,7 +228,7 @@ export class RealApi implements StreamingSloopApi {
     const registry = await files.readModelRegistry();
     bootstrapPi(registry, env);
 
-    const executor = createExecutor(buildExecutorModel(registry, env));
+    const executor = createExecutor((loop) => resolveLeafModel(loop, registry, env));
 
     // Late-bound holder so the writeLoop decorator can reach the not-yet-created instance.
     const ref: { api?: RealApi } = {};
@@ -256,6 +269,32 @@ export class RealApi implements StreamingSloopApi {
     return OK;
   }
 
+  async moveAdr(from: string, to: string): Promise<MoveAdrResponse> {
+    try {
+      await this.files.moveAdr(from, to);
+    } catch (err) {
+      if (err instanceof MoveError) {
+        if (err.code === 'not_found') throw new NotFound(err.message);
+        throw new Conflict(err.message); // 'conflict' | 'invalid'
+      }
+      throw err;
+    }
+    return OK;
+  }
+
+  async deleteAdr(relPath: string): Promise<DeleteAdrResponse> {
+    try {
+      await this.files.deleteAdr(relPath);
+    } catch (err) {
+      if (err instanceof DeleteError) {
+        if (err.code === 'not_found') throw new NotFound(err.message);
+        throw new Conflict(err.message); // 'invalid' (e.g. path outside databank/)
+      }
+      throw err;
+    }
+    return OK;
+  }
+
   async getAdrDiff(relPath: string): Promise<AdrDiffResponse> {
     const diff = await this.git.diffDatabank();
     const entry = diff.changed.find((c) => c.relPath === relPath);
@@ -267,8 +306,8 @@ export class RealApi implements StreamingSloopApi {
 
   // ---- Libraries -----------------------------------------------------------
 
-  async listTemplates() {
-    return this.files.listTemplates();
+  async listWorkflows() {
+    return this.files.listWorkflows();
   }
 
   async listRoles() {
@@ -278,7 +317,7 @@ export class RealApi implements StreamingSloopApi {
   // ---- Global assistant ----------------------------------------------------
 
   async listModels(): Promise<GetModelsResponse> {
-    return toModelOptions(await this.files.readModelRegistry());
+    return toModelOptions(await this.files.readModelRegistry(), this.env);
   }
 
   private assistantWorkspace(): AssistantWorkspace {
@@ -289,15 +328,15 @@ export class RealApi implements StreamingSloopApi {
       readAdr: (p) => files.readAdr(p),
       writeAdr: (d) => files.writeAdr(d),
       listRoles: () => files.listRoles(),
-      listTemplates: () => files.listTemplates(),
+      listWorkflows: () => files.listWorkflows(),
       readModelRegistry: () => files.readModelRegistry(),
       writeRaw: async (relPath, content) => {
         const abs = normalize(join(root, relPath));
         if (abs !== root && !abs.startsWith(root + sep)) throw new Error(`Path escapes the workspace: ${relPath}`);
         const rel = abs.slice(root.length + 1).split(sep).join('/'); // normalize to forward slashes
         const allowed = /^databank\/.+\.md$/.test(rel)
-          || /^\.sloop\/(roles|templates)\/.+\.md$/.test(rel);
-        if (!allowed) throw new Error(`Path not writable by the assistant: ${relPath} (only databank/ and .sloop/{roles,templates}/ *.md)`);
+          || /^\.sloop\/(roles|workflows)\/.+\.md$/.test(rel);
+        if (!allowed) throw new Error(`Path not writable by the assistant: ${relPath} (only databank/ and .sloop/{roles,workflows}/ *.md)`);
         await fs.mkdir(dirname(abs), { recursive: true });
         await fs.writeFile(abs, content, 'utf8');
       },
@@ -319,7 +358,7 @@ export class RealApi implements StreamingSloopApi {
     // Enumerate cascade dirs, then derive each summary via the engine (same path
     // as `getCascade`). A dir that fails to load (mid-write, malformed) is skipped
     // so the sidebar still lists the rest. Newest first: ids are date-prefixed, so
-    // a descending id sort is chronological — matching the mock.
+    // a descending id sort is chronological.
     const ids = await this.files.listCascadeIds();
     const summaries = await Promise.all(
       ids.map((id) =>
@@ -335,7 +374,7 @@ export class RealApi implements StreamingSloopApi {
   }
 
   async createCascade(req: CreateCascadeRequest): Promise<CascadeSummary> {
-    const summary = await this.engine.kickoff(req.templateId);
+    const summary = await this.engine.kickoff(req.workflowId);
     // Prime a stream buffer so a subscriber can attach the instant approval starts.
     this.streamFor(summary.id);
     return summary;
@@ -370,11 +409,6 @@ export class RealApi implements StreamingSloopApi {
       .finally(() => this.finish(id));
 
     return OK;
-  }
-
-  /** Contract method: a snapshot of events so far. Real WS uses `subscribe` instead. */
-  async streamEvents(id: string): Promise<CascadeStreamEvent[]> {
-    return [...this.streamFor(id).buffer];
   }
 
   subscribe(
@@ -449,10 +483,12 @@ function decorateFiles(inner: FilesService, onWrite: (loop: LoopDoc) => void): F
     listAdrs: () => inner.listAdrs(),
     readAdr: (p) => inner.readAdr(p),
     writeAdr: (d) => inner.writeAdr(d),
+    moveAdr: (from, to) => inner.moveAdr(from, to),
+    deleteAdr: (p) => inner.deleteAdr(p),
     readLoop: (p) => inner.readLoop(p),
     listLoops: (c) => inner.listLoops(c),
     listCascadeIds: () => inner.listCascadeIds(),
-    listTemplates: () => inner.listTemplates(),
+    listWorkflows: () => inner.listWorkflows(),
     listRoles: () => inner.listRoles(),
     readModelRegistry: () => inner.readModelRegistry(),
     async writeLoop(loop) {
@@ -462,7 +498,7 @@ function decorateFiles(inner: FilesService, onWrite: (loop: LoopDoc) => void): F
   };
 }
 
-/** Async factory mirroring `new MockApi(root)` — used by `index.ts` for real runs. */
+/** Async factory used by `index.ts` and the CLI to construct the backend. */
 export async function createRealApi(root: string, env: NodeJS.ProcessEnv): Promise<RealApi> {
   return RealApi.create(root, env);
 }

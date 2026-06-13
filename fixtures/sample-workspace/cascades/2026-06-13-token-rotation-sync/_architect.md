@@ -5,12 +5,14 @@ role: architect
 model: opus
 status: awaiting_approval
 delta: change
-children: [rotate-refresh-tokens, invalidate-on-reuse, review-token-security]
+children:
+  - rotate-refresh-tokens
+  - invalidate-on-reuse
+  - review-token-security
 sourceAdr: adr-007
-template: spec-driven
+workflow: spec-driven
 acceptanceCriteria: []
 ---
-
 # Architecture loop — token-rotation-sync
 
 ## Diff read

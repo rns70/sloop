@@ -8,25 +8,16 @@ import { promises as fs } from 'node:fs';
 import { join, normalize, dirname, sep } from 'node:path';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import { WebSocketServer } from 'ws';
-import { NotFound as MockNotFound } from './api/mock';
-import { NotFound as RealNotFound, type StreamingSloopApi } from './api/real';
-import type { SloopApi, CascadeStreamEvent } from './api/contract';
+import { NotFound, Conflict, type StreamingSloopApi } from './api/real';
+import type { CascadeStreamEvent } from './api/contract';
 import { mountWebUi } from './webui';
 
 export interface BuildServerOptions {
-  api: SloopApi;
+  api: StreamingSloopApi;
   /** Workspace root, for the raw /api/files bridge. */
   workspaceRoot: string;
   /** Built web UI dir; mounted if it contains index.html. */
   distDir?: string;
-}
-
-function isNotFound(err: unknown): boolean {
-  return err instanceof MockNotFound || err instanceof RealNotFound;
-}
-
-function isStreaming(api: SloopApi): api is StreamingSloopApi {
-  return typeof (api as Partial<StreamingSloopApi>).subscribe === 'function';
 }
 
 /** Build (but do not start) the HTTP server. Returns { server, uiMounted }. */
@@ -36,7 +27,7 @@ export function buildServer(opts: BuildServerOptions): { server: Server; uiMount
   const safeWorkspacePath = (relPath: string): string => {
     const abs = normalize(join(workspaceRoot, relPath));
     if (abs !== workspaceRoot && !abs.startsWith(workspaceRoot + sep)) {
-      throw new RealNotFound(`Path escapes the workspace: ${relPath}`);
+      throw new NotFound(`Path escapes the workspace: ${relPath}`);
     }
     return abs;
   };
@@ -62,8 +53,14 @@ export function buildServer(opts: BuildServerOptions): { server: Server; uiMount
   app.put('/api/adrs/:relPath', h(async (req, res) =>
     res.json(await api.putAdr(decodeURIComponent(req.params.relPath), req.body)),
   ));
+  app.post('/api/adrs/:relPath/move', h(async (req, res) =>
+    res.json(await api.moveAdr(decodeURIComponent(req.params.relPath), String(req.body?.to ?? ''))),
+  ));
+  app.delete('/api/adrs/:relPath', h(async (req, res) =>
+    res.json(await api.deleteAdr(decodeURIComponent(req.params.relPath))),
+  ));
 
-  app.get('/api/templates', h(async (_req, res) => res.json(await api.listTemplates())));
+  app.get('/api/workflows', h(async (_req, res) => res.json(await api.listWorkflows())));
   app.get('/api/roles', h(async (_req, res) => res.json(await api.listRoles())));
 
   app.get('/api/files/:relPath', h(async (req, res) => {
@@ -71,13 +68,23 @@ export function buildServer(opts: BuildServerOptions): { server: Server; uiMount
     try {
       res.json({ content: await fs.readFile(safeWorkspacePath(rel), 'utf8') });
     } catch {
-      throw new RealNotFound(`File not found: ${rel}`);
+      throw new NotFound(`File not found: ${rel}`);
     }
   }));
   app.put('/api/files/:relPath', h(async (req, res) => {
     const abs = safeWorkspacePath(decodeURIComponent(req.params.relPath));
     await fs.mkdir(dirname(abs), { recursive: true });
     await fs.writeFile(abs, String(req.body?.content ?? ''), 'utf8');
+    res.json({ ok: true });
+  }));
+  // Raw delete for non-ADR workspace files (roles/workflows) and cascade dirs. ADRs use
+  // the structured DELETE /api/adrs route (dir-pruning + streaming aware); this is the
+  // symmetric counterpart to the PUT bridge. Recursive so a cascade dir goes in one call.
+  app.delete('/api/files/:relPath', h(async (req, res) => {
+    const rel = decodeURIComponent(req.params.relPath);
+    const abs = safeWorkspacePath(rel);
+    if (abs === workspaceRoot) throw new NotFound(`Refusing to delete the workspace root`);
+    await fs.rm(abs, { recursive: true, force: true });
     res.json({ ok: true });
   }));
 
@@ -115,8 +122,12 @@ export function buildServer(opts: BuildServerOptions): { server: Server; uiMount
   const uiMounted = distDir ? mountWebUi(app, distDir) : false;
 
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
-    if (isNotFound(err)) {
-      res.status(404).json({ error: err instanceof Error ? err.message : 'not found' });
+    if (err instanceof NotFound) {
+      res.status(404).json({ error: err.message });
+      return;
+    }
+    if (err instanceof Conflict) {
+      res.status(409).json({ error: err.message });
       return;
     }
     // eslint-disable-next-line no-console
@@ -141,25 +152,8 @@ export function buildServer(opts: BuildServerOptions): { server: Server; uiMount
       const sendEvent = (event: CascadeStreamEvent) => {
         if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(event));
       };
-      if (isStreaming(api)) {
-        const unsubscribe = api.subscribe(cascadeId, sendEvent, () => ws.close());
-        ws.on('close', unsubscribe);
-        return;
-      }
-      void (async () => {
-        try {
-          const events = await api.streamEvents(cascadeId);
-          for (const event of events) {
-            if (ws.readyState !== ws.OPEN) break;
-            sendEvent(event);
-            await new Promise((r) => setTimeout(r, 350));
-          }
-        } catch (err) {
-          sendEvent({ type: 'output', loopId: cascadeId, chunk: `error: ${String(err)}\n` });
-        } finally {
-          ws.close();
-        }
-      })();
+      const unsubscribe = api.subscribe(cascadeId, sendEvent, () => ws.close());
+      ws.on('close', unsubscribe);
     });
   });
 

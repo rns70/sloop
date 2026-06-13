@@ -1,18 +1,18 @@
 import { describe, it, expect } from 'vitest';
-import type { AdrDoc, RoleDef, TemplateDef, ModelRegistry } from '../../shared/index';
+import type { AdrDoc, RoleDef, WorkflowDef, ModelRegistry } from '../../shared/index';
 import { ASSISTANT_TOOLS, createToolExecutor, type AssistantWorkspace } from './tools';
 
 function fakeWorkspace(over: Partial<AssistantWorkspace> = {}): { ws: AssistantWorkspace; writes: Array<{ path: string; body: string }> } {
   const writes: Array<{ path: string; body: string }> = [];
   const adrs: AdrDoc[] = [{ id: 'auth', relPath: 'databank/auth.md', title: 'Auth', body: 'Auth rules', acceptanceCriteria: [] }];
   const roles: RoleDef[] = [{ id: 'architect', name: 'Architect', defaultModel: 'opus', brief: '' }];
-  const templates: TemplateDef[] = [];
+  const workflows: WorkflowDef[] = [];
   const ws: AssistantWorkspace = {
     listAdrs: async () => adrs,
     readAdr: async (p) => { const a = adrs.find((x) => x.relPath === p); if (!a) throw new Error('not found'); return a; },
     writeAdr: async (d) => { writes.push({ path: d.relPath, body: d.body }); },
     listRoles: async () => roles,
-    listTemplates: async () => templates,
+    listWorkflows: async () => workflows,
     writeRaw: async (p, c) => { writes.push({ path: p, body: c }); },
     readModelRegistry: async () => ({ models: {} } as ModelRegistry),
     ...over,
@@ -23,7 +23,7 @@ function fakeWorkspace(over: Partial<AssistantWorkspace> = {}): { ws: AssistantW
 describe('ASSISTANT_TOOLS', () => {
   it('exposes the read and write tools by name', () => {
     const names = ASSISTANT_TOOLS.map((t) => t.name).sort();
-    expect(names).toEqual(['create_adr', 'create_role', 'create_template', 'edit_doc', 'list_docs', 'read_doc', 'search'].sort());
+    expect(names).toEqual(['create_adr', 'create_role', 'create_workflow', 'edit_doc', 'list_docs', 'read_doc', 'search'].sort());
   });
 });
 
@@ -77,13 +77,13 @@ describe('createToolExecutor', () => {
     expect(r.ok).toBe(false);
   });
 
-  it('create_template writes the full file verbatim to .sloop/templates', async () => {
+  it('create_workflow writes the full file verbatim to .sloop/workflows', async () => {
     const { ws, writes } = fakeWorkspace();
     const exec = createToolExecutor(ws);
-    const full = '---\nid: rev\nname: Review\nstages: []\n---\n\nguidance';
-    const r = await exec.run({ type: 'toolCall', id: '7', name: 'create_template', arguments: { content: full, slug: 'rev' } });
-    expect(r.path).toBe('.sloop/templates/rev.md');
-    expect(writes).toContainEqual({ path: '.sloop/templates/rev.md', body: full });
+    const full = '---\nid: rev\nname: Review\nsteps: []\n---\n\nguidance';
+    const r = await exec.run({ type: 'toolCall', id: '7', name: 'create_workflow', arguments: { content: full, slug: 'rev' } });
+    expect(r.path).toBe('.sloop/workflows/rev.md');
+    expect(writes).toContainEqual({ path: '.sloop/workflows/rev.md', body: full });
   });
 
   it('read_doc truncates long bodies with …[truncated]', async () => {

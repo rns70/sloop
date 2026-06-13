@@ -57,7 +57,7 @@ export interface RunnerOptions {
   systems: EvalSystem[];
   /** `evals/results/<runId>` — where runs.jsonl is written. */
   outDir: string;
-  /** Directory containing the `.sloop/` template (registry/roles/templates). */
+  /** Directory containing the `.sloop/` workflow (registry/roles/workflows). */
   workspaceTemplateDir: string;
   /** Root holding handmade target repos (`<reposRoot>/<task.repo>`). */
   reposRoot: string;
@@ -301,7 +301,7 @@ export async function runMatrix(opts: RunnerOptions): Promise<{ runs: RunResult[
   const jsonl = path.join(opts.outDir, 'runs.jsonl');
   const dry = isDryRun(opts.env);
 
-  // The registry is shared across runs (read once from the template workspace).
+  // The registry is shared across runs (read once from the workflow workspace).
   const registry = await createFilesService(opts.workspaceTemplateDir).readModelRegistry();
 
   // Dry-run resolves models (for infos + executor construction) but never calls them;

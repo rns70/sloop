@@ -3,3 +3,4 @@
 export * from './types';
 export * from './services';
 export { resolveModel } from './resolveModel';
+export * from './criteriaMarkdown';

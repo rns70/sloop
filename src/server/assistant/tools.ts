@@ -1,6 +1,6 @@
 import { Type } from 'typebox';
 import type { Tool, ToolCall } from '@earendil-works/pi-ai';
-import type { AdrDoc, ModelRegistry, RoleDef, TemplateDef } from '../../shared/index';
+import type { AdrDoc, ModelRegistry, RoleDef, WorkflowDef } from '../../shared/index';
 
 /**
  * The agent's view of the workspace: read/list/search plus the two write primitives
@@ -12,8 +12,8 @@ export interface AssistantWorkspace {
   readAdr(relPath: string): Promise<AdrDoc>;
   writeAdr(doc: AdrDoc): Promise<void>;
   listRoles(): Promise<RoleDef[]>;
-  listTemplates(): Promise<TemplateDef[]>;
-  /** Write a full file verbatim under the workspace (used for roles/templates). */
+  listWorkflows(): Promise<WorkflowDef[]>;
+  /** Write a full file verbatim under the workspace (used for roles/workflows). */
   writeRaw(relPath: string, content: string): Promise<void>;
   readModelRegistry(): Promise<ModelRegistry>;
 }
@@ -43,7 +43,7 @@ function baseId(path: string | undefined): string {
 export const ASSISTANT_TOOLS: Tool[] = [
   {
     name: 'list_docs',
-    description: 'List all databank ADRs (path + title), role ids, and template ids.',
+    description: 'List all databank ADRs (path + title), role ids, and workflow ids.',
     parameters: Type.Object({}),
   },
   {
@@ -53,12 +53,12 @@ export const ASSISTANT_TOOLS: Tool[] = [
   },
   {
     name: 'search',
-    description: 'Find databank ADRs, roles, or templates whose id/path or body contains the query (case-insensitive substring).',
+    description: 'Find databank ADRs, roles, or workflows whose id/path or body contains the query (case-insensitive substring).',
     parameters: Type.Object({ query: Type.String() }),
   },
   {
     name: 'edit_doc',
-    description: 'Overwrite an existing document. For a databank ADR, content is the new markdown body. For a role/template file, content is the full file.',
+    description: 'Overwrite an existing document. For a databank ADR, content is the new markdown body. For a role/workflow file, content is the full file.',
     parameters: Type.Object({ path: Type.String(), content: Type.String() }),
   },
   {
@@ -72,8 +72,8 @@ export const ASSISTANT_TOOLS: Tool[] = [
     parameters: Type.Object({ content: Type.String(), slug: Type.Optional(Type.String()) }),
   },
   {
-    name: 'create_template',
-    description: 'Create a new template file. content is the FULL file: YAML frontmatter (id, name, stages: name/role/model), a blank line, then guidance.',
+    name: 'create_workflow',
+    description: 'Create a new workflow file. content is the FULL file: YAML frontmatter (id, name, steps: name/role/model), a blank line, then guidance.',
     parameters: Type.Object({ content: Type.String(), slug: Type.Optional(Type.String()) }),
   },
 ];
@@ -90,11 +90,11 @@ export function createToolExecutor(ws: AssistantWorkspace): ToolExecutor {
         const a = call.arguments ?? {};
         switch (call.name) {
           case 'list_docs': {
-            const [adrs, roles, templates] = await Promise.all([ws.listAdrs(), ws.listRoles(), ws.listTemplates()]);
+            const [adrs, roles, workflows] = await Promise.all([ws.listAdrs(), ws.listRoles(), ws.listWorkflows()]);
             const lines = [
               ...adrs.map((d) => `ADR  ${d.relPath} — ${d.title}`),
               ...roles.map((r) => `role  ${r.id}`),
-              ...templates.map((t) => `template  ${t.id}`),
+              ...workflows.map((w) => `workflow  ${w.id}`),
             ];
             return { ok: true, text: lines.join('\n') || '(empty workspace)' };
           }
@@ -104,17 +104,17 @@ export function createToolExecutor(ws: AssistantWorkspace): ToolExecutor {
           }
           case 'search': {
             const q = String(a.query ?? '').toLowerCase();
-            const [adrs, roles, templates] = await Promise.all([ws.listAdrs(), ws.listRoles(), ws.listTemplates()]);
+            const [adrs, roles, workflows] = await Promise.all([ws.listAdrs(), ws.listRoles(), ws.listWorkflows()]);
             const adrLines = adrs
               .filter((d) => d.relPath.toLowerCase().includes(q) || d.body.toLowerCase().includes(q))
               .map((d) => `${d.relPath} — ${d.title}`);
             const roleLines = roles
               .filter((r) => r.id.toLowerCase().includes(q) || r.brief.toLowerCase().includes(q))
               .map((r) => `role  ${r.id}`);
-            const templateLines = templates
-              .filter((t) => t.id.toLowerCase().includes(q) || t.guidance.toLowerCase().includes(q))
-              .map((t) => `template  ${t.id}`);
-            const lines = [...adrLines, ...roleLines, ...templateLines];
+            const workflowLines = workflows
+              .filter((w) => w.id.toLowerCase().includes(q) || w.guidance.toLowerCase().includes(q))
+              .map((w) => `workflow  ${w.id}`);
+            const lines = [...adrLines, ...roleLines, ...workflowLines];
             return { ok: true, text: lines.length ? lines.join('\n') : 'No matches.' };
           }
           case 'edit_doc': {
@@ -136,9 +136,9 @@ export function createToolExecutor(ws: AssistantWorkspace): ToolExecutor {
             return { ok: true, text: `Created ${relPath}.`, path: relPath };
           }
           case 'create_role':
-          case 'create_template': {
-            const kind = call.name === 'create_role' ? 'roles' : 'templates';
-            const taken = new Set((kind === 'roles' ? await ws.listRoles() : await ws.listTemplates()).map((x) => x.id));
+          case 'create_workflow': {
+            const kind = call.name === 'create_role' ? 'roles' : 'workflows';
+            const taken = new Set((kind === 'roles' ? await ws.listRoles() : await ws.listWorkflows()).map((x) => x.id));
             const rawSlug = String(a.slug ?? '');
             const id = uniqueSlug(rawSlug ? baseId(rawSlug) : slugify(kind), taken);
             const relPath = `.sloop/${kind}/${id}.md`;
