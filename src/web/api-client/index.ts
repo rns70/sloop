@@ -39,6 +39,10 @@ export const putAdr = (relPath: string, doc: AdrDoc): Promise<Ok> =>
   http(`/adrs/${enc(relPath)}`, { method: 'PUT', body: JSON.stringify(doc) });
 export const getAdrDiff = (relPath: string): Promise<AdrDiffResponse> =>
   http(`/adrs/${enc(relPath)}/diff`);
+/** Move/rename an ADR file, or a whole folder prefix. `from`/`to` are databank-prefixed
+ *  paths (e.g. `databank/auth/a.md`). Folder moves carry all descendants. */
+export const moveAdr = (from: string, to: string): Promise<Ok> =>
+  http(`/adrs/${enc(from)}/move`, { method: 'POST', body: JSON.stringify({ to }) });
 
 export const getTemplates = (): Promise<TemplateDef[]> => http('/templates');
 export const getRoles = (): Promise<RoleDef[]> => http('/roles');
