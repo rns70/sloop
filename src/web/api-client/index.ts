@@ -64,6 +64,14 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
 
 const enc = encodeURIComponent;
 
+/** Server liveness plus the active workspace root (absolute path). The shell shows the
+ *  workspace's directory name so it's always clear which working dir is being edited. */
+export interface HealthResponse {
+  ok: boolean;
+  workspace: string;
+}
+export const getHealth = (): Promise<HealthResponse> => http('/health');
+
 export const getAdrs = (): Promise<AdrDoc[]> => http('/adrs');
 export const getAdr = (relPath: string): Promise<AdrDoc> => http(`/adrs/${enc(relPath)}`);
 export const putAdr = (relPath: string, doc: AdrDoc): Promise<Ok> =>

@@ -51,4 +51,44 @@ describe('run', () => {
     expect(d.log).toHaveBeenCalledWith('9.9.9');
     expect(d.startServer).not.toHaveBeenCalled();
   });
+
+  it('set-key persists an inline key globally and does not read stdin', async () => {
+    const d = deps();
+    await run(['set-key', 'sk-ant-abc'], d);
+    expect(d.setKey).toHaveBeenCalledWith({
+      provider: 'anthropic',
+      value: 'sk-ant-abc',
+      scope: 'global',
+      cwd: '/proj',
+    });
+    expect(d.readStdin).not.toHaveBeenCalled();
+    expect(d.startServer).not.toHaveBeenCalled();
+    expect(d.log).toHaveBeenCalledWith(expect.stringContaining('ANTHROPIC_API_KEY'));
+  });
+
+  it('set-key reads stdin when no inline key is given', async () => {
+    const d = deps({ readStdin: vi.fn(async () => '  sk-from-stdin\n') });
+    await run(['set-key'], d);
+    expect(d.readStdin).toHaveBeenCalled();
+    expect(d.setKey).toHaveBeenCalledWith(
+      expect.objectContaining({ value: 'sk-from-stdin', provider: 'anthropic', scope: 'global' }),
+    );
+  });
+
+  it('set-key honors --provider and --local', async () => {
+    const d = deps();
+    await run(['set-key', '--provider', 'nebius', '--local', 'nb-key'], d);
+    expect(d.setKey).toHaveBeenCalledWith({
+      provider: 'nebius',
+      value: 'nb-key',
+      scope: 'local',
+      cwd: '/proj',
+    });
+  });
+
+  it('set-key throws when neither inline nor stdin yields a key', async () => {
+    const d = deps({ readStdin: vi.fn(async () => '   \n') });
+    await expect(run(['set-key'], d)).rejects.toThrow(/no API key/i);
+    expect(d.setKey).not.toHaveBeenCalled();
+  });
 });

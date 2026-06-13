@@ -120,8 +120,12 @@ export function loadSloopEnv(options: LoadSloopEnvOptions = {}): string[] {
  */
 export function upsertEnvLine(text: string, key: string, value: string): string {
   const lines = text.split(/\r?\n/);
-  let replaced = false;
+  // Drop the single trailing blank that splitting a newline-terminated file produces, so
+  // neither the replace nor the append path leaves a stray blank line; we re-add exactly
+  // one trailing newline at the end.
+  if (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
 
+  let replaced = false;
   const out = lines.map((line) => {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('#')) return line;
@@ -132,12 +136,7 @@ export function upsertEnvLine(text: string, key: string, value: string): string 
     return `${key}=${value}`;
   });
 
-  if (!replaced) {
-    // Drop a single trailing blank produced by splitting a newline-terminated file so we
-    // append directly after the last real line rather than leaving a gap.
-    if (out.length > 0 && out[out.length - 1] === '') out.pop();
-    out.push(`${key}=${value}`);
-  }
+  if (!replaced) out.push(`${key}=${value}`);
 
   return `${out.join('\n')}\n`;
 }
