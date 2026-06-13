@@ -10,6 +10,7 @@ import { MockApi } from './api/mock';
 import { createRealApi } from './api/real';
 import type { SloopApi } from './api/contract';
 import { buildServer } from './buildServer';
+import { loadDotEnv } from './env';
 
 const DEFAULT_PORT = 5174;
 // dist/web lives at the repo root, two levels up from src/server/.
@@ -44,6 +45,7 @@ export interface StartedServer {
  * API + WS + built UI on one port. Used by the `sloop` CLI. `root` must be a git repo.
  */
 export async function startServer(opts: { root: string; port?: number }): Promise<StartedServer> {
+  loadDotEnv(); // Provider keys from a gitignored .env; real shell env still wins.
   const root = resolve(opts.root);
   const port = opts.port ?? DEFAULT_PORT;
 
@@ -63,6 +65,12 @@ export async function startServer(opts: { root: string; port?: number }): Promis
 }
 
 async function main(): Promise<void> {
+  // Provider keys from a gitignored .env; real shell env still wins. Log key NAMES only.
+  const loaded = loadDotEnv();
+  if (loaded.length > 0) {
+    // eslint-disable-next-line no-console
+    console.log(`[sloop] loaded ${loaded.length} var(s) from .env: ${loaded.join(', ')}`);
+  }
   const port = Number(process.env.PORT ?? DEFAULT_PORT);
   const workspace = resolve(process.env.SLOOP_WORKSPACE ?? 'fixtures/sample-workspace');
   const mock = useMock(process.env);

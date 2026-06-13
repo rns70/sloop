@@ -32,11 +32,27 @@ export function AssistantRail({ className }: { className?: string }) {
 
   useEffect(() => {
     getModels()
-      .then((opts) => { setModels(opts); setAlias((a) => a || opts[0]?.alias || ''); })
+      .then((opts) => {
+        setModels(opts);
+        // Default to the first model whose provider key is set, else the first overall.
+        const firstUsable = opts.find((m) => m.available !== false) ?? opts[0];
+        setAlias((a) => a || firstUsable?.alias || '');
+      })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
   }, []);
 
   const contextPaths = useMemo(() => (openDoc ? [openDoc.relPath] : []), [openDoc]);
+
+  // Availability is reported by the server (provider key present). `undefined` means the
+  // backend didn't resolve it (e.g. mock) — treat as available so the picker still works.
+  const noKeysConfigured = useMemo(
+    () => models.length > 0 && models.every((m) => m.available === false),
+    [models],
+  );
+  const selectedUnavailable = useMemo(
+    () => models.find((m) => m.alias === alias)?.available === false,
+    [models, alias],
+  );
 
   async function run() {
     const text = instruction.trim();
@@ -96,11 +112,25 @@ export function AssistantRail({ className }: { className?: string }) {
             <option value="">No models configured (.sloop/config.md)</option>
           ) : (
             models.map((m) => (
-              <option key={m.alias} value={m.alias}>{m.alias} — {m.provider} / {m.id}</option>
+              <option key={m.alias} value={m.alias} disabled={m.available === false}>
+                {m.alias} — {m.provider} / {m.id}{m.available === false ? ' · no key' : ''}
+              </option>
             ))
           )}
         </select>
       </div>
+
+      {noKeysConfigured && (
+        <p className="mt-2 text-[11px] text-status-failed">
+          No provider API key set. Add ANTHROPIC_API_KEY or NEBIUS_API_KEY to your{' '}
+          <span className="font-mono">.env</span> and restart the server.
+        </p>
+      )}
+      {!noKeysConfigured && selectedUnavailable && (
+        <p className="mt-2 text-[11px] text-status-failed">
+          This model’s provider key isn’t set — pick another model or add its key.
+        </p>
+      )}
 
       <div className="mt-2 text-[11px] text-ink-faint">
         {openDoc ? `Context: ${openDoc.relPath}` : 'Context: none (whole app)'}

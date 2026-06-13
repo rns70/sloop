@@ -206,7 +206,15 @@ async function verifyCriteria(
  *   - SLOOP_EXECUTOR_TIMEOUT_MS overall agent timeout (default 600000)
  *   - SLOOP_VERIFY_TIMEOUT_MS   per-criterion verify timeout (default 120000)
  */
-export function createExecutor(resolved: ResolvedModel): Executor {
+/**
+ * Resolve the concrete model (provider + id + key) a given leaf runs on. Called once per
+ * leaf, at run time — never at construction. This is what makes a missing key a per-leaf
+ * failure (the leaf is marked blocked) instead of a fatal boot crash, and lets each leaf
+ * run on its own planned provider so Anthropic and Nebius keys are interchangeable per leaf.
+ */
+export type ResolveLeafModel = (loop: LoopDoc) => ResolvedModel;
+
+export function createExecutor(resolveLeafModel: ResolveLeafModel): Executor {
   return {
     async run(loop, onOutput) {
       const env = process.env;
@@ -215,6 +223,9 @@ export function createExecutor(resolved: ResolvedModel): Executor {
       if (isDryRun(env)) {
         onOutput('[sloop] SLOOP_DRY_RUN — skipping Pi agent, running verify only.\n');
       } else {
+        // Resolve lazily: a leaf whose provider key is missing throws here and is marked
+        // blocked by the caller, rather than taking the whole server down at startup.
+        const resolved = resolveLeafModel(loop);
         const timeoutMs = resolveExecutorTimeoutMs(env);
         await runPiAgent(loop, resolved, cwd, timeoutMs, onOutput);
       }

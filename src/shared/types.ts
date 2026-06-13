@@ -101,6 +101,7 @@ export interface ModelOption {
   alias: string;          // registry key, e.g. 'opus'
   provider: ProviderName;
   id: string;             // concrete provider model id
+  available?: boolean;    // whether this provider's API key is set (omitted when unknown)
 }
 
 export type AssistantAction = 'answer' | 'edit' | 'create-adr' | 'create-role' | 'create-template';

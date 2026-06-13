@@ -3,7 +3,7 @@ models:
   opus:     { provider: anthropic, id: claude-opus-4-8 }
   sonnet:   { provider: anthropic, id: claude-sonnet-4-6 }
   haiku:    { provider: anthropic, id: claude-haiku-4-5-20251001 }
-  nemotron: { provider: nebius,    id: nvidia/llama-3.1-nemotron-70b-instruct }
+  nemotron: { provider: nebius,    id: nvidia/Llama-3_1-Nemotron-Ultra-253B-v1 }
 providers:
   anthropic: { apiKeyEnv: ANTHROPIC_API_KEY }
   nebius:    { baseUrl: https://api.studio.nebius.ai/v1, apiKeyEnv: NEBIUS_API_KEY }
