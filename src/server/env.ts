@@ -9,7 +9,8 @@
 // config when present). A missing file is a no-op, not an error.
 
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { homedir } from 'node:os';
+import { join, resolve } from 'node:path';
 
 /** Strip surrounding matching quotes from a value, if any. */
 function unquote(value: string): string {
@@ -73,4 +74,70 @@ export function loadDotEnv(options: LoadDotEnvOptions = {}): string[] {
     }
   }
   return applied;
+}
+
+export interface LoadSloopEnvOptions {
+  /** Project dir whose `.env` and `.sloop/.env` are read. Default: `process.cwd()`. */
+  cwd?: string;
+  /** Home dir whose `.sloop/.env` is read (the global key store). Default: `os.homedir()`. */
+  home?: string;
+  /** Target env map to populate. Default: `process.env`. */
+  env?: NodeJS.ProcessEnv;
+}
+
+/**
+ * Load provider keys/config from sloop's layered env files, in order of DECREASING
+ * precedence. Each layer only fills keys still unset (see `loadDotEnv`), so the real
+ * shell environment — already populated before this runs — always wins, and earlier
+ * (higher-precedence) files shadow later ones:
+ *
+ *   1. shell environment        (already present; never overwritten)
+ *   2. `<cwd>/.env`             (project root — dev convenience, existing behavior)
+ *   3. `<cwd>/.sloop/.env`      (project-scoped sloop config)
+ *   4. `~/.sloop/.env`          (global sloop config — set once via `sloop set-key`)
+ *
+ * Returns the keys actually applied across all layers (for a boot log). Fail-soft:
+ * missing files are skipped.
+ */
+export function loadSloopEnv(options: LoadSloopEnvOptions = {}): string[] {
+  const cwd = options.cwd ?? process.cwd();
+  const home = options.home ?? homedir();
+  const env = options.env ?? process.env;
+
+  return [
+    ...loadDotEnv({ path: '.env', cwd, env }),
+    ...loadDotEnv({ path: join('.sloop', '.env'), cwd, env }),
+    ...loadDotEnv({ path: join(home, '.sloop', '.env'), env }),
+  ];
+}
+
+/**
+ * Return `text` with `KEY=value` upserted: if a non-comment line already assigns `key`
+ * (with or without a leading `export`), its value is replaced in place; otherwise a new
+ * `KEY=value` line is appended. All other lines — comments, blanks, unrelated keys — are
+ * preserved verbatim, and the result always ends with a single trailing newline. Pure
+ * (no I/O), so the file writer can be tested separately from the rewrite logic.
+ */
+export function upsertEnvLine(text: string, key: string, value: string): string {
+  const lines = text.split(/\r?\n/);
+  let replaced = false;
+
+  const out = lines.map((line) => {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) return line;
+    const withoutExport = trimmed.startsWith('export ') ? trimmed.slice('export '.length) : trimmed;
+    const eq = withoutExport.indexOf('=');
+    if (eq === -1 || withoutExport.slice(0, eq).trim() !== key) return line;
+    replaced = true;
+    return `${key}=${value}`;
+  });
+
+  if (!replaced) {
+    // Drop a single trailing blank produced by splitting a newline-terminated file so we
+    // append directly after the last real line rather than leaving a gap.
+    if (out.length > 0 && out[out.length - 1] === '') out.pop();
+    out.push(`${key}=${value}`);
+  }
+
+  return `${out.join('\n')}\n`;
 }
