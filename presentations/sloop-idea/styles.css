@@ -1,0 +1,891 @@
+/* Base reveal.js styles
+ *
+ * Copy this file as styles.css for each new presentation.
+ * Customize the CSS variables (especially colors) for your theme.
+ *
+ * IMPORTANT: All font sizes use pt (points) for predictable sizing.
+ * Base text is intentionally small (16pt) to fit content-heavy slides.
+ * Use .text-lg, .text-xl, etc. classes when slides have less content.
+ */
+
+/* ===========================================
+   CSS VARIABLES - Customize these for each presentation
+   =========================================== */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;550;650;750;850&family=Libre+Baskerville:wght@400;700&display=swap');
+
+:root {
+  /* ===========================================
+     BACKGROUND COLORS
+     For dark presentations, change to dark colors (e.g., #1a1a2e, #0d1117)
+     Then update --text-color and --muted-color to light colors below.
+     =========================================== */
+  --background-color: #f7f7f5;              /* Main slide background */
+  --section-divider-bg: #111111;            /* Section divider background (set different for contrast) */
+
+  /* Typography - ALWAYS use pt for font sizes */
+  --heading-font: "Inter", Helvetica, sans-serif;
+  --body-font: "Inter", Helvetica, sans-serif;
+  --base-font-size: 32px;   /* Only px value - sets reveal.js base */
+  --text-size: 17pt;        /* Base body text - intentionally small */
+  --h1-size: 60pt;
+  --h2-size: 34pt;
+  --h3-size: 23pt;
+  --footnote-size: 11pt;
+
+  /* Colors - CUSTOMIZE THESE */
+  --primary-color: #111111;    /* Main accent color */
+  --secondary-color: #d99b2b;  /* Secondary accent */
+  --text-color: #181716;       /* Main text - use light color (e.g., #f0f0f0) for dark backgrounds */
+  --muted-color: #6f6a64;      /* Secondary text - use lighter color for dark backgrounds */
+  --line-color: #ded8ce;       /* Decorative lines */
+  --paper-color: #fffefa;
+  --soft-color: #efeee9;
+  --green-color: #207a43;
+  --red-color: #a13b32;
+  --blue-color: #315cff;
+  --ink-color: #111111;
+
+  /* Layout */
+  --slide-padding: 58px;
+  --slide-padding-top: 34px;
+  --content-gap: 18px;
+
+  /* Border radius for custom components */
+  --box-radius: 8px;           /* Set to 0 for sharp corners */
+}
+
+/* ===========================================
+   BASE STYLES - Override reveal.js defaults
+   =========================================== */
+
+.reveal {
+  font-family: var(--body-font);
+  font-size: var(--base-font-size);
+}
+
+/* Restore bold after reset.css strips it with font: inherit */
+.reveal strong,
+.reveal b {
+  font-weight: bold;
+}
+
+/* Apply background colors */
+.reveal-viewport {
+  background-color: var(--background-color);
+}
+
+/* Section divider background via data-state */
+.reveal-viewport.is-section-divider .slide-background.present {
+  background-color: var(--section-divider-bg) !important;
+}
+
+.reveal h1,
+.reveal h2,
+.reveal h3,
+.reveal h4,
+.reveal h5,
+.reveal h6 {
+  font-family: var(--heading-font);
+  text-transform: none;
+  color: var(--text-color);
+  font-weight: 750;
+  line-height: 1.03;
+  letter-spacing: 0;
+}
+
+.reveal h1 { font-size: var(--h1-size); }
+.reveal h2 { font-size: var(--h2-size); margin-bottom: 0; max-width: 1040px; }
+.reveal h3 { font-size: var(--h3-size); }
+
+.reveal p,
+.reveal li,
+.reveal td,
+.reveal th,
+.reveal blockquote {
+  font-size: var(--text-size);
+  color: var(--text-color);
+  line-height: 1.5;
+  letter-spacing: 0;
+}
+
+/* ===========================================
+   LISTS
+   =========================================== */
+
+.reveal ul {
+  list-style: none;
+  padding-left: 0;
+  margin: 15px 0;
+}
+
+.reveal ul li {
+  position: relative;
+  padding-left: 25px;
+  margin-bottom: 10px;
+}
+
+.reveal ul li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.6em;
+  width: 8px;
+  height: 8px;
+  background: var(--secondary-color);
+  border-radius: 50%;
+}
+
+.reveal ul ul li::before {
+  background: var(--muted-color);
+  width: 6px;
+  height: 6px;
+}
+
+/* Prevent double-sizing for nested elements */
+.reveal blockquote p {
+  font-size: inherit;
+}
+
+/* ===========================================
+   SLIDE LAYOUT
+   =========================================== */
+
+.reveal .slides section {
+  height: 100%;
+  display: flex !important;
+  flex-direction: column !important;
+  padding: var(--slide-padding-top) var(--slide-padding) var(--slide-padding) var(--slide-padding) !important;
+  box-sizing: border-box;
+  text-align: left;
+  overflow: hidden;
+}
+
+/* Vertical stack wrapper - no padding, just pass through */
+.reveal .slides section.stack {
+  padding: 0 !important;
+}
+
+/* Content area - fills remaining space */
+.reveal .slides section > .content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  padding-top: var(--content-gap);
+  text-align: left;
+}
+
+/* Footnotes at bottom */
+.reveal .slides section > .footnote {
+  position: absolute;
+  bottom: 15px;
+  left: var(--slide-padding);
+  right: var(--slide-padding);
+  font-size: var(--footnote-size);
+  color: var(--muted-color);
+}
+
+/* ===========================================
+   SECTION DIVIDERS - Centered title slides
+   =========================================== */
+
+.reveal .slides section.section-divider {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  align-items: center !important;
+  text-align: center;
+}
+
+.reveal .slides section.section-divider h1 {
+  font-size: 56pt;
+  text-align: center;
+}
+
+.reveal .slides section.section-divider p {
+  font-size: 20pt;
+  color: var(--muted-color);
+}
+
+/* ===========================================
+   TEXT SIZE UTILITIES
+
+   Base text is 16pt - use these to scale UP when
+   slides have less content and you want to fill space.
+   =========================================== */
+
+.text-lg { font-size: 18pt !important; }   /* Slightly larger */
+.text-xl { font-size: 20pt !important; }   /* Medium emphasis */
+.text-2xl { font-size: 24pt !important; }  /* Strong emphasis */
+.text-3xl { font-size: 28pt !important; }  /* Very large */
+.text-4xl { font-size: 32pt !important; }  /* Maximum body text */
+
+/* Other text utilities */
+.text-muted { color: var(--muted-color) !important; }
+.text-center { text-align: center !important; }
+.text-uppercase { text-transform: uppercase; letter-spacing: 0; }
+.font-light { font-weight: 300; }
+.font-bold { font-weight: 600; }
+
+/* ===========================================
+   BLOCKQUOTES
+   =========================================== */
+
+.reveal blockquote {
+  border-left: 4px solid var(--primary-color);
+  padding-left: 20px;
+  margin: 20px 0;
+  font-style: italic;
+  background: none;
+  box-shadow: none;
+  width: 100%;
+  max-width: none;
+}
+
+.reveal blockquote cite {
+  display: block;
+  margin-top: 10px;
+  font-style: normal;
+  color: var(--muted-color);
+}
+
+/* ===========================================
+   OPTIONAL: TITLE WITH UNDERLINE
+
+   Add this to presentations where you want
+   a line under the slide title.
+   =========================================== */
+
+/*
+.reveal .slides section > h1,
+.reveal .slides section > h2 {
+  flex-shrink: 0;
+  margin: 0;
+  padding-bottom: 15px;
+  border-bottom: 2px solid var(--line-color);
+}
+*/
+
+/* ===========================================
+   SLOOP PRESENTATION THEME
+   =========================================== */
+
+.reveal .slide-kicker,
+.reveal .eyebrow {
+  color: var(--muted-color);
+  font-size: 10pt;
+  font-weight: 800;
+  letter-spacing: 0;
+  margin: 0 0 8px;
+  text-transform: uppercase;
+}
+
+.reveal .tagline {
+  color: var(--secondary-color);
+  font-size: 22pt;
+  font-weight: 750;
+  margin: 14px 0 0;
+}
+
+.reveal .lede {
+  color: #ebe7de;
+  font-size: 18pt;
+  line-height: 1.45;
+  max-width: 640px;
+  margin-top: 26px;
+}
+
+.reveal .title-slide {
+  background:
+    linear-gradient(90deg, #111111 0%, #111111 62%, #f7f7f5 62%, #f7f7f5 100%);
+  justify-content: center !important;
+}
+
+.reveal .title-grid {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(360px, 0.92fr);
+  gap: 58px;
+  align-items: center;
+}
+
+.reveal .title-copy h1 {
+  color: #fffefa;
+  font-size: 94pt;
+  margin: 0;
+}
+
+.reveal .title-copy .eyebrow {
+  color: #d7d0c5;
+}
+
+.reveal .mark-wrap {
+  display: grid;
+  place-items: center;
+  background: #fffefa;
+  border: 1px solid #e2ded6;
+  border-radius: var(--box-radius);
+  height: 470px;
+  box-shadow: 0 30px 80px rgba(17, 17, 17, 0.16);
+}
+
+.reveal .mark-wrap img {
+  width: 350px;
+  height: 350px;
+  object-fit: contain;
+  filter: contrast(1.08);
+}
+
+.reveal blockquote {
+  border-left-color: var(--secondary-color);
+  margin-top: 22px;
+  padding: 18px 22px;
+  background: #fffefa;
+  box-shadow: 0 1px 0 rgba(17, 17, 17, 0.06);
+}
+
+.reveal blockquote p {
+  color: #2a2927;
+  font-size: 20pt;
+  line-height: 1.36;
+  margin: 0;
+}
+
+.reveal .messy-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 22px;
+  margin-top: 8px;
+}
+
+.reveal .chaos-card,
+.reveal .anatomy-item,
+.reveal .flow-box,
+.reveal .cascade-step,
+.reveal .demo-card {
+  background: var(--paper-color);
+  border: 1px solid var(--line-color);
+  border-radius: var(--box-radius);
+  box-shadow: 0 1px 0 rgba(17, 17, 17, 0.04);
+}
+
+.reveal .chaos-card {
+  min-height: 220px;
+  padding: 26px;
+}
+
+.reveal .tilt-left {
+  transform: rotate(-1.5deg);
+}
+
+.reveal .tilt-right {
+  transform: rotate(1.5deg);
+}
+
+.reveal .card-title {
+  align-items: center;
+  color: var(--ink-color);
+  display: flex;
+  font-size: 16pt;
+  font-weight: 800;
+  gap: 10px;
+  line-height: 1.2;
+  margin: 0 0 14px;
+}
+
+.reveal .card-title i {
+  color: var(--secondary-color);
+  font-size: 16pt;
+}
+
+.reveal .chaos-card p:not(.card-title),
+.reveal .anatomy-item p:not(.card-title),
+.reveal .flow-box p:not(.card-title),
+.reveal .cascade-step p:not(.card-title),
+.reveal .demo-card p {
+  color: var(--muted-color);
+  font-size: 14pt;
+  line-height: 1.42;
+  margin: 0;
+}
+
+.reveal .thesis-strip {
+  align-items: center;
+  display: grid;
+  grid-template-columns: 1fr 52px 1fr 52px 1fr 52px 1fr;
+  gap: 0;
+  margin-top: 26px;
+}
+
+.reveal .thesis-node {
+  min-height: 190px;
+  background: #111111;
+  border-radius: var(--box-radius);
+  color: #fffefa;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+}
+
+.reveal .thesis-node i {
+  color: var(--secondary-color);
+  font-size: 34pt;
+  margin-bottom: 18px;
+}
+
+.reveal .thesis-node p {
+  color: #fffefa;
+  font-size: 19pt;
+  font-weight: 750;
+  line-height: 1.2;
+  margin: 0;
+}
+
+.reveal .flow-arrow,
+.reveal .down-arrow {
+  color: var(--muted-color);
+  display: grid;
+  font-size: 20pt;
+  place-items: center;
+}
+
+.reveal .statement {
+  border-left: 5px solid var(--green-color);
+  margin: 44px 0 0;
+  padding-left: 24px;
+}
+
+.reveal .statement p,
+.reveal .callout-line,
+.reveal .quiet-note {
+  color: #25231f;
+  font-size: 18pt;
+  line-height: 1.36;
+  margin: 0;
+}
+
+.reveal .paper-doc,
+.reveal .contract-panel,
+.reveal .mock-paper {
+  background: var(--paper-color);
+  border: 1px solid #dfdad1;
+  border-radius: var(--box-radius);
+  box-shadow: 0 22px 50px rgba(17, 17, 17, 0.08);
+}
+
+.reveal .paper-doc {
+  padding: 24px 28px;
+  min-height: 350px;
+}
+
+.reveal .paper-label {
+  color: var(--muted-color);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 11pt;
+  margin: 0 0 12px;
+}
+
+.reveal .frontmatter,
+.reveal .code-lines {
+  background: #111111;
+  border-radius: 6px;
+  padding: 13px 16px;
+  margin-bottom: 18px;
+}
+
+.reveal .frontmatter p,
+.reveal .code-lines p {
+  color: #f7f7f5;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 11.5pt;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.reveal .paper-doc h3 {
+  margin: 0 0 16px;
+}
+
+.reveal .paper-doc > p:last-child {
+  color: #3c3934;
+  font-size: 15pt;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.reveal .anatomy-list {
+  display: grid;
+  gap: 12px;
+}
+
+.reveal .anatomy-item {
+  padding: 17px;
+}
+
+.reveal .pipeline {
+  align-items: center;
+  display: grid;
+  grid-template-columns: 0.82fr 1.65fr 0.82fr 1fr;
+  gap: 18px;
+  margin-top: 2px;
+  position: relative;
+}
+
+.reveal .pipeline::before {
+  background: var(--line-color);
+  content: "";
+  height: 3px;
+  left: 60px;
+  position: absolute;
+  right: 60px;
+  top: 50%;
+  z-index: 0;
+}
+
+.reveal .pipe-lane {
+  display: grid;
+  gap: 9px;
+  position: relative;
+  z-index: 1;
+}
+
+.reveal .pipe-stage {
+  background: var(--paper-color);
+  border: 1px solid var(--line-color);
+  border-radius: var(--box-radius);
+  min-height: 82px;
+  padding: 14px 16px;
+  position: relative;
+  z-index: 1;
+}
+
+.reveal .hero-stage,
+.reveal .code-stage {
+  background: #111111;
+}
+
+.reveal .selected {
+  border-color: var(--green-color);
+  box-shadow: inset 0 0 0 2px rgba(32, 122, 67, 0.22);
+}
+
+.reveal .muted-stage {
+  opacity: 0.58;
+}
+
+.reveal .pipe-title {
+  color: #181716;
+  font-size: 16pt;
+  font-weight: 800;
+  line-height: 1.1;
+  margin: 0 0 8px;
+}
+
+.reveal .pipe-stage p:last-child {
+  color: var(--muted-color);
+  font-size: 11.5pt;
+  line-height: 1.25;
+  margin: 0;
+}
+
+.reveal .hero-stage .pipe-title,
+.reveal .code-stage .pipe-title,
+.reveal .hero-stage p:last-child,
+.reveal .code-stage p:last-child {
+  color: #fffefa;
+}
+
+.reveal .callout-line {
+  border-top: 1px solid var(--line-color);
+  margin-top: 22px;
+  padding-top: 16px;
+}
+
+.reveal .ui-mock {
+  background: #ebe9e3;
+  border: 1px solid #ddd7cc;
+  border-radius: var(--box-radius);
+  display: grid;
+  grid-template-columns: 245px 1fr;
+  gap: 0;
+  height: 350px;
+  overflow: hidden;
+  box-shadow: 0 24px 70px rgba(17, 17, 17, 0.11);
+}
+
+.reveal .mock-rail {
+  background: #f9f8f5;
+  border-right: 1px solid #ddd7cc;
+  padding: 20px 16px;
+}
+
+.reveal .mock-rail p {
+  color: #716c66;
+  font-size: 10pt;
+  line-height: 1.2;
+  margin: 0 0 14px;
+}
+
+.reveal .mock-rail .rail-head {
+  color: #181716;
+  font-size: 13pt;
+  font-weight: 850;
+  margin-bottom: 26px;
+}
+
+.reveal .mock-paper {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  margin: 20px auto;
+  padding: 24px 32px;
+  width: min(780px, calc(100% - 70px));
+}
+
+.reveal .control-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.reveal .control-row p {
+  background: #efeee9;
+  border: 1px solid #ddd7cc;
+  border-radius: 999px;
+  color: #5d5852;
+  font-size: 10pt;
+  line-height: 1;
+  margin: 0;
+  padding: 8px 10px;
+}
+
+.reveal .mock-paper h3 {
+  margin: 0 0 18px;
+}
+
+.reveal .mock-paper > p {
+  color: #33312e;
+  font-size: 14pt;
+  margin: 0 0 14px;
+}
+
+.reveal .inline-diff {
+  border-left: 4px solid var(--green-color);
+  background: #edf7ef;
+  padding: 10px 14px;
+  margin: 16px 0;
+}
+
+.reveal .inline-diff p,
+.reveal .status-footer p {
+  color: #1f4730;
+  font-size: 13pt;
+  margin: 0;
+}
+
+.reveal .status-footer {
+  border-top: 1px solid #e2ded6;
+  margin-top: 18px;
+  padding-top: 12px;
+}
+
+.reveal .quiet-note {
+  color: var(--muted-color);
+  font-size: 14.5pt;
+  margin-top: 14px;
+}
+
+.reveal .controller-flow {
+  display: grid;
+  gap: 6px;
+}
+
+.reveal .flow-box {
+  padding: 16px 18px;
+}
+
+.reveal .flow-box.active {
+  background: #fff7df;
+  border-color: #dfbc61;
+}
+
+.reveal .contract-panel {
+  min-height: 356px;
+  padding: 22px;
+}
+
+.reveal .contract-panel .code-lines {
+  margin-bottom: 18px;
+  min-height: 178px;
+}
+
+.reveal .contract-note {
+  color: #36332f;
+  font-size: 15pt;
+  line-height: 1.38;
+  margin: 0;
+}
+
+.reveal .cascade-board {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-top: 8px;
+}
+
+.reveal .cascade-step {
+  min-height: 230px;
+  padding: 18px;
+}
+
+.reveal .step-num {
+  color: var(--secondary-color);
+  font-size: 27pt;
+  font-weight: 850;
+  line-height: 1;
+  margin: 0 0 18px;
+}
+
+.reveal .cascade-step .card-title {
+  display: block;
+  font-size: 14.5pt;
+  min-height: 42px;
+}
+
+.reveal .demo-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 18px;
+  height: 420px;
+  align-items: stretch;
+}
+
+.reveal .demo-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 24px;
+}
+
+.reveal .demo-num {
+  align-items: center;
+  background: #111111;
+  border-radius: 999px;
+  color: #fffefa !important;
+  display: flex;
+  font-size: 20pt !important;
+  font-weight: 850;
+  height: 50px;
+  justify-content: center;
+  line-height: 1;
+  margin: 0;
+  width: 50px;
+}
+
+.reveal .demo-card h3 {
+  font-size: 22pt;
+  line-height: 1.08;
+  margin: auto 0 18px;
+}
+
+.reveal .demo-card p:last-child {
+  min-height: 104px;
+}
+
+.reveal .closing-slide {
+  background: #111111;
+  color: #fffefa;
+  justify-content: center !important;
+}
+
+.reveal .closing-layout {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 56px;
+  align-items: center;
+  width: 100%;
+}
+
+.reveal .closing-layout img {
+  background: #fffefa;
+  border-radius: var(--box-radius);
+  padding: 28px;
+  width: 270px;
+  height: 270px;
+  object-fit: contain;
+}
+
+.reveal .closing-slide h1 {
+  color: #fffefa;
+  font-size: 64pt;
+  line-height: 1.02;
+  margin: 0 0 34px;
+}
+
+.reveal .closing-slide .eyebrow {
+  color: #d7d0c5;
+}
+
+.reveal .closing-points {
+  display: grid;
+  gap: 13px;
+  margin-bottom: 34px;
+}
+
+.reveal .closing-points p {
+  color: #f4f0e8;
+  font-size: 20pt;
+  font-weight: 650;
+  line-height: 1.2;
+  margin: 0;
+}
+
+.reveal .closing-points i {
+  color: var(--green-color);
+  margin-right: 10px;
+}
+
+.reveal .closing-slide .tagline {
+  color: var(--secondary-color);
+  font-size: 24pt;
+}
+
+.reveal .progress {
+  color: var(--secondary-color);
+}
+
+.reveal .controls {
+  color: #111111;
+}
+
+/* ===========================================
+   OPTIONAL: DECORATIVE ELEMENTS
+   =========================================== */
+
+/* Top decorative line on all slides */
+/*
+.reveal .slides section::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: var(--primary-color);
+}
+*/
+
+/* Bottom decorative line */
+/*
+.reveal .slides section::after {
+  content: '';
+  position: absolute;
+  bottom: 40px;
+  left: var(--slide-padding);
+  right: var(--slide-padding);
+  height: 2px;
+  background: var(--line-color);
+}
+*/

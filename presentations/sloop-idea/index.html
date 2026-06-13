@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sloop - Choose Sloop Not Slop</title>
+
+  <!-- Reveal.js core -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reset.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
+
+  <!-- Font Awesome for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <!-- Custom styles -->
+  <link rel="stylesheet" href="styles.css">
+
+  <!-- Chart.js for data visualization -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <div class="reveal">
+    <div class="slides">
+
+      <section id="title" class="title-slide" data-state="is-section-divider">
+        <div class="title-grid">
+          <div class="title-copy">
+            <p class="eyebrow">Paper-first agent loops</p>
+            <h1>Sloop</h1>
+            <p class="tagline">Choose sloop, not slop.</p>
+            <p class="lede">A local-first meta-IDE for defining, running, and supervising nested coding-agent workflows as Markdown, evals, diffs, and Git history.</p>
+          </div>
+          <div class="mark-wrap">
+            <img src="../../assets/sloop-concept.png" alt="Sloop sailboat mark">
+          </div>
+        </div>
+      </section>
+
+      <section id="problem">
+        <p class="slide-kicker">The problem</p>
+        <h2>Agent work disappears into chat.</h2>
+        <div class="content">
+          <div class="messy-grid">
+            <div class="chaos-card tilt-left">
+              <p class="card-title"><i class="fa-solid fa-comments"></i> Prompt soup</p>
+              <p>Intent, constraints, decisions, and caveats are scattered across a session transcript.</p>
+            </div>
+            <div class="chaos-card tilt-right">
+              <p class="card-title"><i class="fa-solid fa-code-compare"></i> Mystery diffs</p>
+              <p>Code changes land without a durable contract that says why they exist or how to check them.</p>
+            </div>
+            <div class="chaos-card tilt-left">
+              <p class="card-title"><i class="fa-solid fa-repeat"></i> Manual babysitting</p>
+              <p>When requirements change, humans chase the cascade across docs, plans, tests, and code.</p>
+            </div>
+          </div>
+          <blockquote>
+            <p>Today's agents can produce a lot. Sloop asks a better question: what keeps that work inspectable, rerunnable, and correct?</p>
+          </blockquote>
+        </div>
+      </section>
+
+      <section id="thesis">
+        <p class="slide-kicker">The thesis</p>
+        <h2>Make the loop the primitive.</h2>
+        <div class="content">
+          <div class="thesis-strip">
+            <div class="thesis-node">
+              <i class="fa-solid fa-file-lines"></i>
+              <p>Markdown contract</p>
+            </div>
+            <div class="flow-arrow"><i class="fa-solid fa-arrow-right-long"></i></div>
+            <div class="thesis-node">
+              <i class="fa-solid fa-diagram-project"></i>
+              <p>Child stages</p>
+            </div>
+            <div class="flow-arrow"><i class="fa-solid fa-arrow-right-long"></i></div>
+            <div class="thesis-node">
+              <i class="fa-solid fa-list-check"></i>
+              <p>Text evals</p>
+            </div>
+            <div class="flow-arrow"><i class="fa-solid fa-arrow-right-long"></i></div>
+            <div class="thesis-node">
+              <i class="fa-solid fa-code-branch"></i>
+              <p>Git diff</p>
+            </div>
+          </div>
+          <div class="statement">
+            <p>Instead of one-off agent sessions, Sloop turns software work into explicit documents that define what should happen, what may change, and what must pass before changes are accepted.</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="loop-anatomy">
+        <p class="slide-kicker">The unit</p>
+        <h2>A loop doc is both paper and control plane.</h2>
+        <div class="content">
+          <div style="display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 34px; align-items: stretch;">
+            <div class="paper-doc">
+              <p class="paper-label">loops/product-requirements.md</p>
+              <div class="frontmatter">
+                <p>status: running</p>
+                <p>agent: pi</p>
+                <p>autoApply: true</p>
+                <p>children: architecture, build</p>
+              </div>
+              <h3>Product Requirements</h3>
+              <p>The product goal, constraints, acceptance criteria, and downstream stages live in one readable Markdown source of truth.</p>
+            </div>
+            <div class="anatomy-list">
+              <div class="anatomy-item">
+                <p class="card-title"><i class="fa-solid fa-pen-nib"></i> Human-editable</p>
+                <p>Users can pause, edit, resume, and let the cascade continue from the visible document.</p>
+              </div>
+              <div class="anatomy-item">
+                <p class="card-title"><i class="fa-solid fa-clipboard-check"></i> Evaluated</p>
+                <p>Text criteria become deterministic checks, commands, schemas, fixtures, or review prompts.</p>
+              </div>
+              <div class="anatomy-item">
+                <p class="card-title"><i class="fa-solid fa-clock-rotate-left"></i> Auditable</p>
+                <p>Every run, diff, pause, failure, retry, and rollback point is backed by Git history.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="nested-pipelines">
+        <p class="slide-kicker">The product shape</p>
+        <h2>Users define the pipeline. Sloop runs the cascade.</h2>
+        <div class="content">
+          <div class="pipeline">
+            <div class="pipe-stage hero-stage">
+              <p class="pipe-title">PRD</p>
+              <p>Intent and criteria</p>
+            </div>
+            <div class="pipe-lane">
+              <div class="pipe-stage">
+                <p class="pipe-title">Architecture A</p>
+                <p>Alternative path</p>
+              </div>
+              <div class="pipe-stage selected">
+                <p class="pipe-title">Architecture B</p>
+                <p>Selected winner</p>
+              </div>
+              <div class="pipe-stage muted-stage">
+                <p class="pipe-title">Architecture C</p>
+                <p>Archived provenance</p>
+              </div>
+            </div>
+            <div class="pipe-stage">
+              <p class="pipe-title">Plan</p>
+              <p>Implementation contract</p>
+            </div>
+            <div class="pipe-stage code-stage">
+              <p class="pipe-title">Code controller</p>
+              <p>Allowed outputs + commands</p>
+            </div>
+          </div>
+          <p class="callout-line">The PRD to architecture to plan to build flow is just a template. Sloop's real move is letting teams invent their own nested agent workflows.</p>
+        </div>
+      </section>
+
+      <section id="surface">
+        <p class="slide-kicker">The interface</p>
+        <h2>A document surface, not a command center.</h2>
+        <div class="content">
+          <div class="ui-mock">
+            <div class="mock-rail">
+              <p class="rail-head">Sloop</p>
+              <p>01 Product requirements</p>
+              <p>02 Architecture</p>
+              <p>03 Implementation plan</p>
+              <p>04 Build auth session</p>
+            </div>
+            <div class="mock-paper">
+              <div class="control-row">
+                <p>type: product</p>
+                <p>status: running</p>
+                <p>auto-apply: on</p>
+              </div>
+              <h3>Product Requirements</h3>
+              <p>Define the product, constraints, and the criteria every child loop must satisfy.</p>
+              <div class="inline-diff">
+                <p>Changed requirement cascades to affected downstream docs only.</p>
+              </div>
+              <div class="status-footer">
+                <p>Graph / Console / Loop status / Run Pi cascade</p>
+              </div>
+            </div>
+          </div>
+          <p class="quiet-note">The default mode stays calm: frontmatter as controls, diffs near the changed text, loop state at the bottom, history available when needed.</p>
+        </div>
+      </section>
+
+      <section id="code-controller">
+        <p class="slide-kicker">The code loop</p>
+        <h2>Code stages are controlled by Markdown.</h2>
+        <div class="content">
+          <div style="display: grid; grid-template-columns: 0.95fr 1.05fr; gap: 30px;">
+            <div class="controller-flow">
+              <div class="flow-box">
+                <p class="card-title"><i class="fa-solid fa-file-lines"></i> Parent loop</p>
+                <p>Owns intent and inherited eval criteria.</p>
+              </div>
+              <div class="down-arrow"><i class="fa-solid fa-arrow-down-long"></i></div>
+              <div class="flow-box active">
+                <p class="card-title"><i class="fa-solid fa-screwdriver-wrench"></i> Controller doc</p>
+                <p>Owns outputs, commands, retries, and failure evidence.</p>
+              </div>
+              <div class="down-arrow"><i class="fa-solid fa-arrow-down-long"></i></div>
+              <div class="flow-box">
+                <p class="card-title"><i class="fa-solid fa-terminal"></i> Pi attempt</p>
+                <p>Edits only affected docs and allowed paths.</p>
+              </div>
+            </div>
+            <div class="contract-panel">
+              <p class="paper-label">loops/build/build-auth-session.md</p>
+              <div class="code-lines">
+                <p>outputs:</p>
+                <p>  - src/auth/**</p>
+                <p>  - tests/auth/**</p>
+                <p>commands:</p>
+                <p>  - npm test -- auth</p>
+                <p>maxAttempts: 3</p>
+              </div>
+              <p class="contract-note">If eval fails, evidence returns to the same loop and Pi retries with the visible workspace state.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="cascade">
+        <p class="slide-kicker">The engine</p>
+        <h2>Cascades are diff-driven, not hand-waved.</h2>
+        <div class="content">
+          <div class="cascade-board">
+            <div class="cascade-step">
+              <p class="step-num">01</p>
+              <p class="card-title">User edits Markdown</p>
+              <p>Requirements, evals, stages, or controller docs change.</p>
+            </div>
+            <div class="cascade-step">
+              <p class="step-num">02</p>
+              <p class="card-title">Sloop reads the Git diff</p>
+              <p>The changed intent becomes the impact boundary.</p>
+            </div>
+            <div class="cascade-step">
+              <p class="step-num">03</p>
+              <p class="card-title">Affected loops run</p>
+              <p>Downstream docs and code controllers update only where needed.</p>
+            </div>
+            <div class="cascade-step">
+              <p class="step-num">04</p>
+              <p class="card-title">Evals decide</p>
+              <p>Passing changes apply; failing ones remain visible with evidence.</p>
+            </div>
+          </div>
+          <p class="callout-line">Git is not just storage. It is the audit trail, rollback system, review surface, and cascade sensor.</p>
+        </div>
+      </section>
+
+      <section id="close" class="closing-slide" data-state="is-section-divider">
+        <div class="closing-layout">
+          <img src="../../assets/sloop-concept.png" alt="Sloop sailboat mark">
+          <div>
+            <p class="eyebrow">What we are building</p>
+            <h1>Define the loop. Trust the work.</h1>
+            <div class="closing-points">
+              <p><i class="fa-solid fa-circle-check"></i> Workflows defined as Markdown</p>
+              <p><i class="fa-solid fa-circle-check"></i> Runs gated by evals and commands</p>
+              <p><i class="fa-solid fa-circle-check"></i> Changes reviewed through Git diffs</p>
+            </div>
+            <p class="tagline">Choose sloop, not slop.</p>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js-plugins@latest/chart/plugin.js"></script>
+  <script>
+    Reveal.initialize({
+      width: 1280,
+      height: 720,
+      margin: 0,
+      controls: true,
+      progress: true,
+      slideNumber: false,
+      hash: true,
+      transition: 'slide',
+      center: false,
+      plugins: [ RevealChart ],
+      chart: {
+        defaults: Object.assign({
+          color: 'rgba(0, 0, 0, 0.8)',
+          borderColor: 'rgba(0, 0, 0, 0.8)',
+          devicePixelRatio: 2
+        }, window.location.search.includes('export') ? { animation: false } : {})
+      }
+    });
+  </script>
+</body>
+</html>
