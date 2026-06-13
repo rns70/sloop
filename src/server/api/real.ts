@@ -33,6 +33,7 @@ import { runAssistantAgent } from '../assistant/agent';
 import { createToolExecutor, type AssistantWorkspace } from '../assistant/tools';
 import type {
   AdrDiffResponse,
+  AdrChangesResponse,
   ApplyWorkflowResponse,
   DeleteAdrResponse,
   GetAdrRunResponse,
@@ -213,6 +214,12 @@ export class RealApi implements StreamingSloopApi {
     // Unchanged vs HEAD: show the current content on both sides (no diff to render).
     const adr = await this.getAdr(relPath);
     return { before: adr.body, after: adr.body };
+  }
+
+  async getAdrChanges(): Promise<AdrChangesResponse> {
+    const diff = await this.git.diffDatabank();
+    // Strip the heavy before/after — the sidebar only needs which docs changed and how.
+    return { changed: diff.changed.map(({ relPath, delta }) => ({ relPath, delta })) };
   }
 
   // ---- Libraries -----------------------------------------------------------
