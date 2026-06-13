@@ -161,3 +161,22 @@ function renderCriterion(c: AcceptanceCriterion, style: CriteriaStyle): string {
   if (style === 'full' && c.locked) line += ' 🔒';
   return line;
 }
+
+/** UI copy shown when a design/loop has no acceptance criteria. Single source of truth. */
+export const MISSING_CRITERIA_WARNING =
+  'This design has no acceptance criteria. Add a "## Acceptance criteria" checklist so loops seeded from it can be verified.';
+
+/** Instruction handed to the assistant by the "Add with assistant" shortcut. */
+export const CRITERIA_ASSISTANT_INSTRUCTION =
+  'Add a `## Acceptance criteria` section to this design as a markdown checklist. ' +
+  'Each item must be objectively verifiable; where a shell command can check it, ' +
+  'append " — verify: `<command>`". Base the criteria on the document\'s decision and consequences.';
+
+/**
+ * True when the markdown body carries no acceptance criteria — i.e. the section is
+ * absent OR present but empty. Reuses the canonical parser, so checklist lines inside
+ * fenced code blocks do not count.
+ */
+export function bodyHasNoCriteria(body: string): boolean {
+  return parseCriteriaFromBody(body).criteria.length === 0;
+}

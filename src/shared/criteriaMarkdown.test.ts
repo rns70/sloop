@@ -4,6 +4,7 @@ import {
   parseCriteriaFromBody,
   upsertCriteriaInBody,
   assignMissingIds,
+  bodyHasNoCriteria,
   CRITERIA_HEADING,
 } from './criteriaMarkdown';
 
@@ -209,5 +210,24 @@ describe('upsertCriteriaInBody — plain style', () => {
   it('full style is unchanged (default) — still emits **ac-N** and 🔒', () => {
     const out = upsertCriteriaInBody('', [ac({ id: 'ac-1', text: 'A', locked: true })]);
     expect(out).toBe(CRITERIA_HEADING + '\n\n- [ ] **ac-1** A 🔒\n');
+  });
+});
+
+describe('bodyHasNoCriteria', () => {
+  it('is true when there is no criteria section at all', () => {
+    expect(bodyHasNoCriteria('# Title\n\nProse only.\n')).toBe(true);
+  });
+
+  it('is true when the section heading exists but has no items', () => {
+    expect(bodyHasNoCriteria('# Title\n\n## Acceptance criteria\n\n')).toBe(true);
+  });
+
+  it('is false when the section has at least one item', () => {
+    expect(bodyHasNoCriteria('## Acceptance criteria\n\n- [ ] It works\n')).toBe(false);
+  });
+
+  it('is true when the only checklist lives inside a fenced code block', () => {
+    const body = '## Acceptance criteria\n\n```\n- [ ] not a real criterion\n```\n';
+    expect(bodyHasNoCriteria(body)).toBe(true);
   });
 });
