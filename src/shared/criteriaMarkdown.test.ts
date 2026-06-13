@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { AcceptanceCriterion } from '../../shared';
+import type { AcceptanceCriterion } from './types';
 import {
   parseCriteriaFromBody,
   upsertCriteriaInBody,
@@ -181,5 +181,33 @@ describe('fenced code blocks are ignored', () => {
     expect(r.criteria).toEqual([{ id: 'ac-1', text: 'real one', passed: true }]);
     expect(r.bodyWithoutSection).toContain('```');
     expect(r.bodyWithoutSection).toContain('**ac-9** fake inside fence');
+  });
+});
+
+describe('upsertCriteriaInBody — plain style', () => {
+  it('renders plain checklist items: no id, no lock, keeps checkbox + verify', () => {
+    const out = upsertCriteriaInBody(
+      '# T\n',
+      [
+        ac({ id: 'ac-1', text: 'It works', passed: false, locked: true }),
+        ac({ id: 'ac-2', text: 'Tests pass', passed: true, verify: 'npm test' }),
+      ],
+      'plain',
+    );
+    expect(out).toBe(
+      '# T\n\n' +
+        CRITERIA_HEADING +
+        '\n\n- [ ] It works\n- [x] Tests pass — verify: `npm test`\n',
+    );
+  });
+
+  it('does not assign ids in plain style (empty id stays empty)', () => {
+    const out = upsertCriteriaInBody('', [ac({ id: '', text: 'A' })], 'plain');
+    expect(out).toBe(CRITERIA_HEADING + '\n\n- [ ] A\n');
+  });
+
+  it('full style is unchanged (default) — still emits **ac-N** and 🔒', () => {
+    const out = upsertCriteriaInBody('', [ac({ id: 'ac-1', text: 'A', locked: true })]);
+    expect(out).toBe(CRITERIA_HEADING + '\n\n- [ ] **ac-1** A 🔒\n');
   });
 });

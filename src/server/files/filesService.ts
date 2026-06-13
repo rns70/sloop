@@ -11,7 +11,7 @@ import type {
 } from '../../shared';
 import type { FilesService } from '../../shared';
 import { parseFrontmatter, serializeFrontmatter } from './frontmatter';
-import { parseCriteriaFromBody, upsertCriteriaInBody } from './criteriaMarkdown';
+import { parseCriteriaFromBody, upsertCriteriaInBody } from '../../shared';
 
 const DATABANK_DIR = 'databank';
 const DATABANK_PREFIX = `${DATABANK_DIR}/`;
@@ -89,7 +89,7 @@ export class FilesServiceImpl implements FilesService {
       : normalizeCriteria(data.acceptanceCriteria);
     let outBody = body;
     if (!parsed.hasSection && acceptanceCriteria.length > 0) {
-      outBody = upsertCriteriaInBody(body, acceptanceCriteria);
+      outBody = upsertCriteriaInBody(body, acceptanceCriteria, 'plain');
     }
     return {
       id: String(data.id ?? ''),
@@ -106,8 +106,8 @@ export class FilesServiceImpl implements FilesService {
     // (covers programmatic creation, e.g. createDatabankItem with an empty list).
     const parsed = parseCriteriaFromBody(doc.body);
     const criteria = parsed.hasSection ? parsed.criteria : doc.acceptanceCriteria;
-    // Always re-serialize so the on-disk section is canonical (ids filled, format normalized).
-    const body = upsertCriteriaInBody(doc.body, criteria);
+    // ADR criteria are a plain checklist; ids/lock belong to loops only.
+    const body = upsertCriteriaInBody(doc.body, criteria, 'plain');
     const frontmatter = { id: doc.id, title: doc.title };
     await this.writeFile(doc.relPath, serializeFrontmatter(frontmatter, body));
   }
@@ -135,29 +135,65 @@ export class FilesServiceImpl implements FilesService {
     }
 
     // Single file.
-    if (await pathExists(this.abs(to))) {
-      throw new MoveError('conflict', `Destination already exists: ${to}`);
-    }
+    await this.assertFileDestinationFree(from, to);
     await this.renamePath(from, to);
   }
 
-  /** Move a folder prefix. Atomic dir rename when the destination is free; otherwise
-   *  a per-descendant-file move (merge into an existing destination folder). */
+  /** Guard a single-file destination. Rejects a real collision or a folder sitting at
+   *  `to` with a precise message, but permits a case-only rename of the same file
+   *  (`a.md` -> `A.md`) on case-insensitive volumes — see `isSameFile`. */
+  private async assertFileDestinationFree(fromRel: string, toRel: string): Promise<void> {
+    const kind = await statKind(this.abs(toRel));
+    if (kind === null) return; // free
+    if (kind === 'dir') {
+      throw new MoveError('conflict', `Destination is a folder: ${toRel}`);
+    }
+    if (await isSameFile(this.abs(fromRel), this.abs(toRel))) return; // case-only rename
+    throw new MoveError('conflict', `Destination already exists: ${toRel}`);
+  }
+
+  /** Move a folder prefix. Atomic dir rename when the destination is free (or it's a
+   *  case-only rename of the same folder); otherwise a per-descendant-file merge into an
+   *  existing destination folder. The merge is all-or-nothing: every target is validated
+   *  for collisions and type clashes before any file is touched, and an unexpected mid-merge
+   *  I/O failure rolls back the moves already made so the tree is never left half-merged. */
   private async moveFolder(from: string, to: string, relPaths: string[]): Promise<void> {
-    if (!(await pathExists(this.abs(to)))) {
+    const kind = await statKind(this.abs(to));
+    if (kind === null) {
       await this.renamePath(from, to);
       return;
     }
-    // Merge: move each descendant file individually, failing fast on any collision.
+    if (kind === 'file') {
+      throw new MoveError('conflict', `Destination exists as a file: ${to}`);
+    }
+    // A case-only rename of the folder itself (`auth` -> `Auth`) reports the destination as
+    // existing on case-insensitive volumes; it's the same inode, so rename it directly.
+    if (await isSameFile(this.abs(from), this.abs(to))) {
+      await this.renamePath(from, to);
+      return;
+    }
+    // Merge into an existing folder. Validate ALL targets up front (collisions and
+    // file/folder type clashes) so the merge either fully applies or doesn't start.
     const descendants = relPaths.filter((p) => p.startsWith(`${from}/`));
     const targets = descendants.map((p) => `${to}/${p.slice(from.length + 1)}`);
     for (const target of targets) {
-      if (await pathExists(this.abs(target))) {
+      if ((await statKind(this.abs(target))) !== null) {
         throw new MoveError('conflict', `Destination already exists: ${target}`);
       }
     }
-    for (let i = 0; i < descendants.length; i += 1) {
-      await this.renamePath(descendants[i], targets[i]);
+    // Past validation only genuine I/O errors remain. Track each completed move so a
+    // late failure can be unwound, keeping the merge atomic.
+    const undo: Array<[string, string]> = [];
+    try {
+      for (let i = 0; i < descendants.length; i += 1) {
+        await this.renamePath(descendants[i], targets[i]);
+        undo.push([targets[i], descendants[i]]);
+      }
+    } catch (err) {
+      for (let i = undo.length - 1; i >= 0; i -= 1) {
+        await this.renamePath(undo[i][0], undo[i][1]).catch(() => {});
+      }
+      throw err;
     }
   }
 
@@ -338,11 +374,29 @@ function isInsideDatabank(relPath: string): boolean {
   return norm === DATABANK_DIR || norm.startsWith(DATABANK_PREFIX);
 }
 
-/** True if `abs` exists on disk. */
-async function pathExists(abs: string): Promise<boolean> {
+/** What lives at `abs`: a regular `file`, a `dir`, or `null` if nothing is there. */
+async function statKind(abs: string): Promise<'file' | 'dir' | null> {
   try {
-    await fs.access(abs);
-    return true;
+    const st = await fs.stat(abs);
+    return st.isDirectory() ? 'dir' : 'file';
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null;
+    throw err;
+  }
+}
+
+/**
+ * True when two paths resolve to the *same* on-disk entry (identical device +
+ * inode). This is how a case-only rename (`a.md` -> `A.md`) is told apart from a
+ * real collision: on a case-insensitive volume (default on macOS/Windows) the
+ * destination "already exists" but is the very file being moved, so the rename is
+ * legitimate; on a case-sensitive volume a pre-existing `A.md` is a distinct inode
+ * and the move is a genuine conflict.
+ */
+async function isSameFile(absA: string, absB: string): Promise<boolean> {
+  try {
+    const [a, b] = await Promise.all([fs.stat(absA), fs.stat(absB)]);
+    return a.dev === b.dev && a.ino === b.ino;
   } catch {
     return false;
   }

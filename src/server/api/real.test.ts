@@ -86,6 +86,8 @@ describe('RealApi happy path (dry-run, offline)', () => {
     const leaves = proposed.loops.filter((l) => l.frontmatter.kind === 'leaf');
     expect(leaves.length).toBe(1);
     expect(leaves[0].frontmatter.acceptanceCriteria.length).toBe(2);
+    // Plain ADR criteria carry no ids on disk; the planner backfills stable ones.
+    expect(leaves[0].frontmatter.acceptanceCriteria.map((c) => c.id)).toEqual(['ac-1', 'ac-2']);
 
     // Subscribe BEFORE approve resolves to exercise live streaming + completion close.
     const events: CascadeStreamEvent[] = [];
