@@ -47,7 +47,11 @@ function loadThread(): ChatMessage[] {
   try {
     const raw = sessionStorage.getItem(SESSION_KEY);
     if (!raw) return [];
-    return JSON.parse(raw) as ChatMessage[];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return (parsed as ChatMessage[]).filter(
+      (m) => m.role === 'user' || (m.text && m.text.trim()) || (m.tools && m.tools.length > 0),
+    );
   } catch {
     return [];
   }
@@ -121,7 +125,7 @@ export function useAssistantChat(opts: {
         if (!cancelledRef.current && wrote.length) opts.onWrote?.(wrote);
       }
     },
-    [messages, streaming, opts.model, opts.onWrote],
+    [messages, opts.model, opts.onWrote],
   );
 
   const stop = useCallback(() => {
