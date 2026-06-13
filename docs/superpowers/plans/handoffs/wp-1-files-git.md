@@ -15,7 +15,7 @@ Do not touch `src/shared`, `src/server/api`, or any frontend code.
 
 ## Tasks
 1. `frontmatter.ts`: thin wrappers over `gray-matter` to (a) parse a markdown string into `{ data, body }` and (b) serialize a `LoopDoc`/`AdrDoc` back to `---`-fenced markdown. Round-trip must be stable (parse→serialize→parse equal).
-2. `filesService.ts`: implement `FilesService`. Resolve the workspace root from env `SLOOP_WORKSPACE` (default `fixtures/sample-workspace`). Map between disk markdown and the shared types:
+2. `filesService.ts`: implement `FilesService`. Resolve the workspace root from env `SLOOP_WORKSPACE` (default `fixtures/sample-workspace`). On-disk frontmatter keys are **camelCase, identical to the shared TS interfaces** (`acceptanceCriteria`, `sourceAdr`, …), so `gray-matter` data maps onto the types with no key remapping. Map between disk markdown and the shared types:
    - `listAdrs`/`readAdr`/`writeAdr` over `databank/*.md` — pull `title` + `acceptanceCriteria` (with stable ids + `verify`) out of frontmatter.
    - `readLoop`/`writeLoop`/`listLoops(cascadeId)` over `cascades/<id>/**.md` — `writeLoop` writes to `loop.relPath`, creating dirs.
    - `listTemplates`/`listRoles` over `.sloop/templates/*.md` and `.sloop/roles/*.md` → `TemplateDef`/`RoleDef`.

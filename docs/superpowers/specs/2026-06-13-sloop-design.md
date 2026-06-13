@@ -36,7 +36,7 @@ sloop is a **conductor**, not its own coding agent. Leaf work is delegated to em
 | **Template** | A reusable definition of *how* the architect decomposes work: the stages, which roles staff each stage, and their ordering. A markdown file in `.sloop/templates/` (e.g. `waterfall.md`, `tdd.md`, `spec-driven.md`). Copyable and editable. See §6. |
 | **Architecture loop** | The root loop of a cascade. A planning loop on a big model: reads the diff, decomposes work, staffs and spawns child loops. Does not write code. |
 | **Inner loop** | A non-root, non-leaf loop. May plan further and spawn its own children. |
-| **Leaf loop** | A loop small enough that its acceptance criteria can be verified directly. Delegates to an external coding agent to do the work. |
+| **Leaf loop** | A loop small enough that its acceptance criteria can be verified directly. Delegates to an embedded Pi agent to do the work. |
 | **Role** | The persona/type of a loop (Architect, Engineer, QA, Security reviewer, Pentester, …). User-definable. Carries a default model and a default prompt/brief. |
 | **Acceptance criteria** | Verifiable conditions attached to a requirement and/or a loop. A loop passes only when its criteria are satisfied. |
 
@@ -122,8 +122,8 @@ status: executing      # planned | awaiting_approval | queued | executing | bloc
 delta: change          # add | change | delete  (which diff spawned it)
 parent: _architect
 children: [update-token-service, migrate-session-store]
-source_adr: adr-007
-acceptance_criteria:
+sourceAdr: adr-007
+acceptanceCriteria:
   - id: ac-1
     text: "Refresh tokens rotate every ≤15m"
     verify: "npm test -- rotation"   # exit 0 = passed; optional
@@ -133,6 +133,8 @@ executor: pi           # Pi agent runtime; provider comes from the model registr
 ---
 ```
 Body holds the human-readable plan, the brief handed to the agent, and notes.
+
+> **Frontmatter keys match the `LoopFrontmatter` TS interface exactly (camelCase)** so `gray-matter` parses straight into the type with no key remapping. Same rule for ADR and config frontmatter.
 
 ### 4.4 Execution engine — built on Pi
 sloop does not hand-roll an agent runtime or per-provider clients. It embeds **[Pi](https://github.com/earendil-works/pi)** (`earendil-works/pi`, MIT, TypeScript):
