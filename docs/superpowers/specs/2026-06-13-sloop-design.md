@@ -134,13 +134,12 @@ executor: claude-code  # which external agent runs this (leaves)
 ```
 Body holds the human-readable plan, the brief handed to the agent, and notes.
 
-### 4.4 Execution engine
-- sloop defines an **Executor** interface; a leaf's model (via the registry, §6.3) selects which executor runs it:
-  - **Anthropic models → Claude Code executor**, invoked as a subprocess per leaf.
-  - **Nebius models (e.g. NVIDIA Nemotron) → an OpenAI-compatible API executor** — a thin agent loop hitting Nebius AI Studio's OpenAI-compatible endpoint (since Claude Code is Anthropic-only).
-- Either way a leaf gets: the scoped task, the relevant ADR context, and its acceptance criteria. sloop captures output, detects completion, and runs the criteria `verify` step.
-- **Model routing** = which model/provider is used per loop. Defaults flow from role/template, overridable per loop (§6.3).
-- Beyond these two, further pluggable executors are deferred (YAGNI).
+### 4.4 Execution engine — built on Pi
+sloop does not hand-roll an agent runtime or per-provider clients. It embeds **[Pi](https://github.com/earendil-works/pi)** (`earendil-works/pi`, MIT, TypeScript):
+- **`@earendil-works/pi-ai`** — the unified multi-provider LLM layer for *all* model calls (architect planning and leaf execution). Providers are registered via `registerProvider({ baseUrl, apiKey, api })`; Anthropic and OpenAI are built in, and **Nebius (NVIDIA Nemotron) is registered as an OpenAI-compatible provider** (`api: 'openai-completions'`, `baseUrl: https://api.studio.nebius.ai/v1`). This is also how routing/hand-off between a big planner model and cheap executor models is expressed.
+- **Pi's `agent` package** — the agent runtime (tool-calling + state). sloop's single **Executor** wraps a Pi agent: given a leaf, it runs a Pi coding agent against the target repo on the leaf's resolved model (any provider), streams output, then runs the criteria `verify` step.
+- A leaf gets the scoped task, relevant ADR context, and its acceptance criteria. One executor, provider-agnostic — no Claude Code subprocess and no bespoke OpenAI loop.
+- **Model routing** = which registry alias (→ Pi provider+model) is used per loop. Defaults flow from role/template, overridable per loop (§6.3).
 
 ---
 
@@ -200,7 +199,7 @@ providers:
   anthropic: { apiKeyEnv: ANTHROPIC_API_KEY }
   nebius:    { baseUrl: https://api.studio.nebius.ai/v1, apiKeyEnv: NEBIUS_API_KEY }
 ```
-So the architect could plan on `nemotron` and execute leaves on `haiku`, or any mix — routing is provider-agnostic. The registry is the single place a new provider/model is added.
+So the architect could plan on `nemotron` and execute leaves on `haiku`, or any mix — routing is provider-agnostic. The registry is the single place a new provider/model is added. At startup sloop maps this registry onto Pi via `pi-ai`'s `registerProvider` (the `nebius` entry registers as an OpenAI-compatible provider), so Pi handles the actual provider dispatch.
 
 ---
 
@@ -241,7 +240,7 @@ Edit one ADR in the databank → kick off a cascade (pick the `spec-driven` temp
 
 **Explicitly cut for the hackathon (do NOT build):**
 - Tauri/native packaging (plain localhost web app).
-- General pluggable executor framework — ship exactly two executors (Claude Code for Anthropic, OpenAI-compatible for Nebius/Nemotron) behind the one `Executor` interface; no more.
+- Hand-built agent runtime or per-provider clients — embed **Pi** (`pi-ai` + `agent`) for both; one `Executor` wraps a Pi agent. Multi-provider (incl. Nebius/Nemotron) comes from Pi, not our code.
 - Real file watcher / external-edit sync — refresh on action is fine.
 - Retries/backoff, sandboxing, telemetry, multi-user, cost dashboards.
 - QA-role adjudication for criteria without a `verify` command — demo only criteria that have one.

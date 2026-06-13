@@ -15,7 +15,7 @@ Construct the real services, wire them into the API layer in place of WP-0's moc
 - Cross-cutting polish only where needed; prefer flagging over editing another WP's internals.
 
 ## Tasks
-1. Construct real services: `createFilesService()`, `createGitService()`, `createExecutor()`, `createCascadeEngine({ files, git, executor })`. Mount real handlers for every endpoint in the overview's API table; back the WS stream with the executor's `onOutput` and cascade status updates.
+1. **Bootstrap Pi providers:** at server startup, read the model registry (`FilesService.readModelRegistry()`) and map it onto Pi via `pi-ai`'s `registerProvider` — in particular register `nebius` as OpenAI-compatible (`api:'openai-completions'`, `baseUrl` + key from the registry) so NVIDIA Nemotron works. Then construct real services: `createFilesService()`, `createGitService()`, `createExecutor(resolved)`, `createCascadeEngine({ files, git, executor })`. Mount real handlers for every endpoint in the overview's API table; back the WS stream with the executor's `onOutput` and cascade status updates.
 2. Pick the swap point: `SLOOP_MOCK=1` → mock (today's behavior), unset → real. This guarantees you always have a working demo even if the real path is flaky.
 3. Prepare a **sample target repo** (small, real, with a test command) and an ADR whose `verify` command maps to that test. Set `SLOOP_TARGET_REPO`, `SLOOP_PLANNER_MODEL`, `SLOOP_MAX_DEPTH=2`.
 4. Run the happy path for real once (or in `SLOOP_DRY_RUN` if agent calls are unreliable): edit ADR → kickoff (`spec-driven`) → architect proposes tree → approve → leaves run → verify passes → root flips to `done`. Fix the seams that break.

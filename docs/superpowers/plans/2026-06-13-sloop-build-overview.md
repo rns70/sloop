@@ -254,6 +254,7 @@ Keep recursion shallow (architect → leaves, optional one inner layer). Only de
 
 - **TypeScript everywhere**, ESM, Node 20+. `npm run typecheck` and `npm test` (vitest) must stay green.
 - Frontmatter parsing: use `gray-matter`. Git: `simple-git`. Server: `express` + `ws`. Frontend: Vite + React + Tailwind.
+- **Model + agent layer: embed [Pi](https://github.com/earendil-works/pi)** — `@earendil-works/pi-ai` (unified multi-provider LLM API; all model calls) and Pi's `agent` package (agent runtime for leaf execution). Nebius/Nemotron is registered via `pi-ai`'s `registerProvider({ api:'openai-completions', baseUrl:'https://api.studio.nebius.ai/v1', apiKey })`. Confirm exact package names/imports at install (`npm view @earendil-works/pi-ai`).
 - **No `Date.now()` inside `src/shared`** — pass timestamps in. (Keeps shared logic pure/testable.)
 - Each WP commits small and often with conventional commits, on its own branch named `wp-N-shortname`.
 - If you discover the contract in `src/shared` is wrong, do NOT edit it unilaterally — flag it; a contract change ripples to every agent.
