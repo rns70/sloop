@@ -82,7 +82,20 @@ export function buildServer(opts: BuildServerOptions): { server: Server; uiMount
   }));
 
   app.get('/api/models', h(async (_req, res) => res.json(await api.listModels())));
-  app.post('/api/assistant', h(async (req, res) => res.json(await api.assistant(req.body))));
+  app.post('/api/assistant/stream', (req, res) => {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+    const ac = new AbortController();
+    req.on('close', () => ac.abort());
+    api.assistantStream(req.body, (e) => {
+      res.write(`data: ${JSON.stringify(e)}\n\n`);
+    }, ac.signal).catch((err: unknown) => {
+      const msg = err instanceof Error ? err.message : 'internal error';
+      res.write(`data: ${JSON.stringify({ type: 'error', message: msg })}\n\n`);
+    }).finally(() => res.end());
+  });
 
   app.get('/api/cascades', h(async (_req, res) => res.json(await api.listCascades())));
   app.post('/api/cascades', h(async (req, res) => res.json(await api.createCascade(req.body))));

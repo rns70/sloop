@@ -17,7 +17,9 @@
 //     root flipping to done — the convergence "money shot").
 //   - output      — via the engine's `onOutput(loopId, chunk)` hook.
 
-import { registerBuiltInApiProviders } from '@earendil-works/pi-ai';
+import { registerBuiltInApiProviders, stream } from '@earendil-works/pi-ai';
+import { promises as fs } from 'node:fs';
+import { join, normalize, dirname, sep } from 'node:path';
 import type {
   AdrDoc,
   CascadeEngine,
@@ -34,11 +36,12 @@ import { createExecutor } from '../executor/index';
 import { createCascadeEngine } from '../cascade/cascadeEngine';
 import { createArchitect, pickPlannerAlias, type ArchitectPlanner } from '../planner/architect';
 import type { ArchitectPlan, ProposedLeaf } from '../planner/prompt';
-import { createAssistantService, toModelOptions, type AssistantService } from '../assistant/index';
+import { toModelOptions } from '../assistant/index';
+import { runAssistantAgent } from '../assistant/agent';
+import { createToolExecutor, type AssistantWorkspace } from '../assistant/tools';
 import type {
   AdrDiffResponse,
   ApproveCascadeResponse,
-  AssistantResponse,
   CascadeDetail,
   CascadeStreamEvent,
   CreateCascadeRequest,
@@ -47,7 +50,7 @@ import type {
   PutAdrRequest,
   SloopApi,
 } from './contract';
-import type { AssistantRequest } from '../../shared/index';
+import type { AssistantChatRequest, AssistantStreamEvent } from '../../shared/index';
 
 const OK: Ok = { ok: true };
 
@@ -202,7 +205,8 @@ export class RealApi implements StreamingSloopApi {
     private readonly files: FilesService,
     private readonly git: ReturnType<typeof createGitService>,
     private readonly engine: CascadeEngine,
-    private readonly assistantService: AssistantService,
+    private readonly root: string,
+    private readonly env: NodeJS.ProcessEnv,
   ) {}
 
   static async create(root: string, env: NodeJS.ProcessEnv): Promise<RealApi> {
@@ -212,7 +216,6 @@ export class RealApi implements StreamingSloopApi {
     bootstrapPi(registry, env);
 
     const executor = createExecutor(buildExecutorModel(registry, env));
-    const assistantService = createAssistantService({ files, env });
 
     // Late-bound holder so the writeLoop decorator can reach the not-yet-created instance.
     const ref: { api?: RealApi } = {};
@@ -231,7 +234,7 @@ export class RealApi implements StreamingSloopApi {
       onOutput: (loopId, chunk) => ref.api?.onLoopOutput(loopId, chunk),
     });
 
-    const api = new RealApi(files, git, engine, assistantService);
+    const api = new RealApi(files, git, engine, root, env);
     ref.api = api;
     return api;
   }
@@ -278,8 +281,32 @@ export class RealApi implements StreamingSloopApi {
     return toModelOptions(await this.files.readModelRegistry());
   }
 
-  async assistant(req: AssistantRequest): Promise<AssistantResponse> {
-    return this.assistantService.assistant(req);
+  private assistantWorkspace(): AssistantWorkspace {
+    const files = this.files;
+    const root = this.root;
+    return {
+      listAdrs: () => files.listAdrs(),
+      readAdr: (p) => files.readAdr(p),
+      writeAdr: (d) => files.writeAdr(d),
+      listRoles: () => files.listRoles(),
+      listTemplates: () => files.listTemplates(),
+      readModelRegistry: () => files.readModelRegistry(),
+      writeRaw: async (relPath, content) => {
+        const abs = normalize(join(root, relPath));
+        if (abs !== root && !abs.startsWith(root + sep)) throw new Error(`Path escapes the workspace: ${relPath}`);
+        await fs.mkdir(dirname(abs), { recursive: true });
+        await fs.writeFile(abs, content, 'utf8');
+      },
+    };
+  }
+
+  async assistantStream(req: AssistantChatRequest, onEvent: (e: AssistantStreamEvent) => void, signal?: AbortSignal): Promise<void> {
+    await runAssistantAgent(req, {
+      stream,
+      toolExecutor: createToolExecutor(this.assistantWorkspace()),
+      env: this.env,
+      readModelRegistry: () => this.files.readModelRegistry(),
+    }, onEvent, signal);
   }
 
   // ---- Cascades ------------------------------------------------------------
