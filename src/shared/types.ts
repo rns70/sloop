@@ -103,18 +103,22 @@ export interface ModelOption {
   id: string;             // concrete provider model id
 }
 
-/** One write the assistant performed in a turn — informational, drives UI chips. */
+/**
+ * One write the assistant performed in a turn — informational, drives UI chips.
+ * Mirrors the `tool`/`path` fields of the `tool_start`/`tool_result` events in
+ * `AssistantStreamEvent`; keep field names in sync if either side is renamed.
+ */
 export interface ToolActivity {
   tool: string;          // e.g. 'edit_doc', 'create_adr'
   path?: string;         // workspace-relative path written, when applicable
-  ok: boolean;
+  ok: boolean;           // false if the tool threw or returned an error
 }
 
 /** A message in the client-held conversation thread. Sent back in full each turn. */
 export interface ChatMessage {
   role: 'user' | 'assistant';
   text: string;
-  tools?: ToolActivity[]; // assistant turns only; informational
+  tools?: ToolActivity[]; // assistant turns only; informational, ignored for user turns server-side
 }
 
 /** POST /api/assistant/stream request body. */
