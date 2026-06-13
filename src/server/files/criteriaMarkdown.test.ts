@@ -124,4 +124,17 @@ describe('parser tolerance (BlockNote-style output)', () => {
     const r = parseCriteriaFromBody(CRITERIA_HEADING + '\n\n- [ ] just text');
     expect(r.criteria[0]).toEqual({ id: '', text: 'just text', passed: false });
   });
+
+  it('does not treat non-ac bold text as an id', () => {
+    const r = parseCriteriaFromBody(CRITERIA_HEADING + '\n\n- [ ] **important** do the thing');
+    expect(r.criteria[0]).toEqual({ id: '', text: '**important** do the thing', passed: false });
+  });
+});
+
+describe('upsertCriteriaInBody validation', () => {
+  it('throws when a verify command contains a backtick', () => {
+    expect(() =>
+      upsertCriteriaInBody('', [{ id: 'ac-1', text: 'A', passed: false, verify: 'echo `date`' }]),
+    ).toThrow(/backtick/);
+  });
 });

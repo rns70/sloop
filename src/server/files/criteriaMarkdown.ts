@@ -16,6 +16,7 @@ import type { AcceptanceCriterion } from '../../shared';
  * Flat (non-nested) single-line items are used deliberately: they survive the
  * databank editor's lossy BlockNote markdown export far more reliably than nested
  * lists or HTML comments. This module is the single source of truth for the format.
+ * Note: verify commands must not contain backticks (they delimit the inline code span).
  */
 export const CRITERIA_HEADING = '## Acceptance criteria';
 
@@ -30,7 +31,7 @@ export interface ParsedCriteria {
 const HEADING_RE = /^##\s+acceptance\s+criteria\s*$/i;
 const ANY_HEADING_RE = /^#{1,6}\s/;
 const ITEM_RE = /^\s*-\s*\[([ xX])\]\s*(.*?)\s*$/;
-const ID_RE = /^\*\*([^*]+)\*\*\s*/;
+const ID_RE = /^\*\*(ac-\d+)\*\*\s*/;
 const VERIFY_RE = /\s*[—–-]\s*verify:\s*`([^`]+)`\s*$/i;
 const LOCKED_RE = /\s*🔒\s*$/u;
 
@@ -43,7 +44,7 @@ export function parseCriteriaFromBody(body: string): ParsedCriteria {
   }
   let end = lines.length;
   for (let i = start + 1; i < lines.length; i++) {
-    if (ANY_HEADING_RE.test(lines[i])) {
+    if (ANY_HEADING_RE.test(lines[i].trim())) {
       end = i;
       break;
     }
@@ -107,7 +108,12 @@ export function upsertCriteriaInBody(body: string, criteriaIn: AcceptanceCriteri
 
 function renderCriterion(c: AcceptanceCriterion): string {
   let line = `- [${c.passed ? 'x' : ' '}] **${c.id}** ${c.text}`.trimEnd();
-  if (c.verify) line += ` — verify: \`${c.verify}\``;
+  if (c.verify) {
+    if (c.verify.includes('`')) {
+      throw new Error(`verify command must not contain a backtick: ${c.verify}`);
+    }
+    line += ` — verify: \`${c.verify}\``;
+  }
   if (c.locked) line += ' 🔒';
   return line;
 }
