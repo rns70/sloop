@@ -15,6 +15,21 @@
 
 ---
 
+## Prerequisites
+
+Before starting, confirm the toolchain is present. If `rustc`/`cargo` are missing, install via [rustup](https://rustup.rs): `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`.
+
+Run and confirm all three succeed:
+```bash
+cargo --version     # expect cargo 1.7x+
+rustc --version
+cargo clippy --version   # clippy ships with the default rustup toolchain; if missing: rustup component add clippy
+```
+
+The repo root is already a git repository. All `cargo` commands are run from the repo root. Every task ends with the crate compiling green — if a `cargo build`/`cargo test` ever fails unexpectedly, stop and re-read the task rather than improvising.
+
+---
+
 ## File Structure
 
 ```
@@ -104,33 +119,27 @@ pub enum CoreError {
 pub type Result<T> = std::result::Result<T, CoreError>;
 ```
 
-- [ ] **Step 4: Verify it compiles**
+- [ ] **Step 4: Create the module files so the crate compiles**
 
-Run: `cargo build -p sloop-core`
-Expected: builds with warnings about empty modules being unresolved — so create empty module files next before this passes. Run after Step 5.
-
-- [ ] **Step 5: Create empty module files so the crate compiles**
-
-Create `crates/sloop-core/src/model/mod.rs`:
+Create `crates/sloop-core/src/model/mod.rs`. It declares the submodules but **does not re-export anything yet** — each later task adds its own re-export line when it defines the type. This keeps every task compiling green:
 ```rust
 pub mod enums;
 pub mod criterion;
 pub mod loop_doc;
-
-pub use enums::{Delta, LoopKind, LoopStatus};
-pub use criterion::AcceptanceCriterion;
-pub use loop_doc::{LoopDoc, LoopFrontmatter};
 ```
 
-Create empty placeholder files (filled in later tasks), each with a single line so modules resolve:
+Create empty placeholder files (filled in by later tasks). An empty file with a single comment is a valid empty Rust module and compiles cleanly:
 - `crates/sloop-core/src/model/enums.rs` → `// filled in Task 2`
 - `crates/sloop-core/src/model/criterion.rs` → `// filled in Task 3`
-- `crates/sloop-core/src/model/loop_doc.rs` → `// filled in Task 4/5`
+- `crates/sloop-core/src/model/loop_doc.rs` → `// filled in Task 5`
 - `crates/sloop-core/src/frontmatter.rs` → `// filled in Task 4`
 - `crates/sloop-core/src/workspace.rs` → `// filled in Task 6`
 - `crates/sloop-core/src/git.rs` → `// filled in Task 8`
 
-Note: `model/mod.rs` re-exports symbols that don't exist yet, so the build will fail until Task 2/3. That is expected — proceed to Step 6 to commit the scaffold, then Task 2.
+- [ ] **Step 5: Verify the scaffold compiles cleanly**
+
+Run: `cargo build -p sloop-core`
+Expected: builds with no errors. (The modules are empty and `mod.rs` re-exports nothing, so there is nothing to fail.)
 
 - [ ] **Step 6: Commit the scaffold**
 
@@ -209,12 +218,19 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Run tests to verify they fail/then pass**
+- [ ] **Step 2: Add the re-export to `model/mod.rs`**
+
+Add this line to `crates/sloop-core/src/model/mod.rs` (below the `pub mod` declarations):
+```rust
+pub use enums::{Delta, LoopKind, LoopStatus};
+```
+
+- [ ] **Step 3: Run tests**
 
 Run: `cargo test -p sloop-core enums`
-Expected: compiles and PASSES (these enums are self-contained). If `model/mod.rs` re-exports still break the build, confirm Task 1 Step 5 created `criterion.rs`/`loop_doc.rs` with placeholders; the re-export of `AcceptanceCriterion`/`LoopDoc` will fail to compile until Task 3/5. To unblock, temporarily comment the not-yet-defined re-exports in `model/mod.rs`, leaving only `pub use enums::{Delta, LoopKind, LoopStatus};`.
+Expected: compiles and PASSES (3 tests — these enums are self-contained).
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
 git add crates/sloop-core/src/model/enums.rs crates/sloop-core/src/model/mod.rs
@@ -274,9 +290,12 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Re-enable the re-export**
+- [ ] **Step 2: Add the re-export**
 
-Ensure `crates/sloop-core/src/model/mod.rs` includes `pub use criterion::AcceptanceCriterion;` (uncomment if you commented it in Task 2).
+Add this line to `crates/sloop-core/src/model/mod.rs`:
+```rust
+pub use criterion::AcceptanceCriterion;
+```
 
 - [ ] **Step 3: Run tests**
 
@@ -418,7 +437,14 @@ impl LoopDoc {
 }
 ```
 
-- [ ] **Step 2: Write the round-trip integration test**
+- [ ] **Step 2: Add the re-export**
+
+Add this line to `crates/sloop-core/src/model/mod.rs`:
+```rust
+pub use loop_doc::{LoopDoc, LoopFrontmatter};
+```
+
+- [ ] **Step 3: Write the round-trip integration test**
 
 Create `crates/sloop-core/tests/loop_roundtrip.rs`:
 ```rust
@@ -462,20 +488,20 @@ fn roundtrips_through_markdown() {
 }
 ```
 
-- [ ] **Step 3: Run tests**
+- [ ] **Step 4: Run tests**
 
 Run: `cargo test -p sloop-core --test loop_roundtrip`
 Expected: PASS (2 tests).
 
-- [ ] **Step 4: Confirm the whole crate builds and all tests pass**
+- [ ] **Step 5: Confirm the whole crate builds and all tests pass**
 
 Run: `cargo test -p sloop-core`
 Expected: all tests from Tasks 2–5 PASS.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add crates/sloop-core/src/model/loop_doc.rs crates/sloop-core/tests/loop_roundtrip.rs
+git add crates/sloop-core/src/model/loop_doc.rs crates/sloop-core/src/model/mod.rs crates/sloop-core/tests/loop_roundtrip.rs
 git commit -m "feat: add LoopDoc parse/to_markdown with round-trip"
 ```
 
@@ -711,7 +737,9 @@ impl GitRepo {
         let oid = self
             .repo
             .commit(Some("HEAD"), &sig, &sig, message, &tree, &parents)?;
-        Ok(format!("{:.7}", oid))
+        // `Oid`'s Display writes the full 40-char hex and ignores precision,
+        // so truncate the string explicitly to get a short id.
+        Ok(oid.to_string()[..7].to_string())
     }
 }
 ```
@@ -773,8 +801,11 @@ Add to the very top of `crates/sloop-core/src/lib.rs`:
 
 - [ ] **Step 2: Run the full suite + lints**
 
-Run: `cargo test -p sloop-core && cargo clippy -p sloop-core -- -D warnings`
-Expected: all tests PASS; clippy reports no warnings. Fix any clippy findings inline.
+Run: `cargo test -p sloop-core`
+Expected: every test from Tasks 2–8 PASSES.
+
+Then run: `cargo clippy -p sloop-core --fix --allow-dirty && cargo clippy -p sloop-core -- -D warnings`
+Expected: the first command auto-applies clippy's machine-applicable suggestions; the second then reports no warnings. If a warning remains that `--fix` did not resolve, read clippy's message — it names the lint and suggests the change — apply that change, and re-run. Do not silence lints with `#[allow(...)]`.
 
 - [ ] **Step 3: Commit**
 
