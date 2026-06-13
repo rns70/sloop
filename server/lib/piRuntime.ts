@@ -360,6 +360,16 @@ function pushFlagValue(args: string[], flag: string, value: string | undefined):
   args.push(flag, value);
 }
 
+function flagValue(args: string[], flag: string): string | undefined {
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === flag) return args[index + 1];
+    if (arg.startsWith(`${flag}=`)) return arg.slice(flag.length + 1);
+  }
+
+  return undefined;
+}
+
 async function buildPiArgs(
   input: AgentRunInput,
   runId: string,
@@ -410,6 +420,8 @@ async function runPiCommand(
 ): Promise<PiProcessResult> {
   const command = options.command ?? process.env.SLOOP_PI_COMMAND ?? defaultPiCommand(input.workspaceRoot);
   const args = await buildPiArgs(input, runId, options);
+  const sessionDir = flagValue(args, "--session-dir");
+  if (sessionDir) await mkdir(sessionDir, { recursive: true });
 
   return await new Promise<PiProcessResult>((resolve) => {
     const child = spawn(command, args, {
