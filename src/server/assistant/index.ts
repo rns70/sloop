@@ -4,6 +4,6 @@ export {
   createAssistantService, toPiModel,
   type AssistantService, type AssistantDeps, type AssistantFiles, type AssistantModelCall,
 } from './assistantService';
-export { buildAssistantPrompt, pickAssistantAlias, type AssistantDoc, type AssistantPromptParts } from './prompt';
+export { buildAssistantSystemPrompt, pickAssistantAlias } from './prompt';
 export { parseEnvelope } from './envelope';
 export { toModelOptions } from './models';
