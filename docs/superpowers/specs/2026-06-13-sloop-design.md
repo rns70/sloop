@@ -104,10 +104,11 @@ workspace/
       engineer.md
       qa.md
       security.md
-    templates/               # process templates (the stages — §6)
+    workflows/               # workflows (the steps — §6)
       spec-driven.md         # default
       waterfall.md
       tdd.md
+      agile.md
     config.md                # model routing defaults, executor config, depth cap
 ```
 
@@ -128,7 +129,7 @@ acceptanceCriteria:
     text: "Refresh tokens rotate every ≤15m"
     verify: "npm test -- rotation"   # exit 0 = passed; optional
     passed: false
-template: spec-driven  # process template the architect followed (§6)
+workflow: spec-driven  # workflow the architect followed (§6)
 executor: pi           # Pi agent runtime; provider comes from the model registry
 ---
 ```
@@ -164,27 +165,28 @@ planned → awaiting_approval → queued → executing → review → done
 
 ---
 
-## 6. Roles, templates & model routing
+## 6. Roles, workflows & model routing
 
-**Roles** = *who* does the work. **Templates** = *the shape of the tree* (the stages). These are orthogonal: a template references roles to staff its stages.
+**Roles** = *who* does the work. **Workflows** = *the shape of the tree* (the steps). These are orthogonal: a workflow references roles to staff its steps.
 
 ### 6.1 Roles (loop types)
 - **Loop-types library** (`.sloop/roles/*.md`): each role is a markdown file — frontmatter sets defaults (`defaultModel`, `color`), the body is the **brief the agent receives**. Editable in the shared markdown editor (§7) like any other file. Ships with Architect, Engineer, QA, Security reviewer, Pentester; **user-definable** (`+ New type`).
 - Roles render as colored tags in the UI.
 
-### 6.2 Process templates (stages)
-A **template** prescribes how the architect loop decomposes a delta into stages — the staging/methodology, copyable like a starter. Each is a markdown file in `.sloop/templates/`:
+### 6.2 Workflows (steps)
+A **workflow** prescribes how the architect loop decomposes a delta into steps — the methodology, copyable like a starter. Each is a markdown file in `.sloop/workflows/`:
 - `spec-driven.md` *(default)* — plan → implement → verify.
-- `waterfall.md` — requirements → design → implement → verify → deploy, sequential (each stage gated on the previous).
+- `waterfall.md` — requirements → design → implement → verify → deploy, sequential (each step gated on the previous).
 - `tdd.md` — write failing test → implement → refactor, looped per unit.
+- `agile.md` — plan → implement → verify, looped per story.
 
-A template file declares its stages and the role + default model for each (in frontmatter), plus guidance the architect follows when instantiating the tree. The architect reads the chosen template and stamps out child loops to match. **No new runtime machinery** — a template is structured prompt scaffolding plus stage metadata. Users copy and edit templates to invent their own methodology.
+A workflow file declares its steps and the role + default model for each (in frontmatter), plus guidance the architect follows when instantiating the tree. The architect reads the chosen workflow and stamps out child loops to match. **No new runtime machinery** — a workflow is structured prompt scaffolding plus step metadata. Users copy and edit workflows to invent their own methodology.
 
-The template for a cascade is chosen at kickoff (defaulting to `spec-driven`) and recorded on each loop's `template` field.
+The workflow for a cascade is chosen at kickoff (defaulting to `spec-driven`) and recorded on each loop's `workflow` field.
 
 ### 6.3 Model routing & providers
-- **Principle:** expensive reasoning at the root, cheap doing at the leaves. Resolution order for a loop's model: explicit per-loop override → template-stage default → role default → global default.
-- Because roles and templates are markdown, routing rules, personas, and methodologies are versioned and diffable like everything else.
+- **Principle:** expensive reasoning at the root, cheap doing at the leaves. Resolution order for a loop's model: explicit per-loop override → workflow-step default → role default → global default.
+- Because roles and workflows are markdown, routing rules, personas, and methodologies are versioned and diffable like everything else.
 
 **Providers (multi-provider, not Anthropic-only).** A `model` id resolves through a **model registry** in `.sloop/config.md` to a provider. Two providers ship:
 - `anthropic` — Claude models (opus/sonnet/haiku), via Pi's built-in Anthropic provider.
