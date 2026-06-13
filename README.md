@@ -1,6 +1,6 @@
 # Sloop
 
-![Sloop concept](assets/sloop-concept.png)
+<img src="assets/sloop-concept.png" alt="Sloop concept" width="420">
 
 Sloop is a local-first Rust/Tauri meta-IDE for designing, running, and supervising nested agent loops. It feels like a Notion-style paper workspace: users edit loop documents through a polished block editor, while the canonical source of truth remains Markdown, likely with frontmatter for loop type, dependencies, evaluation criteria, and runtime policy.
 
