@@ -3,15 +3,17 @@
 // after WP-0); the wire types come from the shared contract, the single source of truth.
 
 import type {
-  AdrDoc, TemplateDef, RoleDef, CascadeSummary, AuthorRequest,
+  AdrDoc, TemplateDef, RoleDef, CascadeSummary, AuthorRequest, AssistantRequest,
 } from '../../shared/index';
 import type {
-  AdrDiffResponse, AuthorResponse, CascadeDetail, CascadeStreamEvent, CreateCascadeRequest, Ok,
+  AdrDiffResponse, AuthorResponse, AssistantResponse, GetModelsResponse,
+  CascadeDetail, CascadeStreamEvent, CreateCascadeRequest, Ok,
 } from '../../server/api/contract';
 
 export type {
   AdrDoc, TemplateDef, RoleDef, CascadeSummary, LoopDoc,
   LoopFrontmatter, LoopStatus, LoopKind, Delta, AcceptanceCriterion, AuthorRequest,
+  AssistantRequest, AssistantProposal, ModelOption,
 } from '../../shared/index';
 export type { AdrDiffResponse, AuthorResponse, CascadeDetail, CascadeStreamEvent } from '../../server/api/contract';
 
@@ -56,6 +58,14 @@ export const putFile = (relPath: string, content: string): Promise<Ok> =>
  *  text / edited doc / chat answer). Never writes — the editor shows it as an inline diff. */
 export const requestAuthor = (req: AuthorRequest): Promise<AuthorResponse> =>
   http('/author', { method: 'POST', body: JSON.stringify(req) });
+
+/** Global assistant: configured model aliases for the picker (no keys). */
+export const getModels = (): Promise<GetModelsResponse> => http('/models');
+
+/** Global assistant: ask for a typed proposal (answer/edit/create-*). Never writes —
+ *  the rail previews it and confirms before any putAdr/putFile. */
+export const requestAssistant = (req: AssistantRequest): Promise<AssistantResponse> =>
+  http('/assistant', { method: 'POST', body: JSON.stringify(req) });
 
 export const getCascades = (): Promise<CascadeSummary[]> => http('/cascades');
 export const createCascade = (req: CreateCascadeRequest): Promise<CascadeSummary> =>
