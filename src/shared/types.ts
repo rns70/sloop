@@ -94,7 +94,7 @@ export interface ResolvedModel {
   apiKey: string;
 }
 
-// ---- Global assistant (app-wide: answer / edit / create ADR|role|template) ----
+// ---- Global assistant (streaming, multi-turn, agentic) ----
 
 /** A configured model alias surfaced to the picker. Never carries an API key. */
 export interface ModelOption {
@@ -103,18 +103,30 @@ export interface ModelOption {
   id: string;             // concrete provider model id
 }
 
-export type AssistantAction = 'answer' | 'edit' | 'create-adr' | 'create-role' | 'create-template';
-
-export interface AssistantRequest {
-  instruction: string;
-  contextPaths: string[]; // docs loaded as context (current doc + user-attached)
-  model?: string;         // registry alias from the picker
+/** One write the assistant performed in a turn — informational, drives UI chips. */
+export interface ToolActivity {
+  tool: string;          // e.g. 'edit_doc', 'create_adr'
+  path?: string;         // workspace-relative path written, when applicable
+  ok: boolean;
 }
 
-export interface AssistantProposal {
-  action: AssistantAction;
-  summary: string;        // one-line human description shown above the preview
-  targetPath?: string;    // edit: doc to change; create-*: proposed path
-  title?: string;         // create-adr: proposed ADR title
-  content: string;        // answer text | full edited markdown | full new-file content
+/** A message in the client-held conversation thread. Sent back in full each turn. */
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  text: string;
+  tools?: ToolActivity[]; // assistant turns only; informational
 }
+
+/** POST /api/assistant/stream request body. */
+export interface AssistantChatRequest {
+  messages: ChatMessage[]; // full thread, oldest first; last entry is the new user turn
+  model?: string;          // registry alias from the picker
+}
+
+/** Server → client SSE events (one JSON object per `data:` line). */
+export type AssistantStreamEvent =
+  | { type: 'text_delta'; delta: string }
+  | { type: 'tool_start'; tool: string; path?: string }
+  | { type: 'tool_result'; tool: string; path?: string; ok: boolean }
+  | { type: 'done' }
+  | { type: 'error'; message: string };
