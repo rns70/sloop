@@ -25,7 +25,7 @@ import type {
   ModelRegistry,
   ResolvedModel,
 } from '../../shared/index';
-import { resolveModel } from '../../shared/index';
+import { resolveModel, assignMissingIds } from '../../shared/index';
 import { createFilesService } from '../files/index';
 import { createGitService } from '../git/index';
 import { createExecutor } from '../executor/index';
@@ -154,7 +154,7 @@ function createOfflinePlanner(files: FilesService, env: NodeJS.ProcessEnv): Arch
           brief:
             `Reconcile the codebase to **${adr.title || adr.id}** (${change.delta}). ` +
             `Make the change so every acceptance criterion below passes.`,
-          acceptanceCriteria: adr.acceptanceCriteria.map((c) => ({
+          acceptanceCriteria: assignMissingIds(adr.acceptanceCriteria).map((c) => ({
             id: c.id,
             text: c.text,
             verify: c.verify,
