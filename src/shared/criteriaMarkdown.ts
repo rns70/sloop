@@ -1,4 +1,4 @@
-import type { AcceptanceCriterion } from '../../shared';
+import type { AcceptanceCriterion } from './types';
 
 /**
  * The canonical on-disk format for acceptance criteria. Criteria live as a task

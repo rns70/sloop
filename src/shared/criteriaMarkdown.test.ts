@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { AcceptanceCriterion } from '../../shared';
+import type { AcceptanceCriterion } from './types';
 import {
   parseCriteriaFromBody,
   upsertCriteriaInBody,
