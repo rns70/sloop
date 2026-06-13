@@ -131,24 +131,33 @@ export function assignMissingIds(criteria: AcceptanceCriterion[]): AcceptanceCri
   return criteria.map((c) => ((c.id ?? '').trim() ? c : { ...c, id: `ac-${++max}` }));
 }
 
-/** Replace (or append, or remove-if-empty) the criteria section in a body. */
-export function upsertCriteriaInBody(body: string, criteriaIn: AcceptanceCriterion[]): string {
+export type CriteriaStyle = 'plain' | 'full';
+
+/** Replace (or append, or remove-if-empty) the criteria section in a body.
+ *  `full` (default) emits ids + 🔒 for loops; `plain` emits a bare checklist for ADRs. */
+export function upsertCriteriaInBody(
+  body: string,
+  criteriaIn: AcceptanceCriterion[],
+  style: CriteriaStyle = 'full',
+): string {
   const { bodyWithoutSection } = parseCriteriaFromBody(body);
   const base = bodyWithoutSection.trim();
-  const criteria = assignMissingIds(criteriaIn);
+  // Stable ids only matter for the structured (loop) format; plain leaves them alone.
+  const criteria = style === 'full' ? assignMissingIds(criteriaIn) : criteriaIn;
   if (criteria.length === 0) return base ? `${base}\n` : '';
-  const section = `${CRITERIA_HEADING}\n\n${criteria.map(renderCriterion).join('\n')}`;
+  const section = `${CRITERIA_HEADING}\n\n${criteria.map((c) => renderCriterion(c, style)).join('\n')}`;
   return `${base ? `${base}\n\n` : ''}${section}\n`;
 }
 
-function renderCriterion(c: AcceptanceCriterion): string {
-  let line = `- [${c.passed ? 'x' : ' '}] **${c.id}** ${c.text}`.trimEnd();
+function renderCriterion(c: AcceptanceCriterion, style: CriteriaStyle): string {
+  const id = style === 'full' && c.id ? `**${c.id}** ` : '';
+  let line = `- [${c.passed ? 'x' : ' '}] ${id}${c.text}`.trimEnd();
   if (c.verify) {
     if (c.verify.includes('`')) {
       throw new Error(`verify command must not contain a backtick: ${c.verify}`);
     }
     line += ` — verify: \`${c.verify}\``;
   }
-  if (c.locked) line += ' 🔒';
+  if (style === 'full' && c.locked) line += ' 🔒';
   return line;
 }
