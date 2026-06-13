@@ -1,10 +1,10 @@
 // A single loop rendered as a Notion page: frontmatter → properties, body → plan,
 // streamed agent output below. Reads live state from the shared cascade context.
 
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import type { LoopStatus } from '../../api-client/index';
-import { PropertyRow, StatusDot, Tag, roleTone } from '../../design/index';
+import { getAdrs, type LoopStatus } from '../../api-client/index';
+import { CriteriaWarning, PropertyRow, StatusDot, Tag, roleTone } from '../../design/index';
 import { Page } from '../../design/index';
 import { useCascade } from '../mission-control/CascadeContext';
 import { humanizeCascade, loopTitle } from '../mission-control/text';
@@ -40,6 +40,26 @@ export function LoopPage() {
   const roleLabel = useRoleLabel();
   const name = humanizeCascade(id);
   const current = loopById(loopId);
+
+  const sourceAdr = current?.frontmatter.sourceAdr;
+  const [sourceAdrPath, setSourceAdrPath] = useState<string | null>(null);
+  useEffect(() => {
+    if (!sourceAdr) {
+      setSourceAdrPath(null);
+      return;
+    }
+    let cancelled = false;
+    getAdrs()
+      .then((adrs) => {
+        if (!cancelled) setSourceAdrPath(adrs.find((a) => a.id === sourceAdr)?.relPath ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setSourceAdrPath(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [sourceAdr]);
 
   const breadcrumb = (
     <span>
@@ -80,6 +100,7 @@ export function LoopPage() {
 
   const fm = current.frontmatter;
   const criteria = fm.acceptanceCriteria ?? [];
+  const missingCriteria = criteria.length === 0;
   const passed = criteria.filter((cr) => cr.passed).length;
   const plan = stripHeading(current.body);
   const output = outputs[loopId] ?? '';
@@ -129,11 +150,28 @@ export function LoopPage() {
         </section>
       )}
 
-      {criteria.length > 0 && (
-        <section className="mt-6">
-          <div className="mb-2 text-[11px] font-medium uppercase tracking-[0.05em] text-ink-faint">
-            Acceptance criteria
-          </div>
+      <section className="mt-6">
+        <div className="mb-2 text-[11px] font-medium uppercase tracking-[0.05em] text-ink-faint">
+          Acceptance criteria
+        </div>
+        {missingCriteria ? (
+          <CriteriaWarning
+            action={
+              sourceAdr ? (
+                <Link
+                  to={
+                    sourceAdrPath
+                      ? `/databank/${sourceAdrPath.replace(/^databank\//, '')}`
+                      : '/databank'
+                  }
+                  className="whitespace-nowrap text-accent hover:underline"
+                >
+                  Add criteria on {sourceAdr.toUpperCase()}
+                </Link>
+              ) : undefined
+            }
+          />
+        ) : (
           <ul className="space-y-1 text-[13.5px]">
             {criteria.map((cr) => (
               <li key={cr.id} className="flex items-baseline gap-2">
@@ -149,8 +187,8 @@ export function LoopPage() {
               </li>
             ))}
           </ul>
-        </section>
-      )}
+        )}
+      </section>
 
       <section className="mt-6">
         <div className="mb-2 text-[11px] font-medium uppercase tracking-[0.05em] text-ink-faint">
