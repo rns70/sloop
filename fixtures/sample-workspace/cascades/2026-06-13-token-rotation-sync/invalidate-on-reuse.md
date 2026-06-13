@@ -10,13 +10,7 @@ children: []
 sourceAdr: adr-007
 template: spec-driven
 executor: pi
-acceptanceCriteria:
-  - id: ac-2
-    text: "A refresh token presented twice (reuse) is rejected and the session is revoked."
-    verify: "npm test -- reuse-detection"
-    passed: false
 ---
-
 # Leaf — invalidate-on-reuse
 
 ## Brief
@@ -26,3 +20,7 @@ can execute on a non-Anthropic provider, routed entirely through Pi.
 
 ## Acceptance
 `ac-2` passes when `npm test -- reuse-detection` exits 0.
+
+## Acceptance criteria
+
+- [ ] **ac-2** A refresh token presented twice (reuse) is rejected and the session is revoked. — verify: `npm test -- reuse-detection`

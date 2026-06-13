@@ -3,15 +3,16 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import { getAdr, getAdrDiff, putAdr, type AdrDoc } from '../../api-client/index';
 import { Button, EditableTitle, MarkdownEditor, Page, cx, type MarkdownEditorHandle } from '../../design/index';
 import { useAssistant } from '../../assistant/AssistantContext';
+import { useRegisterSave } from '../../shell/EditorActionsContext';
 import { InlineDiff } from './InlineDiff';
 
 type Mode = 'edit' | 'changes';
 
 /**
- * Opens one ADR (a plain markdown file) in the shared editor. The route is a splat
- * (`databank/*`) so ADRs nested in folders open by their full subpath. The title and
- * acceptance criteria are structured data; the editor edits the title (inline) and the
- * markdown *body*, and Save recombines them with the untouched rest of the document.
+ * Opens one ADR (a plain markdown file) in the shared editor. Acceptance criteria
+ * live in the markdown *body* (a `## Acceptance criteria` task list) and are edited
+ * inline like the rest of the document; the server parses them back into structured
+ * criteria on save. The editor passes the edited body straight through.
  */
 export function AdrEditor() {
   const params = useParams();
@@ -73,7 +74,7 @@ export function AdrEditor() {
     setSaving(true);
     setError(null);
     try {
-      // Recombine: title + body changed; criteria and the rest are passed through.
+      // The body carries the criteria section; the server re-parses it on write.
       const next: AdrDoc = { ...adr, title, body };
       await putAdr(relPath, next);
       setAdr(next);
@@ -83,6 +84,9 @@ export function AdrEditor() {
       setSaving(false);
     }
   }
+
+  // Expose Save to the app-level Cmd+S hotkey and the command palette.
+  useRegisterSave(() => void save(), dirty && !saving);
 
   const toggle = (
     <div className="flex items-center gap-1 rounded-md bg-line-soft p-0.5">
@@ -134,35 +138,8 @@ export function AdrEditor() {
             <InlineDiff before={committed} after={body} />
           )}
 
-          <AcceptanceCriteria adr={adr} />
         </>
       )}
     </Page>
-  );
-}
-
-function AcceptanceCriteria({ adr }: { adr: AdrDoc }) {
-  if (adr.acceptanceCriteria.length === 0) return null;
-  return (
-    <section className="mt-9 border-t border-line-soft pt-5">
-      <h2 className="text-[15px] font-semibold">Acceptance criteria</h2>
-      <ul className="mt-3 space-y-2.5">
-        {adr.acceptanceCriteria.map((c) => (
-          <li key={c.id} className="text-[13.5px] leading-relaxed">
-            <div className="flex items-baseline gap-2">
-              <code className="rounded bg-line-soft px-1.5 py-0.5 font-mono text-[12px] text-ink-muted">
-                {c.id}
-              </code>
-              <span className="text-ink">{c.text}</span>
-            </div>
-            {c.verify && (
-              <div className="ml-1 mt-1 font-mono text-[12px] text-ink-faint">
-                verify: {c.verify}
-              </div>
-            )}
-          </li>
-        ))}
-      </ul>
-    </section>
   );
 }

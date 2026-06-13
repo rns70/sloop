@@ -10,13 +10,7 @@ children: []
 sourceAdr: adr-007
 template: spec-driven
 executor: pi
-acceptanceCriteria:
-  - id: ac-3
-    text: "No reuse window remains: a rotated token is unusable the instant its successor is issued."
-    verify: "npm test -- token-security-audit"
-    passed: false
 ---
-
 # Leaf — review-token-security
 
 ## Brief
@@ -26,3 +20,7 @@ logged in plaintext.
 
 ## Acceptance
 `ac-3` passes when `npm test -- token-security-audit` exits 0.
+
+## Acceptance criteria
+
+- [ ] **ac-3** No reuse window remains: a rotated token is unusable the instant its successor is issued. — verify: `npm test -- token-security-audit`

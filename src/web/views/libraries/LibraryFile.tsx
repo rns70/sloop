@@ -15,6 +15,7 @@ import {
 } from '../../api-client/index';
 import { Button, EditableTitle, MarkdownEditor, Page, Tag, roleTone } from '../../design/index';
 import { serializeRole, serializeTemplate } from '../../shell/createItem';
+import { useRegisterSave } from '../../shell/EditorActionsContext';
 
 type LibType = 'roles' | 'templates';
 
@@ -101,6 +102,9 @@ function LibraryEditor({ type, id }: { type: LibType; id: string }) {
       .catch((e: unknown) => setNote(e instanceof Error ? e.message : 'Save failed'))
       .finally(() => setSaving(false));
   };
+
+  // Expose Save to the app-level Cmd+S hotkey and the command palette.
+  useRegisterSave(save, dirty && !saving);
 
   return (
     <Page
