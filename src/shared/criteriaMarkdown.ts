@@ -174,8 +174,12 @@ export const MISSING_CRITERIA_WARNING =
 /** Instruction handed to the assistant by the "Add with assistant" shortcut. */
 export const CRITERIA_ASSISTANT_INSTRUCTION =
   'Add a `## Acceptance criteria` section to this design as a markdown checklist. ' +
-  'Each item must be objectively verifiable; where a shell command can check it, ' +
-  'append " — verify: `<command>`". Base the criteria on the document\'s decision and consequences.';
+  'Each item must be objectively verifiable; where a real shell command can check it, ' +
+  'append " — verify: `<command>`". The verify value MUST be an actual runnable command ' +
+  '(e.g. `npm test`, `pytest -q`, `node tests/foo.js`) — NEVER the restated criterion text ' +
+  'or prose (a non-command exits "command not found" and fails forever). If no shell command ' +
+  'can check the item (e.g. a visual/behavioral property), OMIT the verify entirely and leave ' +
+  'it for manual QA. Base the criteria on the document\'s decision and consequences.';
 
 /**
  * True when the markdown body carries no acceptance criteria — i.e. the section is

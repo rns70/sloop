@@ -30,6 +30,19 @@ export interface VerifyResult {
    * fed back to the agent. Empty when the command emitted nothing.
    */
   output: string;
+  /** Process exit code, or null if it never produced one (spawn error / timeout / signal). */
+  exitCode: number | null;
+}
+
+/**
+ * True when a verify command was never actually a runnable command — the shell could not
+ * find it (exit 127, the POSIX "command not found" code). This is the signature of a
+ * criterion whose `verify:` field holds plain-English prose instead of a shell command;
+ * retrying can NEVER fix it, so callers should flag it as a misconfiguration, not a normal
+ * test failure. Exported so the executor can short-circuit on it.
+ */
+export function isCommandNotFound(result: VerifyResult): boolean {
+  return result.exitCode === 127;
 }
 
 /** A single criterion that failed verification, with the evidence needed to fix it. */
@@ -39,6 +52,11 @@ export interface CriterionFailure {
   command: string;
   /** Captured stdout+stderr from the failed command (tail-capped); may be empty. */
   output: string;
+  /**
+   * True when the command was not found (exit 127) — i.e. the `verify:` field is almost
+   * certainly prose, not a runnable command. An unfixable authoring error, not a code bug.
+   */
+  notRunnable: boolean;
 }
 
 /** Aggregate result of verifying all of a leaf's criteria. */
@@ -93,22 +111,23 @@ export function runVerify(command: string, cwd: string, options: RunVerifyOption
     child.stderr?.on('data', append);
 
     let settled = false;
-    const finish = (passed: boolean, extra = ''): void => {
+    const finish = (passed: boolean, exitCode: number | null, extra = ''): void => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      resolve({ passed, output: tailCap(captured + extra) });
+      resolve({ passed, output: tailCap(captured + extra), exitCode });
     };
 
     const timer = setTimeout(() => {
       // Treat a hung command as a failed criterion. SIGKILL so it can't ignore us.
       child.kill('SIGKILL');
-      finish(false, `\n[verify timed out after ${timeoutMs}ms]`);
+      finish(false, null, `\n[verify timed out after ${timeoutMs}ms]`);
     }, timeoutMs);
     // Don't let a pending verify timer keep the process alive on its own.
     if (typeof timer.unref === 'function') timer.unref();
 
-    child.on('error', (err) => finish(false, `\n[spawn error] ${err.message}`));
-    child.on('close', (code) => finish(code === 0));
+    // ENOENT here means the shell itself couldn't spawn — surface it as not-runnable (127).
+    child.on('error', (err) => finish(false, 127, `\n[spawn error] ${err.message}`));
+    child.on('close', (code) => finish(code === 0, code));
   });
 }

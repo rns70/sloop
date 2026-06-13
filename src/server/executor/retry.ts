@@ -22,6 +22,13 @@ export interface RetryDeps {
  * real cause instead of guessing (which is what drove the blind retry loops).
  */
 function formatFailure(attempt: number, f: CriterionFailure): string {
+  if (f.notRunnable) {
+    return [
+      `Attempt ${attempt} — criterion "${f.text}" could not be verified.`,
+      `Its verify command \`${f.command}\` was not found (exit 127): it is prose, not a runnable`,
+      `shell command. This is an authoring error in the ADR — fix the criterion's verify command.`,
+    ].join('\n');
+  }
   const out = f.output.trim() ? `Command output:\n${f.output.trim()}` : 'Command produced no output.';
   return [
     `Attempt ${attempt} — criterion "${f.text}" FAILED.`,
@@ -51,6 +58,17 @@ export async function runLeafWithRetry(loop: LoopDoc, deps: RetryDeps): Promise<
       evidence.push(`Attempt ${attempt}: acceptance criteria did not pass.`);
     } else {
       for (const f of failures) evidence.push(formatFailure(attempt, f));
+    }
+
+    // Short-circuit: if every failing criterion is a not-found verify command (prose, not
+    // a real command), the agent cannot fix it — retrying just burns attempts. Stop now
+    // with the misconfiguration surfaced rather than looping to exhaustion.
+    if (failures.length > 0 && failures.every((f) => f.notRunnable)) {
+      deps.onOutput?.(
+        `\n[sloop] Stopping early: ${failures.length} verify command(s) are not runnable ` +
+          `(prose, not shell commands). Fix the ADR's verify commands and re-run.\n`,
+      );
+      return { ok: false, attempts: attempt, evidence };
     }
   }
 

@@ -20,7 +20,7 @@ const PASS = { ok: true, failures: [] };
 /** One failing criterion, mirroring what verifyCriteria returns on a non-zero verify. */
 const FAIL = {
   ok: false,
-  failures: [{ id: 'c1', text: 'it works', command: 'exit 1', output: 'boom' }],
+  failures: [{ id: 'c1', text: 'it works', command: 'exit 1', output: 'boom', notRunnable: false }],
 };
 
 describe('runLeafWithRetry', () => {
@@ -60,6 +60,23 @@ describe('runLeafWithRetry', () => {
     expect(res.attempts).toBe(2);
     expect(verifyCalls).toBe(0);                 // violation short-circuits verify
     expect(res.evidence.join('\n')).toContain('evil.sh');
+  });
+
+  it('stops early without exhausting attempts when a verify is not runnable (prose, exit 127)', async () => {
+    let attempts = 0;
+    const notRunnable = {
+      ok: false,
+      failures: [{ id: 'c1', text: 'game over triggers on contact', command: 'game over triggers on contact', output: '/bin/sh: game: command not found', notRunnable: true }],
+    };
+    const res = await runLeafWithRetry(leaf(), {
+      executeAttempt: async () => { attempts++; return clean; },
+      verify: async () => notRunnable,
+      maxAttempts: 3,
+    });
+    expect(res.ok).toBe(false);
+    expect(res.attempts).toBe(1);          // short-circuited — did NOT loop to 3
+    expect(attempts).toBe(1);
+    expect(res.evidence.join('\n')).toContain('not a runnable');
   });
 
   it('returns ok:false with evidence when attempts are exhausted', async () => {

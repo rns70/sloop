@@ -4,7 +4,7 @@ import type { Executor } from '../../shared/services';
 import type { LoopDoc, ResolvedModel } from '../../shared/types';
 import { makeExecuteAttempt, type AttemptDeps } from './attempt';
 import { runLeafWithRetry } from './retry';
-import { runVerify, type CriterionFailure, type VerifyOutcome } from './verify';
+import { runVerify, isCommandNotFound, type CriterionFailure, type VerifyOutcome } from './verify';
 
 /** Default ceiling for a single leaf's agent run. Overridable via SLOOP_EXECUTOR_TIMEOUT_MS. */
 export const DEFAULT_EXECUTOR_TIMEOUT_MS = 600_000;
@@ -98,14 +98,27 @@ async function verifyCriteria(
     if (!criterion.verify) continue;
     verified += 1;
     onOutput(`\n[verify] ${criterion.id}: ${criterion.verify}\n`);
-    const { passed, output } = await runVerify(criterion.verify, cwd, { env });
+    const result = await runVerify(criterion.verify, cwd, { env });
+    const { passed, output } = result;
     criterion.passed = passed;
     onOutput(`[verify] ${criterion.id}: ${passed ? 'PASS' : 'FAIL'}\n`);
     if (!passed) {
-      // Surface WHY it failed — the missing signal that caused blind retry loops.
-      if (output) onOutput(`[verify] ${criterion.id} output:\n${output}\n`);
-      else onOutput(`[verify] ${criterion.id} produced no output.\n`);
-      failures.push({ id: criterion.id, text: criterion.text, command: criterion.verify, output });
+      const notRunnable = isCommandNotFound(result);
+      if (notRunnable) {
+        // The `verify:` field isn't a real command (exit 127) — almost always prose.
+        // Flag it unmistakably so it's never mistaken for a normal test failure again.
+        onOutput(
+          `[verify] ${criterion.id}: ⚠ NOT A RUNNABLE COMMAND (exit 127). ` +
+            `Its \`verify:\` is \`${criterion.verify}\` — this looks like prose, not a shell ` +
+            `command. Retrying cannot fix it; correct the criterion's verify command.\n`,
+        );
+      } else if (output) {
+        // Surface WHY it failed — the missing signal that caused blind retry loops.
+        onOutput(`[verify] ${criterion.id} output:\n${output}\n`);
+      } else {
+        onOutput(`[verify] ${criterion.id} produced no output.\n`);
+      }
+      failures.push({ id: criterion.id, text: criterion.text, command: criterion.verify, output, notRunnable });
     }
   }
 
