@@ -20,7 +20,7 @@
 // `:relPath` is URL-encoded (it contains slashes, e.g. databank/adr-007.md).
 
 import type {
-  AdrDoc, TemplateDef, RoleDef, CascadeSummary, LoopDoc,
+  AdrDoc, TemplateDef, RoleDef, CascadeSummary, LoopDoc, AuthorRequest,
 } from '../../shared/index';
 
 export interface Ok {
@@ -55,6 +55,14 @@ export type GetCascadeResponse = CascadeDetail;
 
 export type ApproveCascadeResponse = Ok;
 
+/** POST /api/author — Cursor-style edit (WP-7). Body: AuthorRequest. Returns a proposal
+ *  (replacement text / edited doc / chat answer) the editor shows as an inline diff —
+ *  never a silent write. Re-exported here as the canonical body type for the route. */
+export type AuthorRequestBody = AuthorRequest;
+export interface AuthorResponse {
+  proposal: string;
+}
+
 /** Events pushed over WS while a cascade runs. */
 export type CascadeStreamEvent =
   | { type: 'loop-update'; loop: LoopDoc }
@@ -69,6 +77,8 @@ export interface SloopApi {
   getAdrDiff(relPath: string): Promise<AdrDiffResponse>;
   listTemplates(): Promise<GetTemplatesResponse>;
   listRoles(): Promise<GetRolesResponse>;
+  /** Cursor-style authoring edit (WP-7); returns a proposal, never writes. */
+  author(req: AuthorRequest): Promise<AuthorResponse>;
   createCascade(req: CreateCascadeRequest): Promise<CreateCascadeResponse>;
   getCascade(id: string): Promise<GetCascadeResponse>;
   approveCascade(id: string): Promise<ApproveCascadeResponse>;

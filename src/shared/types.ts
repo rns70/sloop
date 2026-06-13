@@ -92,3 +92,12 @@ export interface ResolvedModel {
   baseUrl?: string;
   apiKey: string;
 }
+
+// ---- Authoring assistant (Cursor-style editing of databank docs) ----
+export interface AuthorRequest {
+  scope: 'selection' | 'doc' | 'multi';
+  instruction: string;       // the user's ask
+  docPaths: string[];        // current doc; plus extra docs when scope='multi'
+  selectionText?: string;    // required when scope='selection'
+  model?: string;            // registry alias; falls back to a config default
+}

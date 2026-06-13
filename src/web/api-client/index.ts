@@ -3,16 +3,17 @@
 // after WP-0); the wire types come from the shared contract, the single source of truth.
 
 import type {
-  AdrDoc, TemplateDef, RoleDef, CascadeSummary,
+  AdrDoc, TemplateDef, RoleDef, CascadeSummary, AuthorRequest,
 } from '../../shared/index';
 import type {
-  AdrDiffResponse, CascadeDetail, CascadeStreamEvent, CreateCascadeRequest, Ok,
+  AdrDiffResponse, AuthorResponse, CascadeDetail, CascadeStreamEvent, CreateCascadeRequest, Ok,
 } from '../../server/api/contract';
 
 export type {
   AdrDoc, TemplateDef, RoleDef, CascadeSummary, LoopDoc,
+  LoopFrontmatter, LoopStatus, LoopKind, Delta, AcceptanceCriterion, AuthorRequest,
 } from '../../shared/index';
-export type { AdrDiffResponse, CascadeDetail, CascadeStreamEvent } from '../../server/api/contract';
+export type { AdrDiffResponse, AuthorResponse, CascadeDetail, CascadeStreamEvent } from '../../server/api/contract';
 
 const BASE = '/api';
 
@@ -39,6 +40,22 @@ export const getAdrDiff = (relPath: string): Promise<AdrDiffResponse> =>
 
 export const getTemplates = (): Promise<TemplateDef[]> => http('/templates');
 export const getRoles = (): Promise<RoleDef[]> => http('/roles');
+
+/** Raw markdown of any workspace file (role/template/config). Per the canonical
+ *  contract (`GET/PUT /api/files/:relPath`); the mock backend wires it in WP-6.
+ *  Libraries reads role/template content from the typed getRoles/getTemplates
+ *  responses, so viewing works today; Save round-trips once /api/files exists. */
+export interface FileContent {
+  content: string;
+}
+export const getFile = (relPath: string): Promise<FileContent> => http(`/files/${enc(relPath)}`);
+export const putFile = (relPath: string, content: string): Promise<Ok> =>
+  http(`/files/${enc(relPath)}`, { method: 'PUT', body: JSON.stringify({ content }) });
+
+/** WP-7 authoring assistant: ask the backend for a Cursor-style proposal (replacement
+ *  text / edited doc / chat answer). Never writes — the editor shows it as an inline diff. */
+export const requestAuthor = (req: AuthorRequest): Promise<AuthorResponse> =>
+  http('/author', { method: 'POST', body: JSON.stringify(req) });
 
 export const createCascade = (req: CreateCascadeRequest): Promise<CascadeSummary> =>
   http('/cascades', { method: 'POST', body: JSON.stringify(req) });

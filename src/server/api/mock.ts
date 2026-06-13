@@ -13,9 +13,10 @@ import type {
   AdrDoc, TemplateDef, RoleDef, LoopDoc, LoopFrontmatter, CascadeSummary,
   ModelRegistry, AcceptanceCriterion,
 } from '../../shared/index';
+import type { AuthorRequest } from '../../shared/index';
 import type {
   SloopApi, AdrDiffResponse, CascadeDetail, CreateCascadeRequest, CascadeStreamEvent,
-  Ok,
+  AuthorResponse, Ok,
 } from './contract';
 
 const OK: Ok = { ok: true };
@@ -185,6 +186,20 @@ export class MockApi implements SloopApi {
 
   async listRoles(): Promise<RoleDef[]> {
     return clone(this.roles);
+  }
+
+  async author(req: AuthorRequest): Promise<AuthorResponse> {
+    // Deterministic stand-in for the real pi-ai call (WP-6 swaps in createAuthorService).
+    // Returns a visibly-changed proposal so the editor's inline-diff accept/reject flow
+    // can be exercised end to end against the mock — never writes anything itself.
+    const note = req.instruction.trim();
+    if (req.scope === 'selection') {
+      const sel = (req.selectionText ?? '').trim();
+      return { proposal: sel ? `${sel} (revised: ${note})` : `(revised: ${note})` };
+    }
+    const primary = this.adrs.find((a) => a.relPath === req.docPaths[0]);
+    const body = primary?.body ?? '';
+    return { proposal: `${body}\n\n_Assistant (${req.scope}): ${note}_` };
   }
 
   async createCascade(req: CreateCascadeRequest): Promise<CascadeSummary> {

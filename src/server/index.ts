@@ -42,6 +42,8 @@ app.put('/api/adrs/:relPath', h(async (req, res) =>
 app.get('/api/templates', h(async (_req, res) => res.json(await api.listTemplates())));
 app.get('/api/roles', h(async (_req, res) => res.json(await api.listRoles())));
 
+app.post('/api/author', h(async (req, res) => res.json(await api.author(req.body))));
+
 app.post('/api/cascades', h(async (req, res) => res.json(await api.createCascade(req.body))));
 app.get('/api/cascades/:id', h(async (req, res) => res.json(await api.getCascade(req.params.id))));
 app.post('/api/cascades/:id/approve', h(async (req, res) =>
