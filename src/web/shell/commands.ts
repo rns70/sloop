@@ -100,7 +100,7 @@ export function buildCommands(sources: CommandSources, handlers: CommandHandlers
     items.push({
       id: `nav:adr:${adr.relPath}`,
       title: adr.title || sub,
-      group: 'Databank',
+      group: 'Docs',
       hint: sub,
       run: () => handlers.navigate(adrRoute(adr.relPath)),
     });

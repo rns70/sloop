@@ -363,7 +363,7 @@ export function SidebarNav() {
     <ContextMenuProvider>
       <nav className="space-y-1">
         <NavGroup
-          label="Databank"
+          label="Docs"
           count={adrs?.length}
           error={errs.adrs ?? null}
           actions={

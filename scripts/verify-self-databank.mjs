@@ -4,7 +4,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import matter from 'gray-matter';
 
-const dir = 'databank';
+const dir = 'docs/adr';
 let mismatches = 0, total = 0, green = 0;
 for (const file of readdirSync(dir).filter((f) => f.endsWith('.md')).sort()) {
   const { data } = matter(readFileSync(`${dir}/${file}`, 'utf8'));

@@ -139,7 +139,7 @@ export function AdrEditor() {
   return (
     <Page
       prose
-      breadcrumb={<span className="font-mono text-[12px]">Databank / {file}</span>}
+      breadcrumb={<span className="font-mono text-[12px]">Docs / {file}</span>}
       actions={
         adr && (
           <>

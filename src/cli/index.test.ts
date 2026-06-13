@@ -8,6 +8,8 @@ function deps(over: Partial<CliDeps> = {}): CliDeps {
     isInitialized: vi.fn(async () => true),
     startServer: vi.fn(async () => ({ url: 'http://localhost:5174', uiMounted: true, close: async () => {} })),
     openBrowser: vi.fn(),
+    setKey: vi.fn(async () => '/home/u/.sloop/.env'),
+    readStdin: vi.fn(async () => ''),
     log: vi.fn(),
     version: '9.9.9',
     ...over,
