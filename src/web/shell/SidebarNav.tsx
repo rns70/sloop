@@ -12,6 +12,7 @@ import {
   getRoles,
   getWorkflows,
   moveAdr,
+  ApiError,
   type AdrDoc,
   type CascadeSummary,
   type RoleDef,
@@ -141,6 +142,9 @@ export function SidebarNav() {
     cascades?: string;
   }>({});
   const [rootAddingFolder, setRootAddingFolder] = useState(false);
+  // A rejected move (e.g. a name collision -> 409) is transient: the tree loaded fine,
+  // so it gets its own dismissible notice instead of replacing the tree with "Failed to load".
+  const [moveErr, setMoveErr] = useState<string | null>(null);
 
   const fail =
     (key: 'adrs' | 'roles' | 'workflows' | 'cascades') => (e: unknown) =>
@@ -150,6 +154,7 @@ export function SidebarNav() {
   // (creation always navigates to the new item, which changes the pathname).
   useEffect(() => {
     let cancelled = false;
+    setMoveErr(null); // a navigation means the stale move notice no longer applies
     getAdrs().then((v) => !cancelled && setAdrs(v)).catch(fail('adrs'));
     getRoles().then((v) => !cancelled && setRoles(v)).catch(fail('roles'));
     getWorkflows().then((v) => !cancelled && setWorkflows(v)).catch(fail('workflows'));
@@ -182,6 +187,7 @@ export function SidebarNav() {
   // if the currently-open ADR was the one moved, follow it to its new URL so the editor
   // doesn't 404. `from`/`to` are databank-prefixed paths (e.g. databank/auth/a.md).
   const moveDatabank = (from: string, to: string) => {
+    setMoveErr(null);
     const openPath = decodeURIComponent(location.pathname.replace(/^\/databank\//, ''));
     const openRel = `databank/${openPath}`;
     const toUrl = (rel: string) => `/databank/${rel.replace(/^databank\//, '')}`;
@@ -196,7 +202,15 @@ export function SidebarNav() {
           navigate(toUrl(`${to}/${openRel.slice(from.length + 1)}`));
         }
       })
-      .catch(fail('adrs'));
+      .catch((e: unknown) => {
+        // A name collision / type clash comes back as a 409 — surface the server's reason
+        // inline and leave the tree intact. Anything else is a genuine failure of the section.
+        if (e instanceof ApiError && e.status === 409) {
+          setMoveErr(e.detail || 'That item already exists in the destination.');
+        } else {
+          fail('adrs')(e);
+        }
+      });
   };
 
   const cascadeLeaves: Leaf[] | null =
@@ -234,14 +248,32 @@ export function SidebarNav() {
         ) : adrs == null ? (
           <p className="px-2 py-1 text-[12px] text-ink-subtle">Loading…</p>
         ) : (
-          <DatabankTree
-            adrs={adrs}
-            onNewItem={newAdr}
-            onNewFolder={newFolder}
-            onMove={moveDatabank}
-            rootAdding={rootAddingFolder}
-            onRootAddingDone={() => setRootAddingFolder(false)}
-          />
+          <>
+            {moveErr && (
+              <div
+                role="alert"
+                className="mb-1 flex items-start gap-2 rounded-md bg-status-failed/10 px-2 py-1 text-[12px] text-status-failed"
+              >
+                <span className="min-w-0 flex-1 break-words">{moveErr}</span>
+                <button
+                  type="button"
+                  aria-label="Dismiss"
+                  onClick={() => setMoveErr(null)}
+                  className="shrink-0 leading-none text-status-failed/70 hover:text-status-failed"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+            <DatabankTree
+              adrs={adrs}
+              onNewItem={newAdr}
+              onNewFolder={newFolder}
+              onMove={moveDatabank}
+              rootAdding={rootAddingFolder}
+              onRootAddingDone={() => setRootAddingFolder(false)}
+            />
+          </>
         )}
       </NavGroup>
 

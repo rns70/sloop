@@ -19,14 +19,45 @@ export type { AdrDiffResponse, CascadeDetail, CascadeStreamEvent } from '../../s
 
 const BASE = '/api';
 
+/**
+ * A non-2xx API response. Carries the HTTP `status` and a human-readable `detail`
+ * (the server's `{ error }` field when present, else the raw body) so callers can
+ * branch on the failure — e.g. surface a 409 move conflict inline rather than as a
+ * generic "failed to load". `message` keeps the verbose method/path/status form so
+ * existing `.catch` handlers that only read `.message` are unaffected.
+ */
+export class ApiError extends Error {
+  constructor(
+    readonly status: number,
+    readonly detail: string,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     headers: { 'content-type': 'application/json' },
     ...init,
   });
   if (!res.ok) {
-    const detail = await res.text().catch(() => '');
-    throw new Error(`${init?.method ?? 'GET'} ${path} -> ${res.status} ${res.statusText} ${detail}`);
+    const body = await res.text().catch(() => '');
+    let detail = body;
+    try {
+      const parsed: unknown = JSON.parse(body);
+      if (parsed && typeof (parsed as { error?: unknown }).error === 'string') {
+        detail = (parsed as { error: string }).error;
+      }
+    } catch {
+      // body wasn't JSON — keep the raw text as the detail
+    }
+    throw new ApiError(
+      res.status,
+      detail,
+      `${init?.method ?? 'GET'} ${path} -> ${res.status} ${res.statusText} ${body}`,
+    );
   }
   return (await res.json()) as T;
 }
