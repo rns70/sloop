@@ -46,6 +46,7 @@ Stage 3 │  WP-6  Integration + demo + polish        │   ← serial, one agen
 | 2 | **WP-5 Frontend MissionControl + Loop + Libraries** | WP-0 (mock API) | all Stage-2 |
 | 2b | **WP-7 Author assistant (Cursor-style)** | WP-0 (pi-ai) + WP-4 (the `MarkdownEditor`) | WP-5, WP-6 — starts once WP-4's editor merges |
 | 3 | **WP-6 Integration + demo** | WP-1…WP-5, WP-7 | (alone) |
+| 3 | **WP-8 Eval harness + task suite** | WP-6 (for real numbers; code can be written vs. the `CascadeEngine` interface earlier) | after WP-6 |
 
 If you have fewer than 5 agents: prioritize WP-1 → WP-2 (backend critical path) and WP-4 → WP-5 (frontend), interleaving. WP-3 (executor) can be faked last if time is short — the demo can stub leaf execution.
 
@@ -81,6 +82,9 @@ src/web/author/          WP-7  (assistant panel + selection toolbar; integrates 
 
 src/server/api/          WP-0 (contract + mock) → WP-6 (real handlers)
 src/server/index.ts      WP-0 (skeleton) → WP-6 (final wiring)
+
+src/eval/                WP-8  (runner, metrics, report)
+evals/                   WP-8  (target repos, tasks, results)
 ```
 
 ---
