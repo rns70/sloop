@@ -24,6 +24,12 @@ export interface LoopFrontmatter {
   sourceAdr?: string;
   workflow?: string;
   acceptanceCriteria: AcceptanceCriterion[];
+  /**
+   * Glob patterns (repo-root-relative) this leaf is allowed to write. Enforced by
+   * the executor: any file the agent writes outside these globs is a violation and
+   * triggers a retry. Absent/empty = unrestricted (legacy loops keep working).
+   */
+  allowedOutputs?: string[];
   executor?: string;
 }
 

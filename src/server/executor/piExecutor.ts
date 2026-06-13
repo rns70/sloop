@@ -1,14 +1,9 @@
 import type { Api, Model } from '@earendil-works/pi-ai';
-import {
-  AuthStorage,
-  ModelRegistry,
-  SessionManager,
-  createAgentSession,
-  type AgentSessionEvent,
-} from '@earendil-works/pi-coding-agent';
 
 import type { Executor } from '../../shared/services';
 import type { LoopDoc, ResolvedModel } from '../../shared/types';
+import { makeExecuteAttempt, type AttemptDeps } from './attempt';
+import { runLeafWithRetry } from './retry';
 import { runVerify } from './verify';
 
 /** Default ceiling for a single leaf's agent run. Overridable via SLOOP_EXECUTOR_TIMEOUT_MS. */
@@ -76,92 +71,6 @@ export function buildModel(resolved: ResolvedModel): Model<Api> {
 }
 
 /**
- * Compose the brief handed to the Pi agent from the leaf's body and its acceptance
- * criteria. The criteria are the contract the agent is working toward, so they're
- * spelled out explicitly — the same ones we then verify by command.
- */
-export function buildBrief(loop: LoopDoc): string {
-  const { acceptanceCriteria } = loop.frontmatter;
-  const sections = [loop.body.trim()];
-
-  if (acceptanceCriteria.length > 0) {
-    const lines = acceptanceCriteria.map((c) => {
-      const verifyNote = c.verify ? `  (verified by: \`${c.verify}\`)` : '';
-      return `- ${c.text}${verifyNote}`;
-    });
-    sections.push(
-      `## Acceptance criteria\n\nYour work is done when all of these hold:\n${lines.join('\n')}`,
-    );
-  }
-
-  sections.push(
-    'Make the necessary changes to the codebase in this working directory. ' +
-      'When finished, stop — the acceptance criteria will be checked automatically.',
-  );
-
-  return sections.filter(Boolean).join('\n\n');
-}
-
-/**
- * Run the Pi coding agent for a leaf against the target repo, forwarding streamed
- * assistant text and tool activity to `onOutput`. Bounded by an overall timeout
- * (the agent is aborted if it overruns). Throws on agent construction/run failure
- * so the caller can mark the leaf blocked.
- */
-async function runPiAgent(
-  loop: LoopDoc,
-  resolved: ResolvedModel,
-  cwd: string,
-  timeoutMs: number,
-  onOutput: (chunk: string) => void,
-): Promise<void> {
-  const authStorage = AuthStorage.inMemory();
-  // Inject the already-resolved key as a runtime override keyed by provider name —
-  // no disk auth.json, no env probing, works the same for every provider.
-  authStorage.setRuntimeApiKey(resolved.provider, resolved.apiKey);
-
-  const modelRegistry = ModelRegistry.create(authStorage);
-  const model = buildModel(resolved);
-
-  const { session } = await createAgentSession({
-    cwd,
-    model,
-    authStorage,
-    modelRegistry,
-    sessionManager: SessionManager.inMemory(),
-  });
-
-  const unsubscribe = session.subscribe((event: AgentSessionEvent) => {
-    if (event.type === 'message_update') {
-      const inner = event.assistantMessageEvent;
-      if (inner.type === 'text_delta') onOutput(inner.delta);
-    } else if (event.type === 'tool_execution_start') {
-      onOutput(`\n[tool] ${event.toolName}\n`);
-    }
-  });
-
-  let timedOut = false;
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<void>((resolve) => {
-    timer = setTimeout(() => {
-      timedOut = true;
-      void session.abort().finally(resolve);
-    }, timeoutMs);
-    if (timer && typeof timer.unref === 'function') timer.unref();
-  });
-
-  try {
-    await Promise.race([session.prompt(buildBrief(loop)), timeout]);
-    if (timedOut) {
-      onOutput(`\n[sloop] agent exceeded ${timeoutMs}ms timeout — aborted.\n`);
-    }
-  } finally {
-    if (timer) clearTimeout(timer);
-    unsubscribe();
-  }
-}
-
-/**
  * Run all acceptance criteria that carry a `verify` command, mutating each one's
  * `passed` flag in place. Criteria without a command are skipped (Phase-2 QA
  * adjudication — spec §3). Returns whether every *verified* criterion passed; a
@@ -214,24 +123,36 @@ async function verifyCriteria(
  */
 export type ResolveLeafModel = (loop: LoopDoc) => ResolvedModel;
 
+export function resolveMaxAttempts(env: NodeJS.ProcessEnv): number {
+  const parsed = Number.parseInt(env.SLOOP_MAX_ATTEMPTS ?? '', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 3;
+}
+
 export function createExecutor(resolveLeafModel: ResolveLeafModel): Executor {
   return {
     async run(loop, onOutput) {
       const env = process.env;
       const cwd = resolveTargetRepo(env);
+      const dry = isDryRun(env);
+      if (dry) onOutput('[sloop] SLOOP_DRY_RUN — skipping Pi agent, running verify only.\n');
 
-      if (isDryRun(env)) {
-        onOutput('[sloop] SLOOP_DRY_RUN — skipping Pi agent, running verify only.\n');
-      } else {
-        // Resolve lazily: a leaf whose provider key is missing throws here and is marked
-        // blocked by the caller, rather than taking the whole server down at startup.
-        const resolved = resolveLeafModel(loop);
-        const timeoutMs = resolveExecutorTimeoutMs(env);
-        await runPiAgent(loop, resolved, cwd, timeoutMs, onOutput);
-      }
+      const executeAttempt = makeExecuteAttempt({
+        resolveAttemptDeps: (l): AttemptDeps | null => {
+          if (dry) return null;
+          // Lazy: a missing key throws here -> leaf marked blocked, not a boot crash.
+          const resolved = resolveLeafModel(l);
+          return { resolved, cwd, timeoutMs: resolveExecutorTimeoutMs(env), onOutput };
+        },
+      });
 
-      const ok = await verifyCriteria(loop, cwd, env, onOutput);
-      return { ok };
+      const result = await runLeafWithRetry(loop, {
+        executeAttempt,
+        verify: (l) => verifyCriteria(l, cwd, env, onOutput),
+        maxAttempts: resolveMaxAttempts(env),
+        onOutput,
+      });
+
+      return { ok: result.ok };
     },
   };
 }

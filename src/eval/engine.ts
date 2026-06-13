@@ -29,7 +29,8 @@ import {
 import { createCascadeEngine } from '../server/cascade/cascadeEngine';
 import { createFilesService } from '../server/files/filesService';
 import { createGitService } from '../server/git/gitService';
-import { buildBrief, buildModel } from '../server/executor/piExecutor';
+import { buildBrief } from '../server/executor/attempt';
+import { buildModel } from '../server/executor/piExecutor';
 import { runVerify } from '../server/executor/verify';
 import { type ArchitectModelCall, createArchitect, toPiModel } from '../server/planner/architect';
 import { resolveModel } from '../shared/index';
