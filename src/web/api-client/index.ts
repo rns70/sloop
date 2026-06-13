@@ -3,17 +3,17 @@
 // after WP-0); the wire types come from the shared contract, the single source of truth.
 
 import type {
-  AdrDoc, TemplateDef, RoleDef, CascadeSummary, AssistantRequest,
+  AdrDoc, TemplateDef, RoleDef, CascadeSummary, AssistantChatRequest, AssistantStreamEvent,
 } from '../../shared/index';
 import type {
-  AdrDiffResponse, AssistantResponse, GetModelsResponse,
+  AdrDiffResponse, GetModelsResponse,
   CascadeDetail, CascadeStreamEvent, CreateCascadeRequest, Ok,
 } from '../../server/api/contract';
 
 export type {
   AdrDoc, TemplateDef, RoleDef, CascadeSummary, LoopDoc,
   LoopFrontmatter, LoopStatus, LoopKind, Delta, AcceptanceCriterion,
-  AssistantRequest, AssistantProposal, ModelOption,
+  AssistantChatRequest, AssistantStreamEvent, ModelOption,
 } from '../../shared/index';
 export type { AdrDiffResponse, CascadeDetail, CascadeStreamEvent } from '../../server/api/contract';
 
@@ -57,10 +57,36 @@ export const putFile = (relPath: string, content: string): Promise<Ok> =>
 /** Global assistant: configured model aliases for the picker (no keys). */
 export const getModels = (): Promise<GetModelsResponse> => http('/models');
 
-/** Global assistant: ask for a typed proposal (answer/edit/create-*). Never writes —
- *  the rail previews it and confirms before any putAdr/putFile. */
-export const requestAssistant = (req: AssistantRequest): Promise<AssistantResponse> =>
-  http('/assistant', { method: 'POST', body: JSON.stringify(req) });
+/** POST the full thread and stream agent events. Returns the completion promise + an abort fn. */
+export function streamAssistant(
+  req: AssistantChatRequest,
+  onEvent: (e: AssistantStreamEvent) => void,
+): { done: Promise<void>; abort: () => void } {
+  const controller = new AbortController();
+  const done = (async () => {
+    const res = await fetch(`${BASE}/assistant/stream`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req), signal: controller.signal,
+    });
+    if (!res.body) throw new Error('assistant: no response stream');
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    for (;;) {
+      const { value, done: streamDone } = await reader.read();
+      if (streamDone) break;
+      buf += decoder.decode(value, { stream: true });
+      const frames = buf.split('\n\n');
+      buf = frames.pop() ?? '';
+      for (const frame of frames) {
+        const line = frame.split('\n').find((l) => l.startsWith('data:'));
+        if (!line) continue;
+        try { onEvent(JSON.parse(line.slice(5).trim()) as AssistantStreamEvent); } catch { /* ignore partial */ }
+      }
+    }
+  })();
+  return { done, abort: () => controller.abort() };
+}
 
 export const getCascades = (): Promise<CascadeSummary[]> => http('/cascades');
 export const createCascade = (req: CreateCascadeRequest): Promise<CascadeSummary> =>
