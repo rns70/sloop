@@ -1,0 +1,10 @@
+#!/usr/bin/env node
+// Launcher for the `sloop` CLI. The repo runs TypeScript directly via tsx (no build step
+// for server/CLI code), so register the tsx ESM loader and import the TS entry.
+import { register } from 'tsx/esm/api';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
+
+register();
+const here = dirname(fileURLToPath(import.meta.url));
+await import(resolve(here, '../src/cli/index.ts'));

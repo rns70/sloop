@@ -4,10 +4,22 @@
   "private": true,
   "type": "module",
   "description": "An IDE for agent factories — keeps a codebase continuously reconciled to a databank of requirement ADRs.",
+  "bin": {
+    "sloop": "bin/sloop"
+  },
+  "files": [
+    "bin",
+    "src",
+    "assets",
+    "dist",
+    "vite.config.ts",
+    "tsconfig.json"
+  ],
   "engines": {
     "node": ">=20"
   },
   "scripts": {
+    "sloop": "tsx src/cli/index.ts",
     "dev": "concurrently -k -n server,web -c blue,green \"npm:dev:server\" \"npm:dev:web\"",
     "dev:server": "tsx watch src/server/index.ts",
     "dev:web": "vite",
@@ -33,6 +45,7 @@
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.30.4",
     "simple-git": "^3.27.0",
+    "tsx": "^4.19.2",
     "ws": "^8.18.0"
   },
   "devDependencies": {
@@ -46,7 +59,6 @@
     "concurrently": "^9.1.0",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
-    "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vite": "^5.4.11",
     "vitest": "^2.1.8"

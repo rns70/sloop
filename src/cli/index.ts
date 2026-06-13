@@ -98,7 +98,9 @@ async function main(): Promise<void> {
 }
 
 const invokedDirectly = process.argv[1] === fileURLToPath(import.meta.url) ||
-  process.argv[1] === path.join(path.dirname(fileURLToPath(import.meta.url)), 'index.ts');
+  process.argv[1] === path.join(path.dirname(fileURLToPath(import.meta.url)), 'index.ts') ||
+  // Launched via bin/sloop launcher (which imports this module; argv[1] points at the bin).
+  (process.argv[1] != null && path.basename(process.argv[1]) === 'sloop');
 if (invokedDirectly) {
   void main().catch((err) => {
     // eslint-disable-next-line no-console
