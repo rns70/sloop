@@ -44,8 +44,9 @@ export async function startServer(opts: { root: string; port?: number }): Promis
 
   // The executor resolves its target (where leaves write code/ and verify runs) from
   // SLOOP_WORKSPACE; point it at root so the agent edits this project even if the process
-  // cwd differs. Only set when unset so an explicit override still wins.
-  process.env.SLOOP_WORKSPACE ??= root;
+  // cwd differs. startServer is handed an explicit root, so it authoritatively pins the
+  // workspace (unconditionally) — unlike main(), whose env-driven default uses ??=.
+  process.env.SLOOP_WORKSPACE = root;
 
   const api = await createRealApi(root, process.env);
   const { server, uiMounted } = buildServer({ api, workspaceRoot: root, distDir: DIST_DIR });
