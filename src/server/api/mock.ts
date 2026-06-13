@@ -19,6 +19,7 @@ import type {
   AssistantResponse, GetModelsResponse, Ok,
 } from './contract';
 import { toModelOptions } from '../assistant/index';
+import { parseCriteriaFromBody } from '../files/criteriaMarkdown';
 
 const OK: Ok = { ok: true };
 
@@ -35,12 +36,15 @@ function loadAdrs(root: string): AdrDoc[] {
     .sort()
     .map((f) => {
       const { data, content } = readMd(join(dir, f));
+      const parsed = parseCriteriaFromBody(content);
       return {
         id: String(data.id),
         relPath: `databank/${f}`,
         title: String(data.title ?? f),
         body: content,
-        acceptanceCriteria: (data.acceptanceCriteria as AcceptanceCriterion[]) ?? [],
+        acceptanceCriteria: parsed.hasSection
+          ? parsed.criteria
+          : ((data.acceptanceCriteria as AcceptanceCriterion[]) ?? []),
       };
     });
 }
@@ -114,8 +118,11 @@ function loadCascade(root: string, id: string): CascadeDetail | undefined {
     .sort()
     .map((f) => {
       const { data, content } = readMd(join(dir, f));
+      const fm = data as unknown as LoopFrontmatter;
+      const parsed = parseCriteriaFromBody(content);
+      if (parsed.hasSection) fm.acceptanceCriteria = parsed.criteria;
       return {
-        frontmatter: data as unknown as LoopFrontmatter,
+        frontmatter: fm,
         body: content,
         relPath: `cascades/${id}/${f}`,
       };

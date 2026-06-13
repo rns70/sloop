@@ -1,17 +1,7 @@
 ---
 id: adr-007
 title: Refresh-token rotation
-acceptanceCriteria:
-  - id: ac-1
-    text: "Refresh tokens rotate on every use and expire within ≤15 minutes."
-    verify: "npm test -- rotation"
-    passed: false
-  - id: ac-2
-    text: "A refresh token presented twice (reuse) is rejected and the session is revoked."
-    verify: "npm test -- reuse-detection"
-    passed: false
 ---
-
 # ADR-007 — Refresh-token rotation
 
 ## Context
@@ -30,3 +20,8 @@ token is both short-lived and self-revealing.
 
 > Acceptance criteria carry stable ids (`ac-1`, `ac-2`) so a databank diff can scope
 > exactly which requirement changed; each has a `verify` command (exit 0 = passed).
+
+## Acceptance criteria
+
+- [ ] **ac-1** Refresh tokens rotate on every use and expire within ≤15 minutes. — verify: `npm test -- rotation`
+- [ ] **ac-2** A refresh token presented twice (reuse) is rejected and the session is revoked. — verify: `npm test -- reuse-detection`
