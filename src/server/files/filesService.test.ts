@@ -129,11 +129,11 @@ describe('FilesService', () => {
 
     // New workflows load, and gate steps parse as a boolean true.
     expect(workflows.map((t) => t.id)).toEqual(
-      expect.arrayContaining(['spec-driven', 'tdd', 'waterfall', 'debug', 'migrate']),
+      expect.arrayContaining(['spec-driven', 'tdd', 'waterfall', 'agile']),
     );
-    const debug = workflows.find((t) => t.id === 'debug');
-    expect(debug?.steps.find((s) => s.name === 'reproduce')?.gate).toBe(true);
-    expect(debug?.steps.find((s) => s.name === 'localize')?.gate).toBeUndefined();
+    const tdd = workflows.find((t) => t.id === 'tdd');
+    expect(tdd?.steps.find((s) => s.name === 'write-failing-test')?.gate).toBe(true);
+    expect(tdd?.steps.find((s) => s.name === 'implement')?.gate).toBeUndefined();
   });
 
   it('carries the locked flag on acceptance criteria through normalizeCriteria', async () => {
