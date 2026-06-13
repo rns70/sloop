@@ -9,6 +9,7 @@
 //   GET  /api/adrs                 -> AdrDoc[]
 //   GET  /api/adrs/:relPath        -> AdrDoc
 //   PUT  /api/adrs/:relPath        -> { ok: true }                 body: PutAdrRequest
+//   POST /api/adrs/:relPath/move   -> { ok: true }                 body: MoveAdrRequest
 //   GET  /api/adrs/:relPath/diff   -> AdrDiffResponse
 //   GET  /api/templates            -> TemplateDef[]
 //   GET  /api/roles                -> RoleDef[]
@@ -37,6 +38,13 @@ export type GetAdrResponse = AdrDoc;
 /** PUT /api/adrs/:relPath — the full ADR document to persist. */
 export type PutAdrRequest = AdrDoc;
 export type PutAdrResponse = Ok;
+
+/** POST /api/adrs/:relPath/move — `:relPath` is the source; `to` is the destination
+ *  path (both databank-prefixed). Serves file move, file rename, and folder move. */
+export interface MoveAdrRequest {
+  to: string;
+}
+export type MoveAdrResponse = Ok;
 
 export interface AdrDiffResponse {
   before: string;
@@ -77,6 +85,7 @@ export interface SloopApi {
   listAdrs(): Promise<GetAdrsResponse>;
   getAdr(relPath: string): Promise<GetAdrResponse>;
   putAdr(relPath: string, doc: PutAdrRequest): Promise<PutAdrResponse>;
+  moveAdr(from: string, to: string): Promise<MoveAdrResponse>;
   getAdrDiff(relPath: string): Promise<AdrDiffResponse>;
   listTemplates(): Promise<GetTemplatesResponse>;
   listRoles(): Promise<GetRolesResponse>;

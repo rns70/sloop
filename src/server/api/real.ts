@@ -43,16 +43,21 @@ import type {
   CascadeStreamEvent,
   CreateCascadeRequest,
   GetModelsResponse,
+  MoveAdrResponse,
   Ok,
   PutAdrRequest,
   SloopApi,
 } from './contract';
+import { MoveError } from '../files/filesService';
 import type { AssistantRequest } from '../../shared/index';
 
 const OK: Ok = { ok: true };
 
 /** Thrown for missing resources; `index.ts`'s error funnel maps it to a 404. */
 export class NotFound extends Error {}
+
+/** Thrown when a move destination already exists; `buildServer.ts`'s error funnel maps it to a 409. */
+export class Conflict extends Error {}
 
 /**
  * `SloopApi` plus live push. `index.ts` feature-detects `subscribe` to drive the
@@ -250,6 +255,19 @@ export class RealApi implements StreamingSloopApi {
 
   async putAdr(relPath: string, doc: PutAdrRequest): Promise<Ok> {
     await this.files.writeAdr({ ...doc, relPath });
+    return OK;
+  }
+
+  async moveAdr(from: string, to: string): Promise<MoveAdrResponse> {
+    try {
+      await this.files.moveAdr(from, to);
+    } catch (err) {
+      if (err instanceof MoveError) {
+        if (err.code === 'not_found') throw new NotFound(err.message);
+        throw new Conflict(err.message); // 'conflict' | 'invalid'
+      }
+      throw err;
+    }
     return OK;
   }
 

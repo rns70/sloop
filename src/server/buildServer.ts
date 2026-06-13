@@ -8,8 +8,8 @@ import { promises as fs } from 'node:fs';
 import { join, normalize, dirname, sep } from 'node:path';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import { WebSocketServer } from 'ws';
-import { NotFound as MockNotFound } from './api/mock';
-import { NotFound as RealNotFound, type StreamingSloopApi } from './api/real';
+import { NotFound as MockNotFound, Conflict as MockConflict } from './api/mock';
+import { NotFound as RealNotFound, Conflict as RealConflict, type StreamingSloopApi } from './api/real';
 import type { SloopApi, CascadeStreamEvent } from './api/contract';
 import { mountWebUi } from './webui';
 
@@ -23,6 +23,11 @@ export interface BuildServerOptions {
 
 function isNotFound(err: unknown): boolean {
   return err instanceof MockNotFound || err instanceof RealNotFound;
+}
+
+/** Both backends throw their own Conflict; treat either as a 409. */
+function isConflict(err: unknown): boolean {
+  return err instanceof MockConflict || err instanceof RealConflict;
 }
 
 function isStreaming(api: SloopApi): api is StreamingSloopApi {
@@ -62,6 +67,9 @@ export function buildServer(opts: BuildServerOptions): { server: Server; uiMount
   app.put('/api/adrs/:relPath', h(async (req, res) =>
     res.json(await api.putAdr(decodeURIComponent(req.params.relPath), req.body)),
   ));
+  app.post('/api/adrs/:relPath/move', h(async (req, res) =>
+    res.json(await api.moveAdr(decodeURIComponent(req.params.relPath), String(req.body?.to ?? ''))),
+  ));
 
   app.get('/api/templates', h(async (_req, res) => res.json(await api.listTemplates())));
   app.get('/api/roles', h(async (_req, res) => res.json(await api.listRoles())));
@@ -96,6 +104,10 @@ export function buildServer(opts: BuildServerOptions): { server: Server; uiMount
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
     if (isNotFound(err)) {
       res.status(404).json({ error: err instanceof Error ? err.message : 'not found' });
+      return;
+    }
+    if (isConflict(err)) {
+      res.status(409).json({ error: err instanceof Error ? err.message : 'conflict' });
       return;
     }
     // eslint-disable-next-line no-console

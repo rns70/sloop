@@ -173,6 +173,37 @@ export class MockApi implements SloopApi {
     return OK;
   }
 
+  async moveAdr(from: string, to: string): Promise<Ok> {
+    if (from === to) return OK;
+    const isFile = this.adrs.some((a) => a.relPath === from);
+    const isFolder = this.adrs.some((a) => a.relPath.startsWith(`${from}/`));
+    if (!isFile && !isFolder) throw new NotFound(`Nothing to move at: ${from}`);
+
+    if (isFolder) {
+      if (to === from || to.startsWith(`${from}/`)) {
+        throw new Conflict(`Cannot move ${from} into its own subtree`);
+      }
+      const rewrite = (p: string) => `${to}/${p.slice(from.length + 1)}`;
+      const targets = this.adrs
+        .filter((a) => a.relPath.startsWith(`${from}/`))
+        .map((a) => rewrite(a.relPath));
+      if (targets.some((t) => this.adrs.some((a) => a.relPath === t))) {
+        throw new Conflict(`Destination already exists under: ${to}`);
+      }
+      for (const adr of this.adrs) {
+        if (adr.relPath.startsWith(`${from}/`)) adr.relPath = rewrite(adr.relPath);
+      }
+      return OK;
+    }
+
+    if (this.adrs.some((a) => a.relPath === to)) {
+      throw new Conflict(`Destination already exists: ${to}`);
+    }
+    const adr = this.adrs.find((a) => a.relPath === from)!;
+    adr.relPath = to;
+    return OK;
+  }
+
   async getAdrDiff(relPath: string): Promise<AdrDiffResponse> {
     // Mock: no real git history yet (WP-1 owns GitService). Echo current content as
     // both sides so the diff view renders without a backend.
@@ -315,3 +346,5 @@ export class MockApi implements SloopApi {
 }
 
 export class NotFound extends Error {}
+
+export class Conflict extends Error {}
