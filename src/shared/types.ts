@@ -8,6 +8,7 @@ export interface AcceptanceCriterion {
   id: string;
   text: string;
   verify?: string;     // shell command; exit 0 = passed
+  locked?: boolean;    // authored by the parent; the executing leaf must not weaken it
   passed: boolean;
 }
 
@@ -52,7 +53,7 @@ export interface CascadeSummary {
 export interface TemplateDef {
   id: string;
   name: string;
-  stages: { name: string; role: string; model: string }[];
+  stages: { name: string; role: string; model: string; gate?: boolean }[];
   guidance: string;             // prose the architect follows
 }
 
