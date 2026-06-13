@@ -66,14 +66,19 @@ modelMixes:                             # the matrix to run for this task
  `verify` commands; the held-out suite above is separate.>
 ```
 
+**Two task sources** feed the same schema:
+- **Handmade tasks** (above) — fast to author, tailored to show decomposition/templates.
+- **SWE-bench instances** (§8) — a loader maps a SWE-bench task into this shape: `problem_statement` → the requirement body, the instance's `FAIL_TO_PASS` + `PASS_TO_PASS` → the **held-out** suite, run inside the instance's prepared environment. These give the externally-comparable number.
+
 ---
 
 ## 4. Result schema
 
-One JSON object per `(task × modelMix)` run, appended to `results/<run-id>/runs.jsonl`:
+One JSON object per `(task × modelMix × system)` run, appended to `results/<run-id>/runs.jsonl`. `system` is `"sloop"` (full cascade) or `"baseline-flat"` (a single Pi agent on the same task, no decomposition/routing) — the head-to-head that isolates sloop's contribution:
 ```json
 {
   "taskId": "001-add-rate-limit",
+  "system": "sloop",
   "modelMix": { "plan": "opus", "execute": "nemotron" },
   "converged": true,
   "independentPass": true,
@@ -89,7 +94,7 @@ One JSON object per `(task × modelMix)` run, appended to `results/<run-id>/runs
   "error": null
 }
 ```
-`falsePositive = converged && !independentPass`. `summary.md` aggregates: convergence rate, false-positive rate, and a per-mix table of success rate / mean cost / mean latency.
+`falsePositive = converged && !independentPass`. `summary.md` aggregates: convergence rate, false-positive rate, a per-mix table of success rate / mean cost / mean latency, **and the sloop-vs-baseline-flat delta** (resolved% and $ on identical tasks).
 
 ---
 
@@ -104,7 +109,7 @@ One JSON object per `(task × modelMix)` run, appended to `results/<run-id>/runs
 7. **Collect** cost/tokens (by model), tree size/depth, latency, criteria counts.
 8. **Record** the JSON line; reset the repo.
 
-Run the full matrix, then write `summary.md`.
+Run the full matrix **for both systems** — `sloop` (full cascade) and `baseline-flat` (one Pi agent handed the same requirement + repo, no decomposition or routing) — then write `summary.md`. Same task, same hidden tests → the delta is purely sloop's orchestration.
 
 ---
 
@@ -126,7 +131,40 @@ These are the only things the harness needs from the rest of the build; if absen
 
 ---
 
-## 8. Presentation
-Demo arc: **(1)** live convergence money shot → **(2)** `summary.md` as a results view: convergence rate + false-positive rate, the cost-vs-mix bars, and the **Nemotron** line. Story: *it works → it's cheap → it's open/multi-provider.* If time allows, a small "Evals" page in the UI renders `summary.md`.
+## 8. External benchmark: SWE-bench
+
+SWE-bench is the right external anchor because its structure *is* sloop's eval shape: a repo + an issue + **hidden tests** (`FAIL_TO_PASS`/`PASS_TO_PASS`). The mapping: issue `problem_statement` → the requirement we write to the databank; hidden tests → the **held-out** suite; **resolved%** → our **true-convergence rate**.
+
+**Variants:**
+- **SWE-bench Verified** (500 human-validated) — the number people cite; use as the *reference*.
+- **SWE-bench Lite** (300) or a **hand-picked 5–10 subset** — what we actually *run*. Always label as "N tasks from SWE-bench Lite," never as a full-benchmark score.
+
+**The honest comparison is internal-on-identical-tasks.** External leaderboards use different scaffolds, so a raw subset number vs. the leaderboard is noisy. Lead with **sloop (cascade) vs. baseline-flat (single Pi agent)** on the *same* SWE-bench instances (the `system` field, §4–§5) — same inputs, same hidden tests, so the delta is purely sloop's decomposition + routing. Then cite the leaderboard as *context* for "are we in a credible range."
+
+**Reference points (as of June 2026 — verify before the demo; numbers move and vary by source/scaffold):**
+- **SWE-bench Verified** is **saturated** — tops ≈ **95%** (Claude Mythos 5 ≈95.5%, Fable 5 ≈95%, Opus 4.8 ≈88.6%). Little headroom, so a small subset can't look impressive against it; use it only to say "the task type is the industry standard."
+- **SWE-bench Pro** is harder and **less saturated → the better backdrop.** But it has *three* "best" numbers depending on harness: **≈80%** (Fable 5, vendor's own scaffold), **≈59%** (GPT-5.4, Scale's *standardized* SEAL public set — every model through identical scaffolding), **≈47%** (Scale's private set). **Cite the standardized SEAL number (~59% top) as the fair comparator**, and note the scaffold caveat explicitly — sloop runs its own scaffold, so standardized-vs-vendor is exactly the apples/oranges to flag.
+- A typical task burns **~30–80K tokens** (≈55K midpoint) — handy for sizing cost.
+
+**The scaffold point is the honest core:** because leaderboard numbers swing ~30 points on harness alone, an external number is *context*, never a claimed rank. Your credible claim is the **internal sloop-vs-flat-agent delta** on identical tasks; the SWE-bench Pro standardized figure just frames the neighborhood.
+
+**Feasibility:** SWE-bench instances ship as prepared environments (Docker images) with their own test harness, mostly Python repos. Wiring sloop's Pi-agent executor + the held-out test run into a couple of those images is the bulk of the effort — keep the subset small (5–10) and budget for the env plumbing.
+
+## 9. Presentation
+Demo arc: **(1)** live convergence money shot → **(2)** `summary.md` as a results view: convergence rate + false-positive rate, the **sloop-vs-flat-agent delta** on identical SWE-bench tasks, the cost-vs-mix bars, and the **Nemotron** line — with the SWE-bench **Pro** standardized ≈59% figure as backdrop (scaffold caveat noted). Story: *it works (and beats a flat agent on the same tasks) → it's cheap → it's open/multi-provider.* If time allows, a small "Evals" page in the UI renders `summary.md`.
 
 **Hackathon scope:** real runs are token-spendy. Curate ~5 tasks, run the 3-mix matrix once, cache results to `runs.jsonl`, and present from the cache (don't re-run live). `SLOOP_DRY_RUN` is for smoke-testing the harness plumbing offline, not for the real numbers.
+
+---
+
+## 10. Reproducibility & re-running
+
+The harness is **re-runnable by construction**, but re-running ≠ identical numbers (agents are stochastic). Design for both:
+
+- **Idempotent setup:** every task resets its repo (`git checkout <baseRef> && git clean -fd`) and re-applies the databank edit, so each run starts clean — no cross-run drift.
+- **Isolated output:** each `npm run eval` writes a fresh `results/<run-id>/` (timestamp/ulid passed in via `args`, not generated in shared code), so re-runs never clobber prior results.
+- **`--trials N`:** run each `(task × mix × system)` N times; `aggregate()` reports **mean ± stdev** and **pass@k** instead of a single noisy point. Default `N=1` (cost); use `N≥3` for any headline number you'll present.
+- **Self-describing runs:** `summary.md` header records the **resolved model ids + providers** (pinning — what actually ran, not just the alias), the task-set, the date, and `N`. So a run can be reproduced/compared later even as registry aliases change.
+- **`--compare <runA> <runB>`:** diff two runs' summaries (resolved% and $ deltas) — the workflow for "did this sloop change actually help?"
+
+**Inherent non-reproducibility to disclose, not hide:** LLM stochasticity (→ report variance), token cost per run, SWE-bench images must be cached locally, and provider models drift over time (a pinned id can still shift). Present mean ± stdev over trials, never a lone number.

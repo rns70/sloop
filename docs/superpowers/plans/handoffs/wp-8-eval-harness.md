@@ -6,30 +6,32 @@
 Read **`docs/superpowers/specs/2026-06-13-sloop-evals.md`** (the eval design — task format, result schema, runner flow, data sources) and the main spec (§3 convergence, §6.3 routing). Read the build overview. Branch: `wp-8-eval-harness`.
 
 ## Your goal
-Produce the three headline numbers that prove sloop's claims: **true-convergence rate** (+ false-positive rate), **cost per converged cascade across model mixes**, and **Nemotron-as-executor** success/cost/latency. Build a small task suite + a runner that records per-run JSON and an aggregate `summary.md`.
+Produce the headline numbers that prove sloop's claims: **true-convergence rate** (+ false-positive rate), **cost per converged cascade across model mixes**, **Nemotron-as-executor** success/cost/latency, and the **sloop-vs-flat-agent delta on identical tasks** — anchored against **SWE-bench**. Build the task suite (handmade + a small SWE-bench subset) + a runner that records per-run JSON and an aggregate `summary.md`.
 
 ## You own
 - `evals/repos/` — 1–2 small git-tracked target repos with a real test runner.
-- `evals/tasks/*.md` — 5–10 requirement-change tasks (schema in the eval spec §3).
+- `evals/tasks/*.md` — handmade requirement-change tasks (schema in the eval spec §3).
+- `evals/swebench/` — the SWE-bench subset config (instance ids + env setup).
 - `evals/results/` — harness output (gitignore everything except `summary.md`).
-- `src/eval/` — `runner.ts` (orchestrates a run), `metrics.ts` (types + aggregation), `report.ts` (writes `summary.md`), tests.
+- `src/eval/` — `runner.ts` (orchestrates `task × mix × system`), `metrics.ts` (types + aggregation), `report.ts` (writes `summary.md`), `swebench.ts` (SWE-bench adapter), `baseline.ts` (the single-agent runner), tests.
 Do not edit other WPs' source. You may depend on `CascadeEngine`/`FilesService` (constructed as WP-6 does) and shared types. Add an `npm run eval` script.
 
 ## Tasks
-1. `metrics.ts`: the result type **exactly** as in eval spec §4 (`taskId`, `modelMix`, `converged`, `independentPass`, `falsePositive`, `criteria`, `tree`, `cost`, `latencyMs`, `error`) + an `aggregate(runs)` producing convergence rate, false-positive rate, and per-mix `{successRate, meanUsd, meanLatencyMs}`.
+1. `metrics.ts`: the result type **exactly** as in eval spec §4 — incl. the **`system: 'sloop' | 'baseline-flat'`** field and a `trial` index — (`taskId`, `system`, `modelMix`, `trial`, `converged`, `independentPass`, `falsePositive`, `criteria`, `tree`, `cost`, `latencyMs`, `error`) + an `aggregate(runs)` producing convergence rate, false-positive rate, per-mix `{successRate, meanUsd, meanLatencyMs}`, the **sloop-vs-baseline-flat delta**, and — when trials > 1 — **mean ± stdev and pass@k** per metric (not a single point).
 2. Task loader: parse `evals/tasks/*.md` (frontmatter via `gray-matter`) into typed tasks (`id`, `repo`, `baseRef`, `adrPath`, `heldOut[]`, `modelMixes[]`, body).
-3. `runner.ts` — for each `(task × modelMix)`, run the eval spec §5 flow:
-   - reset repo (`git -C evals/repos/<repo> checkout <baseRef> && git clean -fd`),
+3. **SWE-bench adapter** (`swebench.ts`): ingest a small set of SWE-bench instances and map each into the same task type — `problem_statement` → requirement body written to `adrPath`; `FAIL_TO_PASS` + `PASS_TO_PASS` → `heldOut`; run inside the instance's prepared environment/image; `baseRef` = the instance's base commit. Keep the subset to 5–10 (label outputs "N tasks from SWE-bench Lite", never a full-benchmark score).
+4. `runner.ts` — for each `(task × modelMix × system × trial)` (trials via `--trials N`, default 1; pass the run-id/timestamp in as an arg, don't generate it in shared code), run the eval spec §5 flow:
+   - reset repo (`git -C <repo> checkout <baseRef> && git clean -fd`) — or reset the SWE-bench instance env,
    - write the task body+criteria to `adrPath` in the databank,
    - set models for the run (planner + execute — see Integration below),
-   - kick off the cascade **with auto-approve**, wait for the root loop to reach `done`/`blocked`/`failed` (timeout → `error`),
-   - `converged = root === 'done'`,
+   - run the system: **`sloop`** = kick off the cascade **with auto-approve**, wait for the root loop to reach `done`/`blocked`/`failed` (timeout → `error`); **`baseline-flat`** = hand the same requirement + repo to a single Pi agent (no decomposition/routing) on the run's execute model,
+   - `converged = root === 'done'` (sloop) / agent-reported-complete (baseline),
    - run each `heldOut` command in the repo (`child_process`), `independentPass = all exit 0`,
    - collect cost (by model), tree loops/maxDepth, latency, criteria counts,
    - append the JSON line to `evals/results/<run-id>/runs.jsonl`, reset the repo.
-4. `report.ts`: read `runs.jsonl` → write `evals/results/<run-id>/summary.md` (the headline numbers + the per-mix table from eval spec §1/§8).
-5. Author the **task suite**: 5–10 scenarios. Each held-out suite must be genuinely separate from the agent-visible `verify` commands. Keep target repos tiny but real (a test command that actually passes/fails).
-6. Tests: `aggregate()` math (convergence %, false-positive %, per-mix means) on hand-built run arrays; task-file parsing; a `SLOOP_DRY_RUN` smoke test of the runner on one task (plumbing only, not real numbers).
+5. `report.ts`: read `runs.jsonl` → write `evals/results/<run-id>/summary.md`: a **self-describing header** (resolved model ids + providers actually used, task-set, date, trials N — eval spec §10), then convergence + false-positive rate (mean ± stdev when N>1), the per-mix table, the **sloop-vs-baseline-flat delta**, and a line citing the SWE-bench **Pro** standardized ≈59% figure as backdrop (eval spec §8; note the scaffold caveat) — clearly marked as context, not a claimed rank. Also implement **`--compare <runA> <runB>`** that diffs two summaries (resolved% and $ deltas).
+6. Author the **handmade task suite**: 3–5 scenarios (decomposition/template showcases). Held-out suites genuinely separate from agent-visible `verify`. Tiny-but-real target repos.
+7. Tests: `aggregate()` math (convergence %, false-positive %, per-mix means, sloop-vs-baseline delta, **mean ± stdev + pass@k over trials**) on hand-built run arrays; task-file + SWE-bench parsing; `--compare` diff math; a `SLOOP_DRY_RUN` smoke test of the runner on one task of each system (plumbing only, not real numbers).
 
 ## Integration points (from eval spec §7 — confirm they exist, else add minimally)
 - **Auto-approve:** the runner must approve without a human. Use `CascadeEngine` programmatically and call `approve()` directly after `kickoff()`, or honor `SLOOP_AUTO_APPROVE=1`. (Keep auto-approve OFF in the app itself.)
@@ -38,8 +40,8 @@ Do not edit other WPs' source. You may depend on `CascadeEngine`/`FilesService` 
 
 ## Definition of done
 - `npm run typecheck` + `npm test` green for your files.
-- `npm run eval` runs the suite against the real backend and writes `runs.jsonl` + `summary.md`; commit `summary.md` with the captured numbers.
-- `summary.md` shows: true-convergence rate, false-positive rate, the cost-vs-mix table, and the Nemotron line — enough to present from the cache without re-running.
+- `npm run eval` runs the suite (handmade + SWE-bench subset, both systems) against the real backend and writes `runs.jsonl` + `summary.md`; commit `summary.md` with the captured numbers.
+- `summary.md` shows: true-convergence rate, false-positive rate, the cost-vs-mix table, the Nemotron line, the **sloop-vs-baseline-flat delta**, and the SWE-bench Verified reference backdrop — enough to present from the cache without re-running.
 
 ## Reminder
 Real runs spend tokens. Curate ~5 tasks, run the 3-mix matrix once, present from the cached `summary.md`. `SLOOP_DRY_RUN` is for smoke-testing plumbing, never for the headline numbers.
