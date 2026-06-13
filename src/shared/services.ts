@@ -1,0 +1,36 @@
+import type {
+  AdrDoc, LoopDoc, TemplateDef, RoleDef, DatabankDiff, CascadeSummary, LoopStatus,
+  ModelRegistry, ResolvedModel,
+} from './types';
+
+export interface FilesService {
+  listAdrs(): Promise<AdrDoc[]>;
+  readAdr(relPath: string): Promise<AdrDoc>;
+  writeAdr(doc: AdrDoc): Promise<void>;
+  readLoop(relPath: string): Promise<LoopDoc>;
+  writeLoop(loop: LoopDoc): Promise<void>;
+  listLoops(cascadeId: string): Promise<LoopDoc[]>;
+  listTemplates(): Promise<TemplateDef[]>;
+  listRoles(): Promise<RoleDef[]>;
+  readModelRegistry(): Promise<ModelRegistry>;   // from .sloop/config.md frontmatter
+}
+
+/** Pure helper (no I/O): alias + registry + env -> concrete provider/id/key. Lives in src/shared. */
+export type ResolveModel = (alias: string, registry: ModelRegistry, env: NodeJS.ProcessEnv) => ResolvedModel;
+
+export interface GitService {
+  diffDatabank(): Promise<DatabankDiff>;     // databank working tree vs last commit
+  commitAll(message: string): Promise<string>; // returns short sha
+}
+
+export interface Executor {
+  // Spawns the coding agent for a leaf, streams output, runs verify commands.
+  run(loop: LoopDoc, onOutput: (chunk: string) => void): Promise<{ ok: boolean }>;
+}
+
+export interface CascadeEngine {
+  kickoff(templateId: string): Promise<CascadeSummary>;  // diff → architect proposes tree (awaiting_approval)
+  get(cascadeId: string): Promise<{ summary: CascadeSummary; loops: LoopDoc[] }>;
+  approve(cascadeId: string): Promise<void>;             // run approved leaves
+  recomputeStatus(cascadeId: string): Promise<LoopStatus>; // bubble up the invariant
+}

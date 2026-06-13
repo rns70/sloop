@@ -169,7 +169,7 @@ planned → awaiting_approval → queued → executing → review → done
 **Roles** = *who* does the work. **Templates** = *the shape of the tree* (the stages). These are orthogonal: a template references roles to staff its stages.
 
 ### 6.1 Roles (loop types)
-- **Loop-types library** (`.sloop/roles/*.md`): each role is a markdown file defining its responsibility, default model, and a prompt/brief template. Ships with Architect, Engineer, QA, Security reviewer, Pentester; **user-definable** (`+ New type`).
+- **Loop-types library** (`.sloop/roles/*.md`): each role is a markdown file — frontmatter sets defaults (`defaultModel`, `color`), the body is the **brief the agent receives**. Editable in the shared markdown editor (§7) like any other file. Ships with Architect, Engineer, QA, Security reviewer, Pentester; **user-definable** (`+ New type`).
 - Roles render as colored tags in the UI.
 
 ### 6.2 Process templates (stages)
@@ -207,12 +207,16 @@ So the architect could plan on `nemotron` and execute leaves on `haiku`, or any 
 
 ## 7. UI surfaces (Notion-style, lean)
 
-Aesthetic: clean, light, typographic, minimal — Notion-like. Three primary areas:
+Aesthetic: clean, light, typographic, minimal — Notion-like.
 
-1. **Databank** — browse/edit ADRs. A **block-based rich-text editor (BlockNote)** with markdown import/export — edits the ADR body, not a raw textarea — plus **inline diff vs last accepted** (core requested capability).
-2. **Cascades / Mission Control** — the live **loop tree** for a cascade. Nodes show role tag, model chip, status; expandable to children of unbounded depth; root status answers "in sync?". The checkpoint approval lives here.
-3. **Loop page** — a single loop rendered as a Notion page: frontmatter as inline **properties**, body as the plan, children as a nested list. This is just the markdown file, viewed nicely.
-4. **Libraries** — manage roles and process templates (both just markdown lists). Template picker appears at cascade kickoff.
+**The markdown editor is the core primitive.** One shared editor — **BlockNote**, block-based with markdown import/export and an **inline-diff mode** (adds/removes shown within the document flow, not a side rail) — is reused for *every* editable file: ADR entries, role instruction files, and template files. They are all just simple markdown files on disk. The cascade/Mission Control view is the one surface that uses bespoke, non-editor components.
+
+Primary areas:
+
+1. **Databank** — browse/edit ADRs, each a plain markdown file opened in the shared editor, with **inline diff vs last accepted commit**.
+2. **Cascades / Mission Control** — the live **loop tree** for a cascade (bespoke components). Nodes show a role tag, model + delta as quiet muted text, and status as a small labeled dot; expandable to children; root status answers "in sync?". The checkpoint approval lives here.
+3. **Loop page** — a single loop rendered as a Notion page: frontmatter as **properties**, body as the plan, streamed agent output, children as a nested list.
+4. **Libraries** — roles and templates as quiet lists; selecting one opens its markdown file in the **same shared editor** (frontmatter sets defaults; the body is the editable brief/guidance).
 
 Everything shown is a view over markdown on disk; there is no hidden state.
 

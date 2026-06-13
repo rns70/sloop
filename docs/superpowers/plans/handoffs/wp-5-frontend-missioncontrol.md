@@ -20,7 +20,7 @@ Do not touch WP-4's `design/`, `shell/`, or `views/databank/` internals — impo
 2. `LoopTree` + `LoopNode`: render the loop forest from the flat list (link by `parent`/`children`). Each node shows role tag (color from role), model chip, status pill, and `delta` tag. Status colors: running/executing, done (green), blocked/failed (red), queued/planned (muted). Cheaper models toward leaves should read naturally.
 3. `Checkpoint`: when the root loop is `awaiting_approval`, show the proposed inner/leaf loops with an **Approve & run** button → `approveCascade(id)`. Approving transitions the tree live (the mock emits a scripted event sequence — build against that).
 4. `LoopPage` (`/cascades/:id/loops/:loopId`): render the loop as a Notion page — properties (role, model, status, criteria with pass/fail ticks) + body; `OutputStream` shows streamed `output` chunks for that loop.
-5. `Libraries`: list roles (`getRoles`) and templates (`getTemplates`) as simple editable-looking cards; the template picker itself lives in the shell (WP-4) but mirror the list here.
+5. `Libraries`: list roles (`getRoles`) and templates (`getTemplates`) as quiet lists. Selecting one opens its markdown file (`getFile(relPath)`) in the **shared `MarkdownEditor`** imported from WP-4's design kit — the user edits the brief/guidance and Saves via `putFile(relPath, content)`. The template picker itself lives in the shell (WP-4) but mirror the list here.
 6. **The money shot:** when root status becomes `done`, surface a clear, calm success state ("✓ Codebase matches databank") at the top of `CascadeView`. Don't make it gaudy — Notion-quiet, but unmistakable.
 
 ## Definition of done

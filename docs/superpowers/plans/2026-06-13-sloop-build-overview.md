@@ -231,6 +231,8 @@ PUT  /api/adrs/:relPath           -> { ok: true }
 GET  /api/adrs/:relPath/diff      -> { before: string; after: string }
 GET  /api/templates               -> TemplateDef[]
 GET  /api/roles                   -> RoleDef[]
+GET  /api/files/:relPath          -> { content: string }   // raw markdown of a role/template file
+PUT  /api/files/:relPath          -> { ok: true }          body: { content: string }
 POST /api/cascades                -> CascadeSummary          body: { templateId }
 GET  /api/cascades/:id            -> { summary: CascadeSummary; loops: LoopDoc[] }
 POST /api/cascades/:id/approve    -> { ok: true }

@@ -21,12 +21,14 @@ Do not touch `src/web/views/{mission-control,loop,libraries}` (WP-5) or `src/web
 3. `AppShell` with sidebar nav + routed content area. Sidebar sections match the spec (Databank, Cascades, Libraries).
 4. `MarkdownEditor` (in `src/web/design/`) — wrap **BlockNote** (`@blocknote/core`, `@blocknote/react`, `@blocknote/mantine`), a block-based rich-text editor, NOT a textarea:
    - Create the editor with `useCreateBlockNote()`; render with `<BlockNoteView editor={editor} theme="light" />` from `@blocknote/mantine`. Import its CSS: `@blocknote/core/fonts/inter.css` and `@blocknote/mantine/style.css`.
-   - Props: `value: string` (markdown in) + `onChange(markdown: string)`. On mount/`value` change, load via `await editor.tryParseMarkdownToBlocks(value)` → `editor.replaceBlocks(...)`. On edit, export with `await editor.blocksToMarkdownLossy(editor.document)` and call `onChange`.
-   - **Edit the ADR body only** — the markdown export is lossy and must never touch frontmatter. The component receives/returns body markdown; frontmatter is handled outside it.
+   - Props: `value: string` (markdown in) + `onChange(markdown: string)` + optional `diffAgainst?: string` (previous markdown). On mount/`value` change, load via `await editor.tryParseMarkdownToBlocks(value)` → `editor.replaceBlocks(...)`. On edit, export with `await editor.blocksToMarkdownLossy(editor.document)` and call `onChange`.
+   - **Inline-diff mode:** when `diffAgainst` is set, render a read-only view that shows adds/removes **inline within the document flow** (added text/blocks with a green left accent, removed with red strikethrough) — NOT a separate side rail. A simple line/block-level diff of the two markdown strings is fine for the hackathon.
+   - **This is the shared core primitive.** It is reused for ADRs (WP-4) and for role/template files (WP-5) — keep it file-agnostic: it edits whatever markdown string it's given. The markdown export is lossy, so callers that have frontmatter (ADRs, roles) pass only the body and recombine frontmatter on save.
    - Scope BlockNote/Mantine styles to the editor container so they don't fight the Tailwind Notion theme elsewhere.
-5. Databank view:
+5. Databank view (each ADR is a plain markdown file):
    - `DatabankList` → `getAdrs()`, list with title + criteria count.
-   - `AdrEditor` → `getAdr(relPath)`, render the body in `MarkdownEditor`, Save → `putAdr` (recombining edited body with the untouched frontmatter/criteria). Show acceptance criteria (id, text, verify) as a clean list.
+   - `AdrEditor` → `getAdr(relPath)`, render the body in `MarkdownEditor`, Save → `putAdr` (recombining edited body with the untouched frontmatter/criteria). A "showing changes / edit" toggle: in changes mode, pass `diffAgainst` (from `getAdrDiff`) so the edit surfaces **inline diffs in-document**. Show acceptance criteria (id, text, verify) as a clean list.
+   - `InlineDiff` is the diff renderer used by `MarkdownEditor`'s diff mode (inline, in-document) — not a separate panel.
    - `InlineDiff` → `getAdrDiff(relPath)`, render before/after as a simple added/removed line diff (green/red), Notion-quiet styling.
 6. A "Kick off cascade" affordance in the shell/top bar (template picker dropdown from `getTemplates()`), calling `createCascade({templateId})` then routing to `/cascades/:id` (the view itself is WP-5 — just navigate; a placeholder is fine if WP-5 isn't merged yet).
 
