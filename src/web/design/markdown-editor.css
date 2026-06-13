@@ -26,3 +26,31 @@
   font-size: 14.5px;
   line-height: 1.75;
 }
+
+/* Read-only render (e.g. the loop Plan): BlockNote's native headings are huge (h2 ~32px)
+   and fight the Notion-quiet page. Scale the levels down to a rendered-document register —
+   still clearly headings, but in keeping with the 23px page title / 14px section labels. */
+/* BlockNote sets the size on the inner .bn-inline-content (the <h1>/<h2>/<h3>), so the
+   override must target that element, not the block wrapper. */
+.sloop-editor--readonly
+  .bn-block-content[data-content-type='heading'][data-level='1']
+  .bn-inline-content {
+  font-size: 19px;
+  font-weight: 600;
+}
+.sloop-editor--readonly
+  .bn-block-content[data-content-type='heading'][data-level='2']
+  .bn-inline-content {
+  font-size: 15.5px;
+  font-weight: 600;
+}
+.sloop-editor--readonly
+  .bn-block-content[data-content-type='heading'][data-level='3']
+  .bn-inline-content {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+/* Give scaled headings a little breathing room above (BlockNote zeroes block margins). */
+.sloop-editor--readonly .bn-block-content[data-content-type='heading'] {
+  margin-top: 0.6em;
+}

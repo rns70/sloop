@@ -130,6 +130,17 @@ describe('parser tolerance (BlockNote-style output)', () => {
     const r = parseCriteriaFromBody(CRITERIA_HEADING + '\n\n- [ ] **important** do the thing');
     expect(r.criteria[0]).toEqual({ id: '', text: '**important** do the thing', passed: false });
   });
+
+  it('parses slug ids, not just ac-N (so the **id** marker never leaks into the text)', () => {
+    const r = parseCriteriaFromBody(
+      CRITERIA_HEADING + '\n\n- [ ] **ac-logic-tests** The logic core has a passing suite.',
+    );
+    expect(r.criteria[0]).toEqual({
+      id: 'ac-logic-tests',
+      text: 'The logic core has a passing suite.',
+      passed: false,
+    });
+  });
 });
 
 describe('upsertCriteriaInBody validation', () => {

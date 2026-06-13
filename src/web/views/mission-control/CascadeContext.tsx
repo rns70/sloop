@@ -45,6 +45,8 @@ interface CascadeContextValue {
   loops: LoopDoc[];
   loopById: (loopId: string) => LoopDoc | undefined;
   approve: () => Promise<void>;
+  /** Re-fetch the cascade from the server (e.g. after editing a loop). */
+  refresh: () => Promise<void>;
 }
 
 const Ctx = createContext<CascadeContextValue | null>(null);
@@ -104,6 +106,11 @@ export function CascadeProvider({ id, children }: { id: string; children: ReactN
     }
   }, []);
 
+  const refresh = useCallback(async () => {
+    const refreshed = await getCascade(id);
+    setDetail(refreshed);
+  }, [id]);
+
   const approve = useCallback(async () => {
     await approveCascade(id);
     // Re-read so leaves reflect their queued state before the stream animates them.
@@ -131,8 +138,9 @@ export function CascadeProvider({ id, children }: { id: string; children: ReactN
       loops,
       loopById: (loopId) => loops.find((l) => l.frontmatter.id === loopId),
       approve,
+      refresh,
     };
-  }, [id, detail, error, approved, streaming, outputs, loops, approve]);
+  }, [id, detail, error, approved, streaming, outputs, loops, approve, refresh]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

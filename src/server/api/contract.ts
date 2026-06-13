@@ -18,6 +18,7 @@
 //   POST /api/cascades             -> CascadeSummary               body: CreateCascadeRequest
 //   GET  /api/cascades/:id         -> CascadeDetail
 //   POST /api/cascades/:id/approve -> { ok: true }
+//   PATCH /api/cascades/:id/loops/:loopId -> LoopDoc          body: UpdateLoopRequest
 //   WS   /api/cascades/:id/stream  -> CascadeStreamEvent
 //
 // `:relPath` is URL-encoded (it contains slashes, e.g. databank/adr-007.md).
@@ -26,6 +27,16 @@ import type {
   AdrDoc, WorkflowDef, RoleDef, CascadeSummary, LoopDoc,
   AssistantChatRequest, AssistantStreamEvent, ModelOption,
 } from '../../shared/index';
+
+/** PATCH /api/cascades/:id/loops/:loopId — fields to change on a not-yet-executing loop.
+ *  Every field is optional; omitted fields are left untouched. Acceptance criteria are
+ *  edited as part of `body` (the `## Acceptance criteria` checklist), the on-disk source
+ *  of truth, so there is no separate criteria field. */
+export interface UpdateLoopRequest {
+  body?: string;
+  model?: string;
+  role?: string;
+}
 
 export interface Ok {
   ok: true;
@@ -71,6 +82,9 @@ export type GetCascadeResponse = CascadeDetail;
 
 export type ApproveCascadeResponse = Ok;
 
+/** PATCH /api/cascades/:id/loops/:loopId — the persisted loop after the edit. */
+export type UpdateLoopResponse = LoopDoc;
+
 export type GetModelsResponse = ModelOption[];
 /** POST /api/assistant/stream — streaming, multi-turn, agentic assistant. */
 export type AssistantStreamRequestBody = AssistantChatRequest;
@@ -98,4 +112,6 @@ export interface SloopApi {
   createCascade(req: CreateCascadeRequest): Promise<CreateCascadeResponse>;
   getCascade(id: string): Promise<GetCascadeResponse>;
   approveCascade(id: string): Promise<ApproveCascadeResponse>;
+  /** Edit a not-yet-executing loop's plan/model/role. Rejects (409) once it has begun. */
+  updateLoop(cascadeId: string, loopId: string, patch: UpdateLoopRequest): Promise<UpdateLoopResponse>;
 }

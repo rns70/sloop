@@ -8,6 +8,7 @@ import type {
 import type {
   AdrDiffResponse, GetModelsResponse,
   CascadeDetail, CascadeStreamEvent, CreateCascadeRequest, Ok,
+  UpdateLoopRequest, UpdateLoopResponse,
 } from '../../server/api/contract';
 
 export type {
@@ -143,6 +144,16 @@ export const createCascade = (req: CreateCascadeRequest): Promise<CascadeSummary
 export const getCascade = (id: string): Promise<CascadeDetail> => http(`/cascades/${enc(id)}`);
 export const approveCascade = (id: string): Promise<Ok> =>
   http(`/cascades/${enc(id)}/approve`, { method: 'POST' });
+/** Edit a not-yet-executing loop (plan/model/role). Throws ApiError(409) once it has started. */
+export const updateLoop = (
+  cascadeId: string,
+  loopId: string,
+  patch: UpdateLoopRequest,
+): Promise<UpdateLoopResponse> =>
+  http(`/cascades/${enc(cascadeId)}/loops/${enc(loopId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  });
 
 /**
  * Subscribe to a cascade's live event stream over WebSocket.
