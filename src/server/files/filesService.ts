@@ -63,11 +63,10 @@ export class FilesServiceImpl implements FilesService {
     const acceptanceCriteria = parsed.hasSection
       ? parsed.criteria
       : normalizeCriteria(data.acceptanceCriteria);
-    const outBody = parsed.hasSection
-      ? body
-      : acceptanceCriteria.length > 0
-        ? upsertCriteriaInBody(body, acceptanceCriteria)
-        : body;
+    let outBody = body;
+    if (!parsed.hasSection && acceptanceCriteria.length > 0) {
+      outBody = upsertCriteriaInBody(body, acceptanceCriteria);
+    }
     return {
       id: String(data.id ?? ''),
       relPath,
@@ -83,6 +82,7 @@ export class FilesServiceImpl implements FilesService {
     // (covers programmatic creation, e.g. createDatabankItem with an empty list).
     const parsed = parseCriteriaFromBody(doc.body);
     const criteria = parsed.hasSection ? parsed.criteria : doc.acceptanceCriteria;
+    // Always re-serialize so the on-disk section is canonical (ids filled, format normalized).
     const body = upsertCriteriaInBody(doc.body, criteria);
     const frontmatter = { id: doc.id, title: doc.title };
     await this.writeFile(doc.relPath, serializeFrontmatter(frontmatter, body));

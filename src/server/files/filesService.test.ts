@@ -144,4 +144,50 @@ describe('FilesService', () => {
     expect(await files.listRoles()).toEqual([]);
     expect(await files.listLoops('does-not-exist')).toEqual([]);
   });
+
+  it('treats the body as authoritative over the acceptanceCriteria field on write', async () => {
+    const files = createFilesService(root);
+    const relPath = 'databank/adr-101.md';
+    await files.writeAdr({
+      id: 'adr-101',
+      relPath,
+      title: 'Body wins',
+      body: '# A\n\n## Acceptance criteria\n\n- [x] **ac-1** From body\n',
+      acceptanceCriteria: [{ id: 'ac-9', text: 'From field', passed: false }],
+    });
+    const readBack = await files.readAdr(relPath);
+    expect(readBack.acceptanceCriteria).toEqual([{ id: 'ac-1', text: 'From body', passed: true }]);
+  });
+
+  it('migrates a legacy frontmatter ADR into the body on read and write', async () => {
+    await fs.mkdir(path.join(root, 'databank'), { recursive: true });
+    await fs.writeFile(
+      path.join(root, 'databank/adr-legacy.md'),
+      [
+        '---',
+        'id: adr-legacy',
+        'title: Legacy',
+        'acceptanceCriteria:',
+        '  - { id: ac-1, text: "old style", verify: "npm test", locked: true }',
+        '---',
+        '',
+        'Context.',
+      ].join('\n'),
+      'utf8',
+    );
+    const files = createFilesService(root);
+
+    // Read injects a canonical body section so the editor shows criteria immediately.
+    const read = await files.readAdr('databank/adr-legacy.md');
+    expect(read.body).toContain('## Acceptance criteria');
+    expect(read.body).toContain('**ac-1** old style');
+    expect(read.acceptanceCriteria[0].locked).toBe(true);
+
+    // Writing it back migrates the disk file: criteria leave frontmatter, enter the body.
+    await files.writeAdr(read);
+    const raw = await fs.readFile(path.join(root, 'databank/adr-legacy.md'), 'utf8');
+    expect(raw).not.toContain('acceptanceCriteria:');
+    expect(raw).toContain('## Acceptance criteria');
+    expect(raw).toContain('🔒');
+  });
 });
