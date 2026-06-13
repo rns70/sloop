@@ -4,7 +4,7 @@ import type { Executor } from '../../shared/services';
 import type { LoopDoc, ResolvedModel } from '../../shared/types';
 import { makeExecuteAttempt, type AttemptDeps } from './attempt';
 import { runLeafWithRetry } from './retry';
-import { runVerify } from './verify';
+import { runVerify, type CriterionFailure, type VerifyOutcome } from './verify';
 
 /** Default ceiling for a single leaf's agent run. Overridable via SLOOP_EXECUTOR_TIMEOUT_MS. */
 export const DEFAULT_EXECUTOR_TIMEOUT_MS = 600_000;
@@ -80,32 +80,39 @@ export function buildModel(resolved: ResolvedModel): Model<Api> {
 /**
  * Run all acceptance criteria that carry a `verify` command, mutating each one's
  * `passed` flag in place. Criteria without a command are skipped (Phase-2 QA
- * adjudication — spec §3). Returns whether every *verified* criterion passed; a
- * leaf with no verifiable criteria is vacuously ok.
+ * adjudication — spec §3). Returns a {@link VerifyOutcome}: whether every *verified*
+ * criterion passed (a leaf with no verifiable criteria is vacuously ok) plus the
+ * captured failures, so a non-zero verify is no longer opaque — its output is streamed
+ * to the user AND fed back to the agent on the next attempt.
  */
 async function verifyCriteria(
   loop: LoopDoc,
   cwd: string,
   env: NodeJS.ProcessEnv,
   onOutput: (chunk: string) => void,
-): Promise<boolean> {
-  let allPassed = true;
+): Promise<VerifyOutcome> {
+  const failures: CriterionFailure[] = [];
   let verified = 0;
 
   for (const criterion of loop.frontmatter.acceptanceCriteria) {
     if (!criterion.verify) continue;
     verified += 1;
     onOutput(`\n[verify] ${criterion.id}: ${criterion.verify}\n`);
-    const passed = await runVerify(criterion.verify, cwd, { env });
+    const { passed, output } = await runVerify(criterion.verify, cwd, { env });
     criterion.passed = passed;
-    if (!passed) allPassed = false;
     onOutput(`[verify] ${criterion.id}: ${passed ? 'PASS' : 'FAIL'}\n`);
+    if (!passed) {
+      // Surface WHY it failed — the missing signal that caused blind retry loops.
+      if (output) onOutput(`[verify] ${criterion.id} output:\n${output}\n`);
+      else onOutput(`[verify] ${criterion.id} produced no output.\n`);
+      failures.push({ id: criterion.id, text: criterion.text, command: criterion.verify, output });
+    }
   }
 
   if (verified === 0) {
     onOutput('\n[verify] no criteria with a verify command — nothing to check.\n');
   }
-  return allPassed;
+  return { ok: failures.length === 0, failures };
 }
 
 /**
@@ -145,6 +152,9 @@ export function createExecutor(
       // default (SLOOP_WORKSPACE || cwd) so the env path and existing tests still work.
       const cwd = opts?.targetRepo ?? resolveTargetRepo(env);
       const dry = isDryRun(env);
+      // Make the verify working directory explicit: a common cause of "passes locally but
+      // verify FAILs" is the command assuming a different root than where it actually runs.
+      onOutput(`[sloop] verify commands run from: ${cwd}\n`);
       if (dry) onOutput('[sloop] SLOOP_DRY_RUN — skipping Pi agent, running verify only.\n');
 
       const executeAttempt = makeExecuteAttempt({

@@ -169,7 +169,7 @@ export function createEvalExecutor(opts: {
       let allPassed = true;
       for (const criterion of loop.frontmatter.acceptanceCriteria) {
         if (!criterion.verify) continue;
-        const passed = await runVerify(criterion.verify, targetRepoDir, { env });
+        const { passed } = await runVerify(criterion.verify, targetRepoDir, { env });
         criterion.passed = passed;
         if (!passed) allPassed = false;
         onOutput(`[verify] ${criterion.id}: ${passed ? 'PASS' : 'FAIL'}\n`);

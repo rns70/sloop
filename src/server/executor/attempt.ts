@@ -34,8 +34,13 @@ export function buildBrief(loop: LoopDoc, priorEvidence: string[] = []): string 
       const verifyNote = c.verify ? `  (verified by: \`${c.verify}\`)` : '';
       return `- ${c.text}${verifyNote}`;
     });
+    const hasVerify = acceptanceCriteria.some((c) => c.verify);
+    const verifyNote = hasVerify
+      ? '\n\nEach `verify` command is run from the ROOT of this working directory and must ' +
+        'exit 0. Make sure your changes satisfy these commands when run from there.'
+      : '';
     sections.push(
-      `## Acceptance criteria\n\nYour work is done when all of these hold:\n${lines.join('\n')}`,
+      `## Acceptance criteria\n\nYour work is done when all of these hold:\n${lines.join('\n')}${verifyNote}`,
     );
   }
 

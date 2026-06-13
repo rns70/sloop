@@ -23,7 +23,7 @@ describe('executor seams compose', () => {
         const written = writes[i++];
         return { writtenFiles: written, violations: validateOutputs(written, l.frontmatter.allowedOutputs) };
       },
-      verify: async () => true,
+      verify: async () => ({ ok: true, failures: [] }),
       maxAttempts: 3,
     });
     expect(res.ok).toBe(true);

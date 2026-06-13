@@ -149,7 +149,7 @@ export async function runHeldOutLocal(
 ): Promise<{ pass: boolean; results: { command: string; passed: boolean }[] }> {
   const results: { command: string; passed: boolean }[] = [];
   for (const command of commands) {
-    const passed = await runVerify(command, cwd, { env });
+    const { passed } = await runVerify(command, cwd, { env });
     results.push({ command, passed });
   }
   return { pass: results.every((r) => r.passed), results };

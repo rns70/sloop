@@ -16,12 +16,19 @@ function leaf(): LoopDoc {
 
 const clean: AttemptResult = { writtenFiles: ['code/a.ts'], violations: [] };
 
+const PASS = { ok: true, failures: [] };
+/** One failing criterion, mirroring what verifyCriteria returns on a non-zero verify. */
+const FAIL = {
+  ok: false,
+  failures: [{ id: 'c1', text: 'it works', command: 'exit 1', output: 'boom' }],
+};
+
 describe('runLeafWithRetry', () => {
   it('passes on the first attempt when verify succeeds', async () => {
     let n = 0;
     const res = await runLeafWithRetry(leaf(), {
       executeAttempt: async () => { n++; return clean; },
-      verify: async () => true,
+      verify: async () => PASS,
       maxAttempts: 3,
     });
     expect(res).toEqual({ ok: true, attempts: 1, evidence: [] });
@@ -33,7 +40,7 @@ describe('runLeafWithRetry', () => {
     const evidenceSeen: string[][] = [];
     const res = await runLeafWithRetry(leaf(), {
       executeAttempt: async (_l, { priorEvidence }) => { evidenceSeen.push(priorEvidence); n++; return clean; },
-      verify: async () => n >= 2, // fail first, pass second
+      verify: async () => (n >= 2 ? PASS : FAIL), // fail first, pass second
       maxAttempts: 3,
     });
     expect(res.ok).toBe(true);
@@ -46,7 +53,7 @@ describe('runLeafWithRetry', () => {
     let verifyCalls = 0;
     const res = await runLeafWithRetry(leaf(), {
       executeAttempt: async () => ({ writtenFiles: ['evil.sh'], violations: ['evil.sh'] }),
-      verify: async () => { verifyCalls++; return true; },
+      verify: async () => { verifyCalls++; return PASS; },
       maxAttempts: 2,
     });
     expect(res.ok).toBe(false);
@@ -58,7 +65,7 @@ describe('runLeafWithRetry', () => {
   it('returns ok:false with evidence when attempts are exhausted', async () => {
     const res = await runLeafWithRetry(leaf(), {
       executeAttempt: async () => clean,
-      verify: async () => false,
+      verify: async () => FAIL,
       maxAttempts: 3,
     });
     expect(res.ok).toBe(false);

@@ -60,20 +60,27 @@ describe('runVerify', () => {
     delete process.env.SLOOP_VERIFY_TIMEOUT_MS;
   });
 
-  it('resolves true when the command exits 0', async () => {
-    await expect(runVerify('exit 0', CWD)).resolves.toBe(true);
+  it('resolves passed:true when the command exits 0', async () => {
+    await expect(runVerify('exit 0', CWD)).resolves.toMatchObject({ passed: true });
   });
 
-  it('resolves false when the command exits non-zero', async () => {
-    await expect(runVerify('exit 1', CWD)).resolves.toBe(false);
+  it('resolves passed:false when the command exits non-zero', async () => {
+    await expect(runVerify('exit 1', CWD)).resolves.toMatchObject({ passed: false });
   });
 
-  it('resolves false when the command fails to spawn cleanly', async () => {
-    await expect(runVerify('this-command-does-not-exist-xyz', CWD)).resolves.toBe(false);
+  it('captures command output for a failed criterion', async () => {
+    const { passed, output } = await runVerify('echo boom-stdout; echo boom-stderr 1>&2; exit 1', CWD);
+    expect(passed).toBe(false);
+    expect(output).toContain('boom-stdout');
+    expect(output).toContain('boom-stderr');
+  });
+
+  it('resolves passed:false when the command fails to spawn cleanly', async () => {
+    await expect(runVerify('this-command-does-not-exist-xyz', CWD)).resolves.toMatchObject({ passed: false });
   });
 
   it('treats a timeout as a failure and kills the command', async () => {
-    await expect(runVerify('sleep 5', CWD, { timeoutMs: 50 })).resolves.toBe(false);
+    await expect(runVerify('sleep 5', CWD, { timeoutMs: 50 })).resolves.toMatchObject({ passed: false });
   });
 });
 

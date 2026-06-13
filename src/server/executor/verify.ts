@@ -22,50 +22,93 @@ export interface RunVerifyOptions {
   env?: NodeJS.ProcessEnv;
 }
 
+/** Outcome of a single verify command: pass/fail plus the captured output that explains it. */
+export interface VerifyResult {
+  passed: boolean;
+  /**
+   * Combined stdout+stderr (tail-capped), so a failure can be surfaced to the user and
+   * fed back to the agent. Empty when the command emitted nothing.
+   */
+  output: string;
+}
+
+/** A single criterion that failed verification, with the evidence needed to fix it. */
+export interface CriterionFailure {
+  id: string;
+  text: string;
+  command: string;
+  /** Captured stdout+stderr from the failed command (tail-capped); may be empty. */
+  output: string;
+}
+
+/** Aggregate result of verifying all of a leaf's criteria. */
+export interface VerifyOutcome {
+  /** True iff every *verifiable* criterion passed (a leaf with none is vacuously ok). */
+  ok: boolean;
+  failures: CriterionFailure[];
+}
+
+/** Cap captured output so a chatty command can't blow up logs or the retry brief. */
+const MAX_OUTPUT_CHARS = 4_000;
+
+/** Keep the TAIL of the output — errors/assertions print last and matter most. */
+function tailCap(s: string): string {
+  const trimmed = s.trim();
+  if (trimmed.length <= MAX_OUTPUT_CHARS) return trimmed;
+  return `…(truncated)…\n${trimmed.slice(trimmed.length - MAX_OUTPUT_CHARS)}`;
+}
+
 /**
- * Run a criterion's `verify` command and resolve `true` iff it exits 0.
+ * Run a criterion's `verify` command and resolve `{ passed, output }`. `passed` is true
+ * iff the command exits 0 — this is what makes the convergence invariant *real* (spec §3).
+ * The command runs through a shell (so `npm test -- foo` and `&&` chains work) in `cwd`,
+ * and its stdout+stderr are captured so a failure is no longer opaque.
  *
- * This is what makes the convergence invariant *real* (spec §3): a criterion is
- * satisfied only when its command exits cleanly. The command runs through a shell
- * (so `npm test -- foo` and `&&` chains work) in the target repo (`cwd`).
- *
- * Failure modes all resolve to `false` rather than rejecting — a verify step is a
+ * Failure modes all resolve to `passed: false` rather than rejecting — a verify step is a
  * pass/fail signal, not an exception:
- *   - non-zero exit  -> false
- *   - spawn error    -> false
- *   - timeout        -> the process is killed and we resolve false
+ *   - non-zero exit  -> { passed: false, output: <captured> }
+ *   - spawn error    -> { passed: false, output: <error message> }
+ *   - timeout        -> the process is killed; output notes the timeout
  *
  * The promise resolves exactly once; the timer is always cleared.
  */
-export function runVerify(command: string, cwd: string, options: RunVerifyOptions = {}): Promise<boolean> {
+export function runVerify(command: string, cwd: string, options: RunVerifyOptions = {}): Promise<VerifyResult> {
   const env = options.env ?? process.env;
   const timeoutMs = options.timeoutMs ?? resolveVerifyTimeoutMs(env);
 
-  return new Promise<boolean>((resolve) => {
+  return new Promise<VerifyResult>((resolve) => {
     const child = spawn(command, {
       cwd,
       env,
       shell: true,
-      stdio: 'ignore',
+      stdio: ['ignore', 'pipe', 'pipe'],
     });
 
+    let captured = '';
+    const append = (chunk: Buffer): void => {
+      // Bound memory: once well past the cap, stop accumulating (we tail-cap anyway).
+      if (captured.length < MAX_OUTPUT_CHARS * 4) captured += chunk.toString('utf8');
+    };
+    child.stdout?.on('data', append);
+    child.stderr?.on('data', append);
+
     let settled = false;
-    const finish = (passed: boolean): void => {
+    const finish = (passed: boolean, extra = ''): void => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      resolve(passed);
+      resolve({ passed, output: tailCap(captured + extra) });
     };
 
     const timer = setTimeout(() => {
       // Treat a hung command as a failed criterion. SIGKILL so it can't ignore us.
       child.kill('SIGKILL');
-      finish(false);
+      finish(false, `\n[verify timed out after ${timeoutMs}ms]`);
     }, timeoutMs);
     // Don't let a pending verify timer keep the process alive on its own.
     if (typeof timer.unref === 'function') timer.unref();
 
-    child.on('error', () => finish(false));
+    child.on('error', (err) => finish(false, `\n[spawn error] ${err.message}`));
     child.on('close', (code) => finish(code === 0));
   });
 }
