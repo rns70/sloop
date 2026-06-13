@@ -2,6 +2,7 @@
 // steps array and re-renders on change. All mutation goes through the pure helpers
 // in ./workflowSteps so this file stays declarative.
 
+import { useMemo } from 'react';
 import type { RoleDef, ModelOption } from '../../api-client/index';
 import { IconButton } from '../../design/index';
 import {
@@ -25,10 +26,12 @@ const FIELD_CLASS =
   'focus:border-accent focus:outline-none disabled:opacity-50';
 
 export function WorkflowStepsEditor({ steps, roles, models, onChange }: WorkflowStepsEditorProps) {
-  const roleOptions = (current: string) =>
-    withCurrent(roles.map((r) => r.id), current);
-  const modelOptions = (current: string) =>
-    withCurrent(models.map((m) => m.alias), current);
+  // Compute the base option lists once; `withCurrent` keeps a step's existing value
+  // selectable even if the library dropped it. Mirrors LoopEditor's useMemo pattern.
+  const roleIds = useMemo(() => roles.map((r) => r.id), [roles]);
+  const modelAliases = useMemo(() => models.map((m) => m.alias), [models]);
+  const roleOptions = (current: string) => withCurrent(roleIds, current);
+  const modelOptions = (current: string) => withCurrent(modelAliases, current);
 
   return (
     <div className="mb-5">
@@ -36,6 +39,10 @@ export function WorkflowStepsEditor({ steps, roles, models, onChange }: Workflow
         Steps
       </div>
       <div className="flex flex-col gap-2">
+        {/* key={i} (positional): steps have no persistent id, and we deliberately do not
+            add a transient one — WorkflowStep is the on-disk shape and an editor-only id
+            would risk leaking into the serialized markdown. Reorder is button-driven, so
+            inputs aren't focused during a swap and the positional key is acceptable. */}
         {steps.map((step, i) => (
           <div key={i} className="flex flex-wrap items-center gap-2 rounded-md border border-line p-2">
             <input
@@ -45,6 +52,7 @@ export function WorkflowStepsEditor({ steps, roles, models, onChange }: Workflow
               onChange={(e) => onChange(updateStep(steps, i, { name: e.target.value }))}
             />
             <select
+              aria-label="Role"
               className={FIELD_CLASS}
               value={step.role}
               onChange={(e) => onChange(updateStep(steps, i, { role: e.target.value }))}
@@ -54,6 +62,7 @@ export function WorkflowStepsEditor({ steps, roles, models, onChange }: Workflow
               ))}
             </select>
             <select
+              aria-label="Model"
               className={FIELD_CLASS}
               value={step.model}
               onChange={(e) => onChange(updateStep(steps, i, { model: e.target.value }))}
