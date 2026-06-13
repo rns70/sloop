@@ -3,6 +3,7 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import { getAdr, getAdrDiff, putAdr, type AdrDoc } from '../../api-client/index';
 import { Button, EditableTitle, MarkdownEditor, Page, cx, type MarkdownEditorHandle } from '../../design/index';
 import { useAssistant } from '../../assistant/AssistantContext';
+import { useRegisterSave } from '../../shell/EditorActionsContext';
 import { InlineDiff } from './InlineDiff';
 
 type Mode = 'edit' | 'changes';
@@ -83,6 +84,9 @@ export function AdrEditor() {
       setSaving(false);
     }
   }
+
+  // Expose Save to the app-level Cmd+S hotkey and the command palette.
+  useRegisterSave(() => void save(), dirty && !saving);
 
   const toggle = (
     <div className="flex items-center gap-1 rounded-md bg-line-soft p-0.5">
