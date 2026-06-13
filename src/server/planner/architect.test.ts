@@ -57,6 +57,7 @@ function fakeFiles(): FilesService {
     listAdrs: async () => [],
     readAdr: async () => ({}) as AdrDoc,
     writeAdr: async () => {},
+    moveAdr: async () => {},
     readLoop: async () => ({}) as LoopDoc,
     writeLoop: async () => {},
     listLoops: async () => [],

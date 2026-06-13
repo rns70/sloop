@@ -418,6 +418,7 @@ function decorateFiles(inner: FilesService, onWrite: (loop: LoopDoc) => void): F
     listAdrs: () => inner.listAdrs(),
     readAdr: (p) => inner.readAdr(p),
     writeAdr: (d) => inner.writeAdr(d),
+    moveAdr: (from, to) => inner.moveAdr(from, to),
     readLoop: (p) => inner.readLoop(p),
     listLoops: (c) => inner.listLoops(c),
     listCascadeIds: () => inner.listCascadeIds(),
