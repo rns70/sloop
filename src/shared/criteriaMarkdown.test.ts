@@ -121,6 +121,16 @@ describe('parser tolerance (BlockNote-style output)', () => {
     expect(r.criteria[0]).toEqual({ id: 'ac-1', text: 'A', passed: true });
   });
 
+  it('accepts a * or + bullet (BlockNote re-exports check lists with a * marker)', () => {
+    const star = parseCriteriaFromBody(CRITERIA_HEADING + '\n\n* [ ] **ac-1** A\n* [x] **ac-2** B');
+    expect(star.criteria).toEqual([
+      { id: 'ac-1', text: 'A', passed: false },
+      { id: 'ac-2', text: 'B', passed: true },
+    ]);
+    const plus = parseCriteriaFromBody(CRITERIA_HEADING + '\n\n+ [ ] **ac-1** A');
+    expect(plus.criteria[0]).toEqual({ id: 'ac-1', text: 'A', passed: false });
+  });
+
   it('parses a criterion with no id (hand-added bullet)', () => {
     const r = parseCriteriaFromBody(CRITERIA_HEADING + '\n\n- [ ] just text');
     expect(r.criteria[0]).toEqual({ id: '', text: 'just text', passed: false });
@@ -235,6 +245,10 @@ describe('bodyHasNoCriteria', () => {
 
   it('is false when the section has at least one item', () => {
     expect(bodyHasNoCriteria('## Acceptance criteria\n\n- [ ] It works\n')).toBe(false);
+  });
+
+  it('is false after a BlockNote round-trip rewrites bullets to * (no false warning)', () => {
+    expect(bodyHasNoCriteria('## Acceptance criteria\n\n* [ ] **ac-1** It works\n')).toBe(false);
   });
 
   it('is true when the only checklist lives inside a fenced code block', () => {
