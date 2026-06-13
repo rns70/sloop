@@ -1,3 +1,5 @@
+> ⚠️ **SUPERSEDED (2026-06-13).** This Rust/Tauri plan was cut when the build switched to a TypeScript web app for hackathon speed. Use `2026-06-13-sloop-build-overview.md` and the `handoffs/` work packages instead. Kept for reference only.
+
 # sloop Workspace Core Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.

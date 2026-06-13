@@ -135,10 +135,12 @@ executor: claude-code  # which external agent runs this (leaves)
 Body holds the human-readable plan, the brief handed to the agent, and notes.
 
 ### 4.4 Execution engine
-- sloop defines an **Executor** abstraction; the first (and MVP) adapter is **Claude Code**, invoked as a subprocess per leaf.
-- A leaf hands the external agent: the scoped task, the relevant ADR context, and its acceptance criteria. sloop captures output, detects completion, and runs the criteria verification step.
-- **Model routing** = which model/agent invocation is used per loop. Defaults flow from role (Architect→opus, Engineer→sonnet, leaf work→haiku), overridable per loop. (See §6.)
-- Pluggable executors are designed for but not implemented in MVP (YAGNI until a second runtime is needed).
+- sloop defines an **Executor** interface; a leaf's model (via the registry, §6.3) selects which executor runs it:
+  - **Anthropic models → Claude Code executor**, invoked as a subprocess per leaf.
+  - **Nebius models (e.g. NVIDIA Nemotron) → an OpenAI-compatible API executor** — a thin agent loop hitting Nebius AI Studio's OpenAI-compatible endpoint (since Claude Code is Anthropic-only).
+- Either way a leaf gets: the scoped task, the relevant ADR context, and its acceptance criteria. sloop captures output, detects completion, and runs the criteria `verify` step.
+- **Model routing** = which model/provider is used per loop. Defaults flow from role/template, overridable per loop (§6.3).
+- Beyond these two, further pluggable executors are deferred (YAGNI).
 
 ---
 
@@ -179,9 +181,26 @@ A template file declares its stages and the role + default model for each (in fr
 
 The template for a cascade is chosen at kickoff (defaulting to `spec-driven`) and recorded on each loop's `template` field.
 
-### 6.3 Model routing
+### 6.3 Model routing & providers
 - **Principle:** expensive reasoning at the root, cheap doing at the leaves. Resolution order for a loop's model: explicit per-loop override → template-stage default → role default → global default.
 - Because roles and templates are markdown, routing rules, personas, and methodologies are versioned and diffable like everything else.
+
+**Providers (multi-provider, not Anthropic-only).** A `model` id resolves through a **model registry** in `.sloop/config.md` to a provider. Two providers ship:
+- `anthropic` — Claude models (opus/sonnet/haiku), run via the Claude Code executor and the Anthropic SDK for planning.
+- `nebius` — models hosted on **Nebius AI Studio** via its **OpenAI-compatible API**, e.g. **NVIDIA Nemotron** (`nvidia/llama-3.1-nemotron-70b-instruct`) and other open models. Base URL + `apiKeyEnv` come from the registry.
+
+Registry entry shape (in `.sloop/config.md` frontmatter):
+```yaml
+models:
+  opus:        { provider: anthropic, id: claude-opus-4-8 }
+  sonnet:      { provider: anthropic, id: claude-sonnet-4-6 }
+  haiku:       { provider: anthropic, id: claude-haiku-4-5-20251001 }
+  nemotron:    { provider: nebius, id: nvidia/llama-3.1-nemotron-70b-instruct }
+providers:
+  anthropic: { apiKeyEnv: ANTHROPIC_API_KEY }
+  nebius:    { baseUrl: https://api.studio.nebius.ai/v1, apiKeyEnv: NEBIUS_API_KEY }
+```
+So the architect could plan on `nemotron` and execute leaves on `haiku`, or any mix — routing is provider-agnostic. The registry is the single place a new provider/model is added.
 
 ---
 
@@ -222,7 +241,7 @@ Edit one ADR in the databank → kick off a cascade (pick the `spec-driven` temp
 
 **Explicitly cut for the hackathon (do NOT build):**
 - Tauri/native packaging (plain localhost web app).
-- Pluggable executor abstraction — hardcode Claude Code; wrap behind one function only.
+- General pluggable executor framework — ship exactly two executors (Claude Code for Anthropic, OpenAI-compatible for Nebius/Nemotron) behind the one `Executor` interface; no more.
 - Real file watcher / external-edit sync — refresh on action is fine.
 - Retries/backoff, sandboxing, telemetry, multi-user, cost dashboards.
 - QA-role adjudication for criteria without a `verify` command — demo only criteria that have one.
