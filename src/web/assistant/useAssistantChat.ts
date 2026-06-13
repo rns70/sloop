@@ -1,0 +1,105 @@
+import { useCallback, useRef, useState } from 'react';
+import { streamAssistant } from '../api-client/index';
+import type { ChatMessage, ToolActivity, AssistantStreamEvent } from '../../shared/index';
+
+export interface UseAssistantChat {
+  messages: ChatMessage[];
+  streaming: boolean;
+  error: string | null;
+  send: (text: string) => Promise<void>;
+  stop: () => void;
+}
+
+/**
+ * Pure event reducer — exported so tests can verify the message-mutation logic
+ * without a DOM or React environment.
+ *
+ * Returns the (possibly new) assistant message plus an optional `wrotePath`
+ * when a successful tool_result with a path was processed.
+ */
+export function applyEvent(
+  msg: ChatMessage,
+  e: AssistantStreamEvent,
+): { msg: ChatMessage; wrotePath?: string } {
+  switch (e.type) {
+    case 'text_delta':
+      return { msg: { ...msg, text: msg.text + e.delta } };
+
+    case 'tool_result': {
+      const activity: ToolActivity = { tool: e.tool, path: e.path, ok: e.ok };
+      return {
+        msg: { ...msg, tools: [...(msg.tools ?? []), activity] },
+        wrotePath: e.ok && e.path ? e.path : undefined,
+      };
+    }
+
+    // 'done', 'error', 'tool_start': no change to the message object itself.
+    // 'error' surfaces via the hook's setError path; 'done'/'tool_start' are informational.
+    default:
+      return { msg };
+  }
+}
+
+/** Holds the conversation thread, streams agent turns, and reports written paths. */
+export function useAssistantChat(opts: {
+  model?: string;
+  onWrote?: (paths: string[]) => void;
+}): UseAssistantChat {
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [streaming, setStreaming] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const abortRef = useRef<(() => void) | null>(null);
+
+  const send = useCallback(
+    async (text: string) => {
+      const trimmed = text.trim();
+      if (!trimmed || streaming) return;
+
+      setError(null);
+      const history: ChatMessage[] = [...messages, { role: 'user', text: trimmed }];
+      // Seed an empty assistant message we stream into.
+      setMessages([...history, { role: 'assistant', text: '', tools: [] }]);
+      setStreaming(true);
+
+      const wrote: string[] = [];
+
+      const { done, abort } = streamAssistant(
+        { messages: history, model: opts.model },
+        (e) => {
+          if (e.type === 'error') {
+            setError(e.message);
+            return;
+          }
+          setMessages((cur) => {
+            const last = cur[cur.length - 1];
+            if (!last || last.role !== 'assistant') return cur;
+            const { msg: next, wrotePath } = applyEvent(last, e);
+            if (wrotePath) wrote.push(wrotePath);
+            if (next === last) return cur; // no change — skip re-render
+            return [...cur.slice(0, -1), next];
+          });
+        },
+      );
+
+      abortRef.current = abort;
+      try {
+        await done;
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setStreaming(false);
+        abortRef.current = null;
+        if (wrote.length) opts.onWrote?.(wrote);
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [messages, streaming, opts.model, opts.onWrote],
+  );
+
+  const stop = useCallback(() => {
+    abortRef.current?.();
+    setStreaming(false);
+  }, []);
+
+  return { messages, streaming, error, send, stop };
+}
