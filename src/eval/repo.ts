@@ -3,7 +3,7 @@
  *
  * Two distinct git trees per run:
  *  - the **sloop workspace** (scratch): `.sloop/` registry + `databank/` + `cascades/`.
- *    Seeded from a template, git-committed at a baseline, then the requirement ADR is
+ *    Seeded from a workflow, git-committed at a baseline, then the requirement ADR is
  *    written so `GitService.diffDatabank()` shows it as a change the architect plans on.
  *  - the **target repo**: where the executor's Pi agent edits code and the held-out
  *    suite runs. Reset to `baseRef` before each run (`git reset --hard && git clean -fd`).
@@ -86,8 +86,8 @@ export async function resetGitRepo(repoDir: string, baseRef: string): Promise<vo
 }
 
 /**
- * Create a fresh scratch sloop workspace: copy the `.sloop/` template (config registry,
- * roles, templates), add an empty `databank/`, git-init and commit a baseline so the
+ * Create a fresh scratch sloop workspace: copy the `.sloop/` workflow (config registry,
+ * roles, workflows), add an empty `databank/`, git-init and commit a baseline so the
  * subsequent requirement write registers as a diff. `templateWorkspaceDir` is a directory
  * containing a `.sloop/` subtree (e.g. `fixtures/sample-workspace`).
  */

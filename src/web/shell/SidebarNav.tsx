@@ -10,11 +10,11 @@ import {
   getAdrs,
   getCascades,
   getRoles,
-  getTemplates,
+  getWorkflows,
   type AdrDoc,
   type CascadeSummary,
   type RoleDef,
-  type TemplateDef,
+  type WorkflowDef,
 } from '../api-client/index';
 import { IconButton, cx } from '../design/index';
 import { humanizeCascade } from '../views/mission-control/text';
@@ -131,18 +131,18 @@ export function SidebarNav() {
   const navigate = useNavigate();
   const [adrs, setAdrs] = useState<AdrDoc[] | null>(null);
   const [roles, setRoles] = useState<RoleDef[] | null>(null);
-  const [templates, setTemplates] = useState<TemplateDef[] | null>(null);
+  const [workflows, setWorkflows] = useState<WorkflowDef[] | null>(null);
   const [cascades, setCascades] = useState<CascadeSummary[] | null>(null);
   const [errs, setErrs] = useState<{
     adrs?: string;
     roles?: string;
-    templates?: string;
+    workflows?: string;
     cascades?: string;
   }>({});
   const [rootAddingFolder, setRootAddingFolder] = useState(false);
 
   const fail =
-    (key: 'adrs' | 'roles' | 'templates' | 'cascades') => (e: unknown) =>
+    (key: 'adrs' | 'roles' | 'workflows' | 'cascades') => (e: unknown) =>
       setErrs((prev) => ({ ...prev, [key]: e instanceof Error ? e.message : String(e) }));
 
   // Refresh every list on navigation so newly-created items / kicked-off cascades appear
@@ -151,7 +151,7 @@ export function SidebarNav() {
     let cancelled = false;
     getAdrs().then((v) => !cancelled && setAdrs(v)).catch(fail('adrs'));
     getRoles().then((v) => !cancelled && setRoles(v)).catch(fail('roles'));
-    getTemplates().then((v) => !cancelled && setTemplates(v)).catch(fail('templates'));
+    getWorkflows().then((v) => !cancelled && setWorkflows(v)).catch(fail('workflows'));
     getCascades().then((v) => !cancelled && setCascades(v)).catch(fail('cascades'));
     return () => {
       cancelled = true;
@@ -171,7 +171,7 @@ export function SidebarNav() {
       .catch(fail('adrs'));
   };
   const newLib = (kind: LibKind) => {
-    const existing = (kind === 'roles' ? roles : templates) ?? [];
+    const existing = (kind === 'roles' ? roles : workflows) ?? [];
     void createLibraryItem(kind, existing.map((x) => x.id))
       .then((id) => navigate(`/libraries/${kind}/${id}?new=1`))
       .catch(fail(kind));
@@ -183,7 +183,7 @@ export function SidebarNav() {
   const roleLeaves: Leaf[] | null =
     roles && roles.map((r) => ({ to: `/libraries/roles/${enc(r.id)}`, label: r.name }));
   const templateLeaves: Leaf[] | null =
-    templates && templates.map((t) => ({ to: `/libraries/templates/${enc(t.id)}`, label: t.name }));
+    workflows && workflows.map((t) => ({ to: `/libraries/workflows/${enc(t.id)}`, label: t.name }));
 
   return (
     <nav className="space-y-1">
@@ -240,10 +240,10 @@ export function SidebarNav() {
       <NavGroup
         label="Templates"
         items={templateLeaves}
-        error={errs.templates ?? null}
+        error={errs.workflows ?? null}
         actions={
-          templates && (
-            <IconButton aria-label="New template" onClick={() => newLib('templates')}>
+          workflows && (
+            <IconButton aria-label="New workflow" onClick={() => newLib('workflows')}>
               <span className="text-[14px] leading-none">＋</span>
             </IconButton>
           )

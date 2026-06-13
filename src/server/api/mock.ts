@@ -10,7 +10,7 @@ import matter from 'gray-matter';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import type {
-  AdrDoc, TemplateDef, RoleDef, LoopDoc, LoopFrontmatter, CascadeSummary,
+  AdrDoc, WorkflowDef, RoleDef, LoopDoc, LoopFrontmatter, CascadeSummary,
   ModelRegistry, AcceptanceCriterion,
 } from '../../shared/index';
 import type { AssistantRequest } from '../../shared/index';
@@ -63,8 +63,8 @@ function loadRoles(root: string): RoleDef[] {
     });
 }
 
-function loadTemplates(root: string): TemplateDef[] {
-  const dir = join(root, '.sloop', 'templates');
+function loadWorkflows(root: string): WorkflowDef[] {
+  const dir = join(root, '.sloop', 'workflows');
   if (!existsSync(dir)) return [];
   return readdirSync(dir)
     .filter((f) => f.endsWith('.md'))
@@ -74,7 +74,7 @@ function loadTemplates(root: string): TemplateDef[] {
       return {
         id: String(data.id),
         name: String(data.name),
-        stages: (data.stages as TemplateDef['stages']) ?? [],
+        steps: (data.steps as WorkflowDef['steps']) ?? [],
         guidance: content,
       };
     });
@@ -103,7 +103,7 @@ function loadCascade(root: string, id: string): CascadeDetail | undefined {
   const summary: CascadeSummary = {
     id: String(cdata.id),
     createdAt: String(cdata.createdAt),
-    template: String(cdata.template),
+    workflow: String(cdata.workflow),
     deltas: (cdata.deltas as CascadeSummary['deltas']) ?? { add: 0, change: 0, delete: 0 },
     rootLoopId: String(cdata.rootLoopId),
     status: (cdata.status as CascadeSummary['status']) ?? 'awaiting_approval',
@@ -132,9 +132,9 @@ function clone<T>(value: T): T {
 export class MockApi implements SloopApi {
   private adrs: AdrDoc[];
   private roles: RoleDef[];
-  private templates: TemplateDef[];
+  private workflows: WorkflowDef[];
   readonly registry: ModelRegistry;
-  /** The pristine sample cascade, used as the template for new kickoffs. */
+  /** The pristine sample cascade, used as the workflow for new kickoffs. */
   private readonly sample: CascadeDetail;
   private cascades = new Map<string, CascadeDetail>();
   private kickoffCount = 0;
@@ -142,7 +142,7 @@ export class MockApi implements SloopApi {
   constructor(root: string) {
     this.adrs = loadAdrs(root);
     this.roles = loadRoles(root);
-    this.templates = loadTemplates(root);
+    this.workflows = loadWorkflows(root);
     this.registry = loadRegistry(root);
 
     const sampleId = '2026-06-13-token-rotation-sync';
@@ -181,8 +181,8 @@ export class MockApi implements SloopApi {
     return { before: adr.body, after: adr.body };
   }
 
-  async listTemplates(): Promise<TemplateDef[]> {
-    return clone(this.templates);
+  async listWorkflows(): Promise<WorkflowDef[]> {
+    return clone(this.workflows);
   }
 
   async listRoles(): Promise<RoleDef[]> {
@@ -207,11 +207,11 @@ export class MockApi implements SloopApi {
         targetPath: `.sloop/roles/${slug}.md`,
         content: `---\nid: ${slug}\nname: Security Reviewer\ndefaultModel: opus\n---\n\n${text}\n` };
     }
-    if (lower.includes('template')) {
+    if (lower.includes('workflow')) {
       const slug = 'review-pipeline';
-      return { action: 'create-template', summary: `Create template at .sloop/templates/${slug}.md`,
-        targetPath: `.sloop/templates/${slug}.md`,
-        content: `---\nid: ${slug}\nname: Review Pipeline\nstages:\n  - name: architect\n    role: architect\n    model: opus\n---\n\n${text}\n` };
+      return { action: 'create-workflow', summary: `Create workflow at .sloop/workflows/${slug}.md`,
+        targetPath: `.sloop/workflows/${slug}.md`,
+        content: `---\nid: ${slug}\nname: Review Pipeline\nsteps:\n  - name: architect\n    role: architect\n    model: opus\n---\n\n${text}\n` };
     }
     if (lower.includes('adr') || lower.includes('requirement') || lower.includes('document')) {
       return { action: 'create-adr', summary: 'Create a new databank ADR',
@@ -240,7 +240,7 @@ export class MockApi implements SloopApi {
     detail.summary = {
       ...detail.summary,
       id,
-      template: req.templateId,
+      workflow: req.workflowId,
       createdAt: new Date().toISOString(),
       status: 'awaiting_approval',
     };
@@ -249,7 +249,7 @@ export class MockApi implements SloopApi {
       relPath: loop.relPath.replace(this.sample.summary.id, id),
       frontmatter: {
         ...loop.frontmatter,
-        template: req.templateId,
+        workflow: req.workflowId,
         status: loop.frontmatter.kind === 'architect' ? 'awaiting_approval' : 'planned',
       },
     }));

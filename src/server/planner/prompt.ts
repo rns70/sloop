@@ -1,9 +1,9 @@
-import type { DatabankDiff, Delta, RoleDef, TemplateDef } from '../../shared/index';
+import type { DatabankDiff, Delta, RoleDef, WorkflowDef } from '../../shared/index';
 
 /**
  * Pure prompt construction + response parsing for the architecture loop.
  *
- * The architect reads the databank diff and a process template, then proposes a
+ * The architect reads the databank diff and a process workflow, then proposes a
  * SMALL tree of role-typed leaf loops — each carrying acceptance criteria with a
  * stable id and (where possible) a `verify` command, because the convergence
  * invariant (§3) is only *real* when a criterion's truth is a shell exit code.
@@ -60,7 +60,7 @@ function clip(text: string, max = 1200): string {
  */
 export function buildArchitectPrompt(
   diff: DatabankDiff,
-  template: TemplateDef,
+  workflow: WorkflowDef,
   roles: RoleDef[],
   maxLeaves: number,
 ): ArchitectPromptParts {
@@ -68,7 +68,7 @@ export function buildArchitectPrompt(
     .map((r) => `- ${r.id} (${r.name}, default model: ${r.defaultModel}): ${r.brief.replace(/\s+/g, ' ').trim()}`)
     .join('\n');
 
-  const stageLines = template.stages
+  const stepLines = workflow.steps
     .map((s) => `- ${s.name}: role=${s.role}, model=${s.model}${s.gate ? ' [GATE]' : ''}`)
     .join('\n');
 
@@ -85,7 +85,7 @@ export function buildArchitectPrompt(
     'sloop keeps a codebase continuously reconciled to a databank of requirement ADRs.',
     '',
     'Your job: read the databank diff and decompose it into a SMALL tree of role-typed',
-    'leaf loops that follow the chosen process template. Each leaf is a unit of work',
+    'leaf loops that follow the chosen process workflow. Each leaf is a unit of work',
     'small enough to verify directly.',
     '',
     'The convergence invariant governs completion: a loop is DONE iff all its children',
@@ -99,8 +99,8 @@ export function buildArchitectPrompt(
     '- Give every leaf a stable kebab-case id, unique within this cascade.',
     '- Partition leaves by file: no two leaves may edit the same file (they share one',
     '  checkout and would collide).',
-    "- Choose each leaf's role from the roles list and a model alias from the template",
-    '  stage defaults or the role default. The stage model is a floor for bounded work;',
+    "- Choose each leaf's role from the roles list and a model alias from the workflow",
+    '  step defaults or the role default. The step model is a floor for bounded work;',
     "  raise a leaf's model for open-ended or long-horizon tasks.",
     '- Copy each acceptance criterion onto the leaf that satisfies it (stable id + text +',
     '  verify). Set "locked": true on every criterion you author — a locked criterion may',
@@ -128,12 +128,12 @@ export function buildArchitectPrompt(
   ].join('\n');
 
   const userPrompt = [
-    `# Process template: ${template.name} (${template.id})`,
+    `# Process workflow: ${workflow.name} (${workflow.id})`,
     'Stages:',
-    stageLines || '- (none)',
+    stepLines || '- (none)',
     '',
     'Guidance:',
-    template.guidance.trim() || '(none)',
+    workflow.guidance.trim() || '(none)',
     '',
     '# Available roles',
     roleLines || '- (none)',
@@ -178,7 +178,7 @@ function extractJsonObject(raw: string): string {
 
 export interface ParseOptions {
   plannerAlias: string;
-  template: TemplateDef;
+  workflow: WorkflowDef;
   roles: RoleDef[];
   maxLeaves: number;
 }
@@ -186,18 +186,18 @@ export interface ParseOptions {
 function resolveLeafModel(
   rawModel: unknown,
   role: string,
-  template: TemplateDef,
+  workflow: WorkflowDef,
   roles: RoleDef[],
 ): string {
   if (typeof rawModel === 'string' && rawModel.trim()) return rawModel.trim();
-  const stage = template.stages.find((s) => s.role === role);
-  if (stage?.model) return stage.model;
+  const step = workflow.steps.find((s) => s.role === role);
+  if (step?.model) return step.model;
   const roleDef = roles.find((r) => r.id === role);
   if (roleDef?.defaultModel) return roleDef.defaultModel;
-  // Fall back to the implement stage, then the first stage — a leaf must have a model.
+  // Fall back to the implement step, then the first step — a leaf must have a model.
   return (
-    template.stages.find((s) => s.name === 'implement')?.model ??
-    template.stages[0]?.model ??
+    workflow.steps.find((s) => s.name === 'implement')?.model ??
+    workflow.steps[0]?.model ??
     'haiku'
   );
 }
@@ -205,7 +205,7 @@ function resolveLeafModel(
 /**
  * Parse + validate the architect's JSON response into an `ArchitectPlan`. Fails
  * fast on malformed output (a misbehaving planner must surface loudly, not yield a
- * silently empty tree). Defaults each leaf's model from the template/role when the
+ * silently empty tree). Defaults each leaf's model from the workflow/role when the
  * planner omits it, and clamps the leaf count to `maxLeaves` (logging the drop).
  */
 export function parseArchitectResponse(raw: string, opts: ParseOptions): ArchitectPlan {
@@ -261,7 +261,7 @@ export function parseArchitectResponse(raw: string, opts: ParseOptions): Archite
     return {
       id,
       role,
-      model: resolveLeafModel(l.model, role, opts.template, opts.roles),
+      model: resolveLeafModel(l.model, role, opts.workflow, opts.roles),
       delta,
       sourceAdr:
         typeof l.sourceAdr === 'string' && l.sourceAdr.trim() ? l.sourceAdr.trim() : undefined,
@@ -283,7 +283,7 @@ export function parseArchitectResponse(raw: string, opts: ParseOptions): Archite
   const summary =
     typeof obj.summary === 'string' && obj.summary.trim()
       ? obj.summary.trim()
-      : `Proposed ${kept.length} leaf loop(s) following the ${opts.template.name} template.`;
+      : `Proposed ${kept.length} leaf loop(s) following the ${opts.workflow.name} workflow.`;
 
   return { plannerAlias: opts.plannerAlias, summary, leaves: kept };
 }

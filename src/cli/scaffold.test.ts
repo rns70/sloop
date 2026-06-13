@@ -22,7 +22,7 @@ describe('scaffold', () => {
   it('creates the workspace tree and a git repo', async () => {
     const result = await scaffold(dir);
     expect(await exists('.sloop/config.md')).toBe(true);
-    expect(await exists('.sloop/templates/spec-driven.md')).toBe(true);
+    expect(await exists('.sloop/workflows/spec-driven.md')).toBe(true);
     expect(await exists('databank/adr-001-example.md')).toBe(true);
     expect(await exists('.git')).toBe(true);
     expect(await exists('.gitignore')).toBe(true);

@@ -14,7 +14,7 @@ const sources: CommandSources = {
   ],
   cascades: [{ id: 'run-1', label: 'Run 1' }],
   roles: [{ id: 'engineer', name: 'Engineer' }],
-  templates: [{ id: 'feature', name: 'Feature' }],
+  workflows: [{ id: 'feature', name: 'Feature' }],
 };
 
 const handlers = () => ({
@@ -40,12 +40,12 @@ describe('buildCommands', () => {
     expect(ids.slice(0, 3)).toEqual([
       'action:new-adr',
       'action:new-role',
-      'action:new-template',
+      'action:new-workflow',
     ]);
     expect(ids).toContain('nav:adr:databank/auth/login.md');
     expect(ids).toContain('nav:cascade:run-1');
     expect(ids).toContain('nav:role:engineer');
-    expect(ids).toContain('nav:template:feature');
+    expect(ids).toContain('nav:workflow:feature');
   });
 
   it('navigates to the matching route when a nav command runs', () => {

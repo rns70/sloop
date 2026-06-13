@@ -6,7 +6,7 @@ export type WritePlan =
   | { kind: 'answer'; text: string }
   | { kind: 'edit'; relPath: string; content: string }
   | { kind: 'create-adr'; relPath: string; doc: AdrDoc }
-  | { kind: 'create-file'; relPath: string; content: string; libKind: 'roles' | 'templates' };
+  | { kind: 'create-file'; relPath: string; content: string; libKind: 'roles' | 'workflows' };
 
 export interface ExistingIds { adrPaths: string[]; roleIds: string[]; templateIds: string[]; }
 
@@ -33,7 +33,7 @@ export function planWrite(p: AssistantProposal, existing: ExistingIds): WritePla
     return { kind: 'create-adr', relPath, doc: { id, relPath, title: p.title ?? 'Untitled', body: p.content, acceptanceCriteria: [] } };
   }
 
-  const libKind: 'roles' | 'templates' = p.action === 'create-role' ? 'roles' : 'templates';
+  const libKind: 'roles' | 'workflows' = p.action === 'create-role' ? 'roles' : 'workflows';
   const base = baseId(p.targetPath) || slugify(p.summary || libKind);
   const id = uniqueSlug(base, new Set(libKind === 'roles' ? existing.roleIds : existing.templateIds));
   return { kind: 'create-file', relPath: `.sloop/${libKind}/${id}.md`, content: p.content, libKind };

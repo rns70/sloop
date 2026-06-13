@@ -1,6 +1,6 @@
-// One library file (a role or a template) opened in the shared markdown editor, driven
+// One library file (a role or a workflow) opened in the shared markdown editor, driven
 // by the route `/libraries/:type/:id`. Selection lives in the URL now (the sidebar links
-// straight here) — there is no Libraries overview page. The frontmatter (model / stages)
+// straight here) — there is no Libraries overview page. The frontmatter (model / steps)
 // is shown alongside; the editor edits the markdown body (brief | guidance), and Save
 // round-trips through putFile → `PUT /api/files/:relPath`.
 
@@ -8,18 +8,18 @@ import { useEffect, useState } from 'react';
 import { Navigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   getRoles,
-  getTemplates,
+  getWorkflows,
   putFile,
   type RoleDef,
-  type TemplateDef,
+  type WorkflowDef,
 } from '../../api-client/index';
 import { Button, EditableTitle, MarkdownEditor, Page, Tag, roleTone } from '../../design/index';
-import { serializeRole, serializeTemplate } from '../../shell/createItem';
+import { serializeRole, serializeWorkflow } from '../../shell/createItem';
 import { useRegisterSave } from '../../shell/EditorActionsContext';
 
-type LibType = 'roles' | 'templates';
+type LibType = 'roles' | 'workflows';
 
-const isLibType = (t: string | undefined): t is LibType => t === 'roles' || t === 'templates';
+const isLibType = (t: string | undefined): t is LibType => t === 'roles' || t === 'workflows';
 
 export function LibraryFile() {
   const { type, id = '' } = useParams<{ type: string; id: string }>();
@@ -30,12 +30,12 @@ export function LibraryFile() {
 
 function LibraryEditor({ type, id }: { type: LibType; id: string }) {
   const isRole = type === 'roles';
-  const relPath = isRole ? `.sloop/roles/${id}.md` : `.sloop/templates/${id}.md`;
+  const relPath = isRole ? `.sloop/roles/${id}.md` : `.sloop/workflows/${id}.md`;
   const [searchParams] = useSearchParams();
   const isNew = searchParams.get('new') === '1';
 
   const [role, setRole] = useState<RoleDef | null>(null);
-  const [template, setTemplate] = useState<TemplateDef | null>(null);
+  const [workflow, setTemplate] = useState<WorkflowDef | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [originalName, setOriginalName] = useState('');
@@ -62,10 +62,10 @@ function LibraryEditor({ type, id }: { type: LibType; id: string }) {
           setContent(def.brief);
           setOriginal(def.brief);
         })
-      : getTemplates().then((ts) => {
+      : getWorkflows().then((ts) => {
           const def = ts.find((t) => t.id === id);
           if (cancelled) return;
-          if (!def) return setError(`No template "${id}"`);
+          if (!def) return setError(`No workflow "${id}"`);
           setTemplate(def);
           setName(def.name);
           setOriginalName(def.name);
@@ -81,7 +81,7 @@ function LibraryEditor({ type, id }: { type: LibType; id: string }) {
     };
   }, [isRole, id]);
 
-  const def = isRole ? role : template;
+  const def = isRole ? role : workflow;
   const dirty = def !== null && (content !== original || name !== originalName);
 
   const save = () => {
@@ -89,10 +89,10 @@ function LibraryEditor({ type, id }: { type: LibType; id: string }) {
     setSaving(true);
     setNote(null);
     // Reconstruct the whole file (frontmatter + body) — putFile writes raw content, so
-    // sending only the body would drop the role's model / template's stages.
+    // sending only the body would drop the role's model / workflow's steps.
     const fileContent = role
       ? serializeRole({ id: role.id, name, defaultModel: role.defaultModel, color: role.color }, content)
-      : serializeTemplate({ id: (template as TemplateDef).id, name, stages: (template as TemplateDef).stages }, content);
+      : serializeWorkflow({ id: (workflow as WorkflowDef).id, name, steps: (workflow as WorkflowDef).steps }, content);
     putFile(relPath, fileContent)
       .then(() => {
         setOriginal(content);
@@ -137,9 +137,9 @@ function LibraryEditor({ type, id }: { type: LibType; id: string }) {
               <span className="text-ink-muted">{role.defaultModel}</span>
               <Tag tone={roleTone(role.id)}>{name || role.name}</Tag>
             </div>
-          ) : template ? (
+          ) : workflow ? (
             <div className="mb-5 mt-1 text-[13px] text-ink-faint">
-              {template.stages.map((s) => s.name).join(' → ')}
+              {workflow.steps.map((s) => s.name).join(' → ')}
             </div>
           ) : null}
           <MarkdownEditor key={relPath} value={content} onChange={setContent} />

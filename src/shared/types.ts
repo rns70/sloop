@@ -22,7 +22,7 @@ export interface LoopFrontmatter {
   parent?: string;
   children: string[];
   sourceAdr?: string;
-  template?: string;
+  workflow?: string;
   acceptanceCriteria: AcceptanceCriterion[];
   executor?: string;
 }
@@ -44,16 +44,16 @@ export interface AdrDoc {
 export interface CascadeSummary {
   id: string;
   createdAt: string;            // ISO; pass in, never call Date.now in shared code
-  template: string;
+  workflow: string;
   deltas: { add: number; change: number; delete: number };
   rootLoopId: string;
   status: LoopStatus;           // derived from the root loop
 }
 
-export interface TemplateDef {
+export interface WorkflowDef {
   id: string;
   name: string;
-  stages: { name: string; role: string; model: string; gate?: boolean }[];
+  steps: { name: string; role: string; model: string; gate?: boolean }[];
   guidance: string;             // prose the architect follows
 }
 
@@ -94,7 +94,7 @@ export interface ResolvedModel {
   apiKey: string;
 }
 
-// ---- Global assistant (app-wide: answer / edit / create ADR|role|template) ----
+// ---- Global assistant (app-wide: answer / edit / create ADR|role|workflow) ----
 
 /** A configured model alias surfaced to the picker. Never carries an API key. */
 export interface ModelOption {
@@ -103,7 +103,7 @@ export interface ModelOption {
   id: string;             // concrete provider model id
 }
 
-export type AssistantAction = 'answer' | 'edit' | 'create-adr' | 'create-role' | 'create-template';
+export type AssistantAction = 'answer' | 'edit' | 'create-adr' | 'create-role' | 'create-workflow';
 
 export interface AssistantRequest {
   instruction: string;

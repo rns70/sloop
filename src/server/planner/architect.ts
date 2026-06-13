@@ -5,7 +5,7 @@ import type {
   FilesService,
   ResolvedModel,
   RoleDef,
-  TemplateDef,
+  WorkflowDef,
 } from '../../shared/index';
 import { resolveModel } from '../../shared/index';
 import {
@@ -16,7 +16,7 @@ import {
 } from './prompt';
 
 /**
- * The architecture loop: turn a databank diff + process template into a proposed
+ * The architecture loop: turn a databank diff + process workflow into a proposed
  * tree of leaf loops, by calling a big planner model **provider-agnostically**
  * through `@earendil-works/pi-ai`. No provider SDK is touched directly — the
  * registry maps an alias to `{ provider, id, baseUrl, apiKey }` and Pi handles
@@ -27,7 +27,7 @@ import {
 export interface ArchitectInput {
   cascadeId: string;
   diff: DatabankDiff;
-  template: TemplateDef;
+  workflow: WorkflowDef;
   roles: RoleDef[];
 }
 
@@ -117,17 +117,17 @@ const piArchitectCall: ArchitectModelCall = async (resolved, parts) => {
 
 /**
  * Pick the planner alias: explicit `SLOOP_PLANNER_MODEL` env override → the
- * template's architect/plan stage default → the first stage → `opus`. Expensive
+ * workflow's architect/plan step default → the first step → `opus`. Expensive
  * reasoning belongs at the root (§6.3).
  */
-export function pickPlannerAlias(env: NodeJS.ProcessEnv, template: TemplateDef): string {
+export function pickPlannerAlias(env: NodeJS.ProcessEnv, workflow: WorkflowDef): string {
   const fromEnv = env.SLOOP_PLANNER_MODEL?.trim();
   if (fromEnv) return fromEnv;
   const architectStage =
-    template.stages.find((s) => s.role === 'architect') ??
-    template.stages.find((s) => s.name === 'plan');
+    workflow.steps.find((s) => s.role === 'architect') ??
+    workflow.steps.find((s) => s.name === 'plan');
   if (architectStage?.model) return architectStage.model;
-  return template.stages[0]?.model ?? 'opus';
+  return workflow.steps[0]?.model ?? 'opus';
 }
 
 function parseMaxLeaves(env: NodeJS.ProcessEnv, override: number | undefined): number {
@@ -148,15 +148,15 @@ export function createArchitect(deps: ArchitectDeps): ArchitectPlanner {
   return {
     async propose(input: ArchitectInput): Promise<ArchitectPlan> {
       const registry = await deps.files.readModelRegistry();
-      const plannerAlias = pickPlannerAlias(env, input.template);
+      const plannerAlias = pickPlannerAlias(env, input.workflow);
       const resolved = resolveModel(plannerAlias, registry, env);
 
-      const parts = buildArchitectPrompt(input.diff, input.template, input.roles, maxLeaves);
+      const parts = buildArchitectPrompt(input.diff, input.workflow, input.roles, maxLeaves);
       const raw = await call(resolved, parts);
 
       return parseArchitectResponse(raw, {
         plannerAlias,
-        template: input.template,
+        workflow: input.workflow,
         roles: input.roles,
         maxLeaves,
       });

@@ -15,7 +15,7 @@ import { recompute, rootStatus } from './convergence';
 
 /**
  * The CascadeEngine turns a databank diff into an architect loop that proposes a
- * tree of role-typed leaf loops (following a template), gates on human approval,
+ * tree of role-typed leaf loops (following a workflow), gates on human approval,
  * then drives execution while the convergence invariant (§3) bubbles status up to
  * the root.
  *
@@ -46,7 +46,7 @@ export interface CascadeEngineDeps {
 /** Cascade-level metadata that has no home on a `LoopDoc` (e.g. createdAt). */
 interface CascadeMeta {
   createdAt: string;
-  template: string;
+  workflow: string;
   deltas: CascadeSummary['deltas'];
 }
 
@@ -113,25 +113,25 @@ class CascadeEngineImpl implements CascadeEngine {
     this.maxDepth = Number.isFinite(parsed) && parsed > 0 ? parsed : 2;
   }
 
-  async kickoff(templateId: string): Promise<CascadeSummary> {
-    const [templates, roles, diff] = await Promise.all([
-      this.files.listTemplates(),
+  async kickoff(workflowId: string): Promise<CascadeSummary> {
+    const [workflows, roles, diff] = await Promise.all([
+      this.files.listWorkflows(),
       this.files.listRoles(),
       this.git.diffDatabank(),
     ]);
 
-    const template = templates.find((t) => t.id === templateId);
-    if (!template) {
-      const known = templates.map((t) => t.id).join(', ') || '(none)';
-      throw new Error(`Unknown template "${templateId}". Available: ${known}.`);
+    const workflow = workflows.find((t) => t.id === workflowId);
+    if (!workflow) {
+      const known = workflows.map((t) => t.id).join(', ') || '(none)';
+      throw new Error(`Unknown workflow "${workflowId}". Available: ${known}.`);
     }
 
     const createdAt = this.now();
-    const cascadeId = this.makeCascadeId(createdAt, templateId);
+    const cascadeId = this.makeCascadeId(createdAt, workflowId);
 
-    const plan = await this.planner.propose({ cascadeId, diff, template, roles });
+    const plan = await this.planner.propose({ cascadeId, diff, workflow, roles });
 
-    const { architect, leaves } = this.buildLoops(cascadeId, templateId, plan, diff);
+    const { architect, leaves } = this.buildLoops(cascadeId, workflowId, plan, diff);
     this.enforceDepth(leaves);
 
     // Persist the root architecture loop (awaiting approval) and its proposed leaves.
@@ -139,12 +139,12 @@ class CascadeEngineImpl implements CascadeEngine {
     for (const leaf of leaves) await this.files.writeLoop(leaf);
 
     const deltas = tally(diff.changed.map((c) => c.delta));
-    this.meta.set(cascadeId, { createdAt, template: templateId, deltas });
+    this.meta.set(cascadeId, { createdAt, workflow: workflowId, deltas });
 
     return {
       id: cascadeId,
       createdAt,
-      template: templateId,
+      workflow: workflowId,
       deltas,
       rootLoopId: ROOT_LOOP_ID,
       status: 'awaiting_approval',
@@ -197,9 +197,9 @@ class CascadeEngineImpl implements CascadeEngine {
     return loops;
   }
 
-  private makeCascadeId(createdAt: string, templateId: string): string {
+  private makeCascadeId(createdAt: string, workflowId: string): string {
     const datePart = createdAt.slice(0, 10);
-    const base = `${datePart}-${templateId}`;
+    const base = `${datePart}-${workflowId}`;
     if (!this.meta.has(base)) return base;
     let n = 2;
     while (this.meta.has(`${base}-${n}`)) n += 1;
@@ -208,7 +208,7 @@ class CascadeEngineImpl implements CascadeEngine {
 
   private buildLoops(
     cascadeId: string,
-    templateId: string,
+    workflowId: string,
     plan: ArchitectPlan,
     diff: { changed: Array<{ delta: Delta }> },
   ): { architect: LoopDoc; leaves: LoopDoc[] } {
@@ -227,7 +227,7 @@ class CascadeEngineImpl implements CascadeEngine {
       status: 'awaiting_approval',
       delta: architectDelta,
       children: childIds,
-      template: templateId,
+      workflow: workflowId,
       acceptanceCriteria: [],
     };
     const architect: LoopDoc = {
@@ -247,7 +247,7 @@ class CascadeEngineImpl implements CascadeEngine {
         parent: ROOT_LOOP_ID,
         children: [],
         sourceAdr: leaf.sourceAdr,
-        template: templateId,
+        workflow: workflowId,
         executor: 'pi',
         acceptanceCriteria: leaf.acceptanceCriteria.map((c) => ({
           id: c.id,
@@ -284,7 +284,7 @@ class CascadeEngineImpl implements CascadeEngine {
     return {
       id: cascadeId,
       createdAt: meta?.createdAt ?? '',
-      template: meta?.template ?? root?.frontmatter.template ?? '',
+      workflow: meta?.workflow ?? root?.frontmatter.workflow ?? '',
       deltas,
       rootLoopId: root?.frontmatter.id ?? ROOT_LOOP_ID,
       status: rootStatus(loops),

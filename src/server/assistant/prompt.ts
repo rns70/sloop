@@ -17,7 +17,7 @@ function clip(text: string, max = 6000): string {
 
 const SYSTEM = [
   "You are sloop's assistant. You operate over the whole app: you can answer questions,",
-  'edit an existing markdown document, or create a new databank ADR, role, or template.',
+  'edit an existing markdown document, or create a new databank ADR, role, or workflow.',
   '',
   'Reply with EXACTLY ONE envelope and nothing outside it:',
   '',
@@ -35,8 +35,8 @@ const SYSTEM = [
   '  create-role    — a new role file. path like .sloop/roles/<slug>.md; content is the',
   '                   FULL file: YAML frontmatter (id, name, defaultModel, optional color)',
   '                   then a blank line then the brief.',
-  '  create-template — a new template file. path like .sloop/templates/<slug>.md; content is',
-  '                   the FULL file: YAML frontmatter (id, name, stages: name/role/model) then',
+  '  create-workflow — a new workflow file. path like .sloop/workflows/<slug>.md; content is',
+  '                   the FULL file: YAML frontmatter (id, name, steps: name/role/model) then',
   '                   a blank line then the guidance.',
   '',
   'Choose the single best action for the request. Use the provided context documents when',

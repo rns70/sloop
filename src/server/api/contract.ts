@@ -10,7 +10,7 @@
 //   GET  /api/adrs/:relPath        -> AdrDoc
 //   PUT  /api/adrs/:relPath        -> { ok: true }                 body: PutAdrRequest
 //   GET  /api/adrs/:relPath/diff   -> AdrDiffResponse
-//   GET  /api/templates            -> TemplateDef[]
+//   GET  /api/workflows            -> WorkflowDef[]
 //   GET  /api/roles                -> RoleDef[]
 //   GET  /api/models               -> ModelOption[]
 //   POST /api/assistant            -> AssistantProposal             body: AssistantRequestBody
@@ -23,7 +23,7 @@
 // `:relPath` is URL-encoded (it contains slashes, e.g. databank/adr-007.md).
 
 import type {
-  AdrDoc, TemplateDef, RoleDef, CascadeSummary, LoopDoc,
+  AdrDoc, WorkflowDef, RoleDef, CascadeSummary, LoopDoc,
   AssistantRequest, AssistantProposal, ModelOption,
 } from '../../shared/index';
 
@@ -43,12 +43,12 @@ export interface AdrDiffResponse {
   after: string;
 }
 
-export type GetTemplatesResponse = TemplateDef[];
+export type GetWorkflowsResponse = WorkflowDef[];
 export type GetRolesResponse = RoleDef[];
 export type GetCascadesResponse = CascadeSummary[];
 
 export interface CreateCascadeRequest {
-  templateId: string;
+  workflowId: string;
 }
 export type CreateCascadeResponse = CascadeSummary;
 
@@ -78,7 +78,7 @@ export interface SloopApi {
   getAdr(relPath: string): Promise<GetAdrResponse>;
   putAdr(relPath: string, doc: PutAdrRequest): Promise<PutAdrResponse>;
   getAdrDiff(relPath: string): Promise<AdrDiffResponse>;
-  listTemplates(): Promise<GetTemplatesResponse>;
+  listWorkflows(): Promise<GetWorkflowsResponse>;
   listRoles(): Promise<GetRolesResponse>;
   listCascades(): Promise<GetCascadesResponse>;
   /** Configured model aliases for the picker (no API keys). */

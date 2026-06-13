@@ -10,11 +10,11 @@ import {
   getAdrs,
   getCascades,
   getRoles,
-  getTemplates,
+  getWorkflows,
   type AdrDoc,
   type CascadeSummary,
   type RoleDef,
-  type TemplateDef,
+  type WorkflowDef,
 } from '../api-client/index';
 import { cx } from '../design/index';
 import { humanizeCascade } from '../views/mission-control/text';
@@ -22,7 +22,7 @@ import { createDatabankItem, createLibraryItem } from './createItem';
 import { useSaveAction } from './EditorActionsContext';
 import { buildCommands, filterCommands, type CommandItem, type CommandSources } from './commands';
 
-const EMPTY_SOURCES: CommandSources = { adrs: [], cascades: [], roles: [], templates: [] };
+const EMPTY_SOURCES: CommandSources = { adrs: [], cascades: [], roles: [], workflows: [] };
 
 /** Did this keydown ask to open the palette? Cmd+K on mac, Ctrl+K elsewhere. */
 function isPaletteToggle(e: KeyboardEvent): boolean {
@@ -41,7 +41,7 @@ export function CommandPalette() {
   const [adrs, setAdrs] = useState<AdrDoc[]>([]);
   const [cascades, setCascades] = useState<CascadeSummary[]>([]);
   const [roles, setRoles] = useState<RoleDef[]>([]);
-  const [templates, setTemplates] = useState<TemplateDef[]>([]);
+  const [workflows, setWorkflows] = useState<WorkflowDef[]>([]);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -76,7 +76,7 @@ export function CommandPalette() {
     getAdrs().then((v) => !cancelled && setAdrs(v)).catch(() => undefined);
     getCascades().then((v) => !cancelled && setCascades(v)).catch(() => undefined);
     getRoles().then((v) => !cancelled && setRoles(v)).catch(() => undefined);
-    getTemplates().then((v) => !cancelled && setTemplates(v)).catch(() => undefined);
+    getWorkflows().then((v) => !cancelled && setWorkflows(v)).catch(() => undefined);
     return () => {
       cancelled = true;
     };
@@ -89,10 +89,10 @@ export function CommandPalette() {
             adrs: adrs.map((a) => ({ relPath: a.relPath, title: a.title })),
             cascades: cascades.map((c) => ({ id: c.id, label: humanizeCascade(c.id) })),
             roles: roles.map((r) => ({ id: r.id, name: r.name })),
-            templates: templates.map((t) => ({ id: t.id, name: t.name })),
+            workflows: workflows.map((t) => ({ id: t.id, name: t.name })),
           }
         : EMPTY_SOURCES,
-    [open, adrs, cascades, roles, templates],
+    [open, adrs, cascades, roles, workflows],
   );
 
   const commands = useMemo(
@@ -108,12 +108,12 @@ export function CommandPalette() {
             .then((id) => navigate(`/libraries/roles/${id}?new=1`))
             .catch(() => undefined),
         newTemplate: () =>
-          void createLibraryItem('templates', templates.map((t) => t.id))
-            .then((id) => navigate(`/libraries/templates/${id}?new=1`))
+          void createLibraryItem('workflows', workflows.map((t) => t.id))
+            .then((id) => navigate(`/libraries/workflows/${id}?new=1`))
             .catch(() => undefined),
         saveDoc: saveAction,
       }),
-    [sources, navigate, adrs, roles, templates, saveAction],
+    [sources, navigate, adrs, roles, workflows, saveAction],
   );
 
   const results = useMemo(() => filterCommands(commands, query), [commands, query]);

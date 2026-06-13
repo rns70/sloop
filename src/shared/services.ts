@@ -1,5 +1,5 @@
 import type {
-  AdrDoc, LoopDoc, TemplateDef, RoleDef, DatabankDiff, CascadeSummary, LoopStatus,
+  AdrDoc, LoopDoc, WorkflowDef, RoleDef, DatabankDiff, CascadeSummary, LoopStatus,
   ModelRegistry, ResolvedModel,
 } from './types';
 
@@ -15,7 +15,7 @@ export interface FilesService {
   writeLoop(loop: LoopDoc): Promise<void>;
   listLoops(cascadeId: string): Promise<LoopDoc[]>;
   listCascadeIds(): Promise<string[]>;           // subdirectory names under cascades/
-  listTemplates(): Promise<TemplateDef[]>;
+  listWorkflows(): Promise<WorkflowDef[]>;
   listRoles(): Promise<RoleDef[]>;
   readModelRegistry(): Promise<ModelRegistry>;   // from .sloop/config.md frontmatter
 }
@@ -34,7 +34,7 @@ export interface Executor {
 }
 
 export interface CascadeEngine {
-  kickoff(templateId: string): Promise<CascadeSummary>;  // diff → architect proposes tree (awaiting_approval)
+  kickoff(workflowId: string): Promise<CascadeSummary>;  // diff → architect proposes tree (awaiting_approval)
   get(cascadeId: string): Promise<{ summary: CascadeSummary; loops: LoopDoc[] }>;
   approve(cascadeId: string): Promise<void>;             // run approved leaves
   recomputeStatus(cascadeId: string): Promise<LoopStatus>; // bubble up the invariant

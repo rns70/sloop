@@ -3,7 +3,7 @@
 // after WP-0); the wire types come from the shared contract, the single source of truth.
 
 import type {
-  AdrDoc, TemplateDef, RoleDef, CascadeSummary, AssistantRequest,
+  AdrDoc, WorkflowDef, RoleDef, CascadeSummary, AssistantRequest,
 } from '../../shared/index';
 import type {
   AdrDiffResponse, AssistantResponse, GetModelsResponse,
@@ -11,7 +11,7 @@ import type {
 } from '../../server/api/contract';
 
 export type {
-  AdrDoc, TemplateDef, RoleDef, CascadeSummary, LoopDoc,
+  AdrDoc, WorkflowDef, RoleDef, CascadeSummary, LoopDoc,
   LoopFrontmatter, LoopStatus, LoopKind, Delta, AcceptanceCriterion,
   AssistantRequest, AssistantProposal, ModelOption,
 } from '../../shared/index';
@@ -40,12 +40,12 @@ export const putAdr = (relPath: string, doc: AdrDoc): Promise<Ok> =>
 export const getAdrDiff = (relPath: string): Promise<AdrDiffResponse> =>
   http(`/adrs/${enc(relPath)}/diff`);
 
-export const getTemplates = (): Promise<TemplateDef[]> => http('/templates');
+export const getWorkflows = (): Promise<WorkflowDef[]> => http('/workflows');
 export const getRoles = (): Promise<RoleDef[]> => http('/roles');
 
-/** Raw markdown of any workspace file (role/template/config). Per the canonical
+/** Raw markdown of any workspace file (role/workflow/config). Per the canonical
  *  contract (`GET/PUT /api/files/:relPath`); the mock backend wires it in WP-6.
- *  Libraries reads role/template content from the typed getRoles/getTemplates
+ *  Libraries reads role/workflow content from the typed getRoles/getWorkflows
  *  responses, so viewing works today; Save round-trips once /api/files exists. */
 export interface FileContent {
   content: string;

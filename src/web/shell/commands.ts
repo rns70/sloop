@@ -1,5 +1,5 @@
 // Pure core for the Cmd+K command palette: turning the app's navigable surfaces
-// (ADRs, cascades, roles, templates) and global actions into a flat, searchable
+// (ADRs, cascades, roles, workflows) and global actions into a flat, searchable
 // command list, plus the fuzzy matcher that ranks them against a query. Kept free
 // of React/DOM so it can be unit-tested in the node test env (commands.test.ts);
 // the CommandPalette component owns all rendering, focus and data-fetching.
@@ -27,7 +27,7 @@ export interface CommandSources {
   adrs: { relPath: string; title: string }[];
   cascades: { id: string; label: string }[];
   roles: { id: string; name: string }[];
-  templates: { id: string; name: string }[];
+  workflows: { id: string; name: string }[];
 }
 
 /** Effect handlers injected by the component so this module stays pure/testable. */
@@ -76,8 +76,8 @@ export function buildCommands(sources: CommandSources, handlers: CommandHandlers
       run: handlers.newRole,
     },
     {
-      id: 'action:new-template',
-      title: 'New template',
+      id: 'action:new-workflow',
+      title: 'New workflow',
       group: 'Actions',
       keywords: 'create add library',
       run: handlers.newTemplate,
@@ -123,13 +123,13 @@ export function buildCommands(sources: CommandSources, handlers: CommandHandlers
       run: () => handlers.navigate(`/libraries/roles/${enc(r.id)}`),
     });
   }
-  for (const t of sources.templates) {
+  for (const t of sources.workflows) {
     items.push({
-      id: `nav:template:${t.id}`,
+      id: `nav:workflow:${t.id}`,
       title: t.name,
       group: 'Templates',
       keywords: t.id,
-      run: () => handlers.navigate(`/libraries/templates/${enc(t.id)}`),
+      run: () => handlers.navigate(`/libraries/workflows/${enc(t.id)}`),
     });
   }
 

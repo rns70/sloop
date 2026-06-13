@@ -1,6 +1,6 @@
 import type { AssistantAction, AssistantProposal } from '../../shared/index';
 
-const ACTIONS: readonly AssistantAction[] = ['answer', 'edit', 'create-adr', 'create-role', 'create-template'];
+const ACTIONS: readonly AssistantAction[] = ['answer', 'edit', 'create-adr', 'create-role', 'create-workflow'];
 
 /** Extract the first `<tag>…</tag>` value (non-greedy), trimmed; undefined if absent. */
 function tag(raw: string, name: string): string | undefined {

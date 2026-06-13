@@ -78,7 +78,7 @@ describe('RealApi happy path (dry-run, offline)', () => {
   it('converges: kickoff → approve → verify passes → root done', async () => {
     const api = await createRealApi(workspace, process.env);
 
-    const summary = await api.createCascade({ templateId: 'spec-driven' });
+    const summary = await api.createCascade({ workflowId: 'spec-driven' });
     expect(summary.status).toBe('awaiting_approval');
     expect(summary.deltas).toEqual({ add: 0, change: 1, delete: 0 });
 
@@ -124,8 +124,8 @@ describe('RealApi happy path (dry-run, offline)', () => {
   it('listCascades enumerates created cascades, newest first', async () => {
     const api = await createRealApi(workspace, process.env);
 
-    const a = await api.createCascade({ templateId: 'spec-driven' });
-    const b = await api.createCascade({ templateId: 'spec-driven' });
+    const a = await api.createCascade({ workflowId: 'spec-driven' });
+    const b = await api.createCascade({ workflowId: 'spec-driven' });
 
     const list = await api.listCascades();
     const ids = list.map((s) => s.id);
@@ -144,7 +144,7 @@ describe('RealApi happy path (dry-run, offline)', () => {
 
   it('subscribe replays buffered events to a late subscriber and closes when done', async () => {
     const api = await createRealApi(workspace, process.env);
-    const summary = await api.createCascade({ templateId: 'spec-driven' });
+    const summary = await api.createCascade({ workflowId: 'spec-driven' });
 
     // Wait for the run to actually finish (the stream's completion close fires).
     await new Promise<void>((resolve) => {

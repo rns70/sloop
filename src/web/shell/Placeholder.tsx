@@ -48,7 +48,7 @@ export function CascadePlaceholder() {
               <StatusDot status={detail.summary.status} />
             </div>
             <p className="mt-2 text-[13.5px] text-ink-muted">
-              Template <span className="font-medium text-ink">{detail.summary.template}</span> ·{' '}
+              Template <span className="font-medium text-ink">{detail.summary.workflow}</span> ·{' '}
               {detail.loops.length} loops · +{detail.summary.deltas.add} ~
               {detail.summary.deltas.change} −{detail.summary.deltas.delete}
             </p>

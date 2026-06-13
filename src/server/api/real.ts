@@ -122,18 +122,18 @@ export function bootstrapPi(registry: ModelRegistry, env: NodeJS.ProcessEnv): vo
  * The real architect calls a big model to decompose the diff; for a reliable demo
  * without API keys we instead derive the plan directly from the databank diff: one
  * engineer leaf per changed ADR, copying that ADR's acceptance criteria (id + text +
- * `verify`) onto the leaf — exactly what the spec-driven template prescribes. This
+ * `verify`) onto the leaf — exactly what the spec-driven workflow prescribes. This
  * exercises the *entire* real engine (files, git, convergence, executor, verify,
  * status bubbling); only the LLM planning call is replaced.
  */
 function createOfflinePlanner(files: FilesService, env: NodeJS.ProcessEnv): ArchitectPlanner {
   return {
-    async propose({ template, diff }): Promise<ArchitectPlan> {
-      const plannerAlias = pickPlannerAlias(env, template);
+    async propose({ workflow, diff }): Promise<ArchitectPlan> {
+      const plannerAlias = pickPlannerAlias(env, workflow);
       const engineerStage =
-        template.stages.find((s) => s.role === 'engineer') ??
-        template.stages[1] ??
-        template.stages[0];
+        workflow.steps.find((s) => s.role === 'engineer') ??
+        workflow.steps[1] ??
+        workflow.steps[0];
       const leafModel = engineerStage?.model ?? 'haiku';
 
       const leaves: ProposedLeaf[] = [];
@@ -170,7 +170,7 @@ function createOfflinePlanner(files: FilesService, env: NodeJS.ProcessEnv): Arch
         plannerAlias,
         summary:
           `Offline plan (dry-run): ${leaves.length} engineer leaf loop(s) derived from the ` +
-          `databank diff, following the ${template.name} template. Each leaf carries its ADR's ` +
+          `databank diff, following the ${workflow.name} workflow. Each leaf carries its ADR's ` +
           `acceptance criteria; convergence bubbles up as each \`verify\` command passes.`,
         leaves,
       };
@@ -264,8 +264,8 @@ export class RealApi implements StreamingSloopApi {
 
   // ---- Libraries -----------------------------------------------------------
 
-  async listTemplates() {
-    return this.files.listTemplates();
+  async listWorkflows() {
+    return this.files.listWorkflows();
   }
 
   async listRoles() {
@@ -304,7 +304,7 @@ export class RealApi implements StreamingSloopApi {
   }
 
   async createCascade(req: CreateCascadeRequest): Promise<CascadeSummary> {
-    const summary = await this.engine.kickoff(req.templateId);
+    const summary = await this.engine.kickoff(req.workflowId);
     // Prime a stream buffer so a subscriber can attach the instant approval starts.
     this.streamFor(summary.id);
     return summary;
@@ -421,7 +421,7 @@ function decorateFiles(inner: FilesService, onWrite: (loop: LoopDoc) => void): F
     readLoop: (p) => inner.readLoop(p),
     listLoops: (c) => inner.listLoops(c),
     listCascadeIds: () => inner.listCascadeIds(),
-    listTemplates: () => inner.listTemplates(),
+    listWorkflows: () => inner.listWorkflows(),
     listRoles: () => inner.listRoles(),
     readModelRegistry: () => inner.readModelRegistry(),
     async writeLoop(loop) {

@@ -8,7 +8,7 @@ const docs: AssistantDoc[] = [{ relPath: 'databank/adr-007.md', content: '# Toke
 describe('buildAssistantPrompt', () => {
   it('documents the envelope format and every action in the system prompt', () => {
     const { systemPrompt } = buildAssistantPrompt(req, docs);
-    for (const t of ['<action>', '<content>', 'create-adr', 'create-role', 'create-template', 'edit', 'answer']) {
+    for (const t of ['<action>', '<content>', 'create-adr', 'create-role', 'create-workflow', 'edit', 'answer']) {
       expect(systemPrompt).toContain(t);
     }
   });

@@ -11,7 +11,7 @@ delta: change
 parent: _architect
 children: []
 sourceAdr: adr-007
-template: spec-driven
+workflow: spec-driven
 executor: pi
 acceptanceCriteria:
   - id: ac-1

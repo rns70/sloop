@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  getAdrs, getModels, getRoles, getTemplates, putAdr, putFile, requestAssistant,
+  getAdrs, getModels, getRoles, getWorkflows, putAdr, putFile, requestAssistant,
   type AssistantProposal, type ModelOption,
 } from '../api-client/index';
 import { Button, Label, cx } from '../design/index';
@@ -10,11 +10,11 @@ import { planWrite, type ExistingIds } from '../assistant/planWrite';
 
 /** Read the current live id/path sets for collision-safe creates. */
 async function loadExisting(): Promise<ExistingIds> {
-  const [adrs, roles, templates] = await Promise.all([getAdrs(), getRoles(), getTemplates()]);
+  const [adrs, roles, workflows] = await Promise.all([getAdrs(), getRoles(), getWorkflows()]);
   return {
     adrPaths: adrs.map((a) => a.relPath),
     roleIds: roles.map((r) => r.id),
-    templateIds: templates.map((t) => t.id),
+    templateIds: workflows.map((t) => t.id),
   };
 }
 
@@ -110,7 +110,7 @@ export function AssistantRail({ className }: { className?: string }) {
         value={instruction}
         onChange={(e) => setInstruction(e.target.value)}
         rows={4}
-        placeholder="Ask, edit a doc, or create an ADR / role / template…"
+        placeholder="Ask, edit a doc, or create an ADR / role / workflow…"
         className="mt-2 w-full resize-y rounded border border-line-soft bg-paper px-2 py-1.5 text-[13px] text-ink outline-none placeholder:text-ink-faint focus:border-accent"
       />
 

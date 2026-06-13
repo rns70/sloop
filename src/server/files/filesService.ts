@@ -4,7 +4,7 @@ import type {
   AdrDoc,
   LoopDoc,
   LoopFrontmatter,
-  TemplateDef,
+  WorkflowDef,
   RoleDef,
   ModelRegistry,
   AcceptanceCriterion,
@@ -28,7 +28,7 @@ export class MoveError extends Error {
     this.name = 'MoveError';
   }
 }
-const TEMPLATES_DIR = path.join('.sloop', 'templates');
+const WORKFLOWS_DIR = path.join('.sloop', 'workflows');
 const ROLES_DIR = path.join('.sloop', 'roles');
 const CONFIG_FILE = path.join('.sloop', 'config.md');
 const CASCADE_META_FILE = '_cascade.md';
@@ -44,7 +44,7 @@ export function resolveWorkspaceRoot(explicit?: string): string {
 }
 
 /**
- * Disk-backed `FilesService`. Reads/writes loop, ADR, template, role, and config
+ * Disk-backed `FilesService`. Reads/writes loop, ADR, workflow, role, and config
  * markdown under a single workspace root. On-disk frontmatter keys are camelCase and
  * identical to the shared TS interfaces, so `gray-matter` data maps onto the types
  * with no key remapping.
@@ -230,21 +230,21 @@ export class FilesServiceImpl implements FilesService {
       .sort();
   }
 
-  async listTemplates(): Promise<TemplateDef[]> {
-    const files = await listMarkdown(this.abs(TEMPLATES_DIR));
-    const templates = await Promise.all(
+  async listWorkflows(): Promise<WorkflowDef[]> {
+    const files = await listMarkdown(this.abs(WORKFLOWS_DIR));
+    const workflows = await Promise.all(
       files.map(async (name) => {
-        const raw = await fs.readFile(this.abs(path.join(TEMPLATES_DIR, name)), 'utf8');
-        const { data, body } = parseFrontmatter<Partial<TemplateDef>>(raw);
+        const raw = await fs.readFile(this.abs(path.join(WORKFLOWS_DIR, name)), 'utf8');
+        const { data, body } = parseFrontmatter<Partial<WorkflowDef>>(raw);
         return {
           id: String(data.id ?? path.basename(name, '.md')),
           name: String(data.name ?? data.id ?? ''),
-          stages: Array.isArray(data.stages) ? data.stages : [],
+          steps: Array.isArray(data.steps) ? data.steps : [],
           guidance: body,
-        } satisfies TemplateDef;
+        } satisfies WorkflowDef;
       }),
     );
-    return templates.sort((a, b) => a.id.localeCompare(b.id));
+    return workflows.sort((a, b) => a.id.localeCompare(b.id));
   }
 
   async listRoles(): Promise<RoleDef[]> {

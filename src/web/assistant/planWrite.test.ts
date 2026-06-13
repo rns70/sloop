@@ -24,12 +24,12 @@ describe('planWrite', () => {
     const p: AssistantProposal = { action: 'create-role', summary: 's', targetPath: '.sloop/roles/architect.md', content: '---\nid: architect\n---\nbrief' };
     expect(planWrite(p, existing)).toEqual({ kind: 'create-file', relPath: '.sloop/roles/architect-2.md', content: '---\nid: architect\n---\nbrief', libKind: 'roles' });
   });
-  it('plans a create-template under .sloop/templates', () => {
-    const p: AssistantProposal = { action: 'create-template', summary: 's', targetPath: '.sloop/templates/ci.md', content: 'tpl' };
+  it('plans a create-workflow under .sloop/workflows', () => {
+    const p: AssistantProposal = { action: 'create-workflow', summary: 's', targetPath: '.sloop/workflows/ci.md', content: 'tpl' };
     const plan = planWrite(p, existing);
     if (plan.kind !== 'create-file') throw new Error('wrong kind');
-    expect(plan.relPath).toBe('.sloop/templates/ci.md');
-    expect(plan.libKind).toBe('templates');
+    expect(plan.relPath).toBe('.sloop/workflows/ci.md');
+    expect(plan.libKind).toBe('workflows');
   });
   it('derives an ADR slug from the title when targetPath is missing', () => {
     const p: AssistantProposal = { action: 'create-adr', summary: 's', title: 'Rate Limiting!', content: 'b' };

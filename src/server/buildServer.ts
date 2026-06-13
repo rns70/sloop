@@ -63,7 +63,7 @@ export function buildServer(opts: BuildServerOptions): { server: Server; uiMount
     res.json(await api.putAdr(decodeURIComponent(req.params.relPath), req.body)),
   ));
 
-  app.get('/api/templates', h(async (_req, res) => res.json(await api.listTemplates())));
+  app.get('/api/workflows', h(async (_req, res) => res.json(await api.listWorkflows())));
   app.get('/api/roles', h(async (_req, res) => res.json(await api.listRoles())));
 
   app.get('/api/files/:relPath', h(async (req, res) => {

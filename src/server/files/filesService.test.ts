@@ -28,7 +28,7 @@ const loop = (): LoopDoc => ({
     parent: '_architect',
     children: [],
     sourceAdr: 'adr-007',
-    template: 'spec-driven',
+    workflow: 'spec-driven',
     executor: 'pi',
     acceptanceCriteria: [
       { id: 'ac-1', text: 'It works', verify: 'npm test -- x', passed: false },
@@ -105,14 +105,14 @@ describe('FilesService', () => {
     expect(all.map((a) => a.id)).toEqual(['adr-099']);
   });
 
-  it('reads templates, roles, and the model registry from a workspace copy', async () => {
+  it('reads workflows, roles, and the model registry from a workspace copy', async () => {
     // Copy the bundled sample workspace's .sloop into the temp root.
     const sample = path.resolve('fixtures/sample-workspace/.sloop');
     await fs.cp(sample, path.join(root, '.sloop'), { recursive: true });
     const files = createFilesService(root);
 
-    const templates = await files.listTemplates();
-    expect(templates.find((t) => t.id === 'spec-driven')?.stages.length).toBeGreaterThan(0);
+    const workflows = await files.listWorkflows();
+    expect(workflows.find((t) => t.id === 'spec-driven')?.steps.length).toBeGreaterThan(0);
 
     const roles = await files.listRoles();
     expect(roles.find((r) => r.id === 'engineer')?.brief).toContain('Engineer');
@@ -127,13 +127,13 @@ describe('FilesService', () => {
     );
     expect(roles.find((r) => r.id === 'explorer')?.brief).toContain('read-only');
 
-    // New templates load, and gate stages parse as a boolean true.
-    expect(templates.map((t) => t.id)).toEqual(
+    // New workflows load, and gate steps parse as a boolean true.
+    expect(workflows.map((t) => t.id)).toEqual(
       expect.arrayContaining(['spec-driven', 'tdd', 'waterfall', 'debug', 'migrate']),
     );
-    const debug = templates.find((t) => t.id === 'debug');
-    expect(debug?.stages.find((s) => s.name === 'reproduce')?.gate).toBe(true);
-    expect(debug?.stages.find((s) => s.name === 'localize')?.gate).toBeUndefined();
+    const debug = workflows.find((t) => t.id === 'debug');
+    expect(debug?.steps.find((s) => s.name === 'reproduce')?.gate).toBe(true);
+    expect(debug?.steps.find((s) => s.name === 'localize')?.gate).toBeUndefined();
   });
 
   it('carries the locked flag on acceptance criteria through normalizeCriteria', async () => {
@@ -162,7 +162,7 @@ describe('FilesService', () => {
   it('returns empty lists when optional directories are absent', async () => {
     const files = createFilesService(root);
     expect(await files.listAdrs()).toEqual([]);
-    expect(await files.listTemplates()).toEqual([]);
+    expect(await files.listWorkflows()).toEqual([]);
     expect(await files.listRoles()).toEqual([]);
     expect(await files.listLoops('does-not-exist')).toEqual([]);
   });
