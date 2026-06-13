@@ -16,7 +16,7 @@ You maintain your requirements as a corpus of markdown ADR documents — the des
 
 The defining property: **when the root loop reports done, the codebase matches the databank.** "Are we in sync with our requirements?" collapses to reading a single bit.
 
-sloop is a **conductor**, not its own coding agent. Leaf work is delegated to an existing coding agent (Claude Code first). sloop owns decomposition, routing, gating, persistence, and the convergence guarantee.
+sloop is a **conductor**, not its own coding agent. Leaf work is delegated to embedded **Pi agents** (any registered model/provider — §4.4). sloop owns decomposition, routing, gating, persistence, and the convergence guarantee.
 
 ### Reference points
 - Closest analog: Google Antigravity's "Agent Manager / Mission Control" (agent-first IDE, fleet of async agents) — but spec-driven and reconciliation-based rather than chat-driven.
@@ -71,7 +71,7 @@ Consequences that drive the design:
 ### 4.1 Form factor & stack
 - **Local TypeScript web app** (chosen for hackathon iteration speed over the originally-considered Tauri/Rust build).
   - **Frontend:** Vite + React + Tailwind. Notion-style UI ships fastest here.
-  - **Backend:** a thin Node layer (same repo) for file I/O, git (`simple-git`), spawning Claude Code (`child_process`), and streaming agent output to the UI (WebSocket/SSE).
+  - **Backend:** a thin Node layer (same repo) for file I/O, git (`simple-git`), running embedded Pi agents, and streaming agent output to the UI (WebSocket/SSE).
 - **Local-first.** Operates on a folder (the workspace) on disk. Runs on `localhost`; single-user; no hosted service.
 - All orchestration logic lives in TS. There is no Rust core.
 
@@ -129,7 +129,7 @@ acceptance_criteria:
     verify: "npm test -- rotation"   # exit 0 = passed; optional
     passed: false
 template: spec-driven  # process template the architect followed (§6)
-executor: claude-code  # which external agent runs this (leaves)
+executor: pi           # Pi agent runtime; provider comes from the model registry
 ---
 ```
 Body holds the human-readable plan, the brief handed to the agent, and notes.
@@ -185,7 +185,7 @@ The template for a cascade is chosen at kickoff (defaulting to `spec-driven`) an
 - Because roles and templates are markdown, routing rules, personas, and methodologies are versioned and diffable like everything else.
 
 **Providers (multi-provider, not Anthropic-only).** A `model` id resolves through a **model registry** in `.sloop/config.md` to a provider. Two providers ship:
-- `anthropic` — Claude models (opus/sonnet/haiku), run via the Claude Code executor and the Anthropic SDK for planning.
+- `anthropic` — Claude models (opus/sonnet/haiku), via Pi's built-in Anthropic provider.
 - `nebius` — models hosted on **Nebius AI Studio** via its **OpenAI-compatible API**, e.g. **NVIDIA Nemotron** (`nvidia/llama-3.1-nemotron-70b-instruct`) and other open models. Base URL + `apiKeyEnv` come from the registry.
 
 Registry entry shape (in `.sloop/config.md` frontmatter):
@@ -229,13 +229,13 @@ Everything shown is a view over markdown on disk; there is no hidden state.
 ## 9. Scope & build sequence (hackathon)
 
 **Demo happy path (the only thing that must work end to end):**
-Edit one ADR in the databank → kick off a cascade (pick the `spec-driven` template) → architect loop proposes a small tree → approve at the checkpoint → leaf loops shell out to Claude Code → each leaf's `verify` command runs → statuses bubble up → root flips to **done** → the UI shows "codebase matches databank." That single flow, looking good on screen, IS the demo.
+Edit one ADR in the databank → kick off a cascade (pick the `spec-driven` template) → architect loop proposes a small tree → approve at the checkpoint → leaf loops run Pi agents → each leaf's `verify` command runs → statuses bubble up → root flips to **done** → the UI shows "codebase matches databank." That single flow, looking good on screen, IS the demo.
 
 **Build order (each step demoable on its own; stop when the demo lands):**
 1. **Files + git over a sample workspace** — Node layer reads/writes loop & ADR markdown (frontmatter parse/serialize), `simple-git` for diff/commit. Seed a sample databank so there's something real to show.
 2. **UI shell (Vite/React/Tailwind, Notion look)** — Databank view + Mission Control loop-tree view rendering the markdown files.
 3. **Cascade kickoff** — diff the databank, build the architect loop, call the big model to propose the tree (with template), render it + the checkpoint.
-4. **Execute leaves** — spawn Claude Code per approved leaf, stream output to the loop page, run `verify` commands, set `passed`.
+4. **Execute leaves** — run a Pi agent per approved leaf (model/provider from the registry), stream output to the loop page, run `verify` commands, set `passed`.
 5. **Convergence** — bubble status up; root-done = in sync. This is the money shot — polish it.
 
 **Explicitly cut for the hackathon (do NOT build):**

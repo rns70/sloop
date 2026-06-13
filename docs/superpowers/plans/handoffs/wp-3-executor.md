@@ -1,4 +1,4 @@
-# Handoff — WP-3: Executor (Claude Code + verify) (backend)
+# Handoff — WP-3: Executor (Pi agent + verify) (backend)
 
 > **Stage 2 — parallel. Depends on WP-0 only. Fully independent of the other backend WPs.**
 

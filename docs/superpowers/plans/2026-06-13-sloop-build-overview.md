@@ -244,7 +244,7 @@ The frontend talks ONLY to this API (via `src/web/api-client`). It never imports
 
 ## The demo happy path (what WP-6 must make work end to end)
 
-Edit one ADR → `POST /api/cascades {templateId:'spec-driven'}` → architect proposes a small tree (status `awaiting_approval`) → approve → leaves run Claude Code → `verify` commands pass → statuses bubble up via `recomputeStatus` → root flips to `done` → UI shows "codebase matches databank."
+Edit one ADR → `POST /api/cascades {templateId:'spec-driven'}` → architect proposes a small tree (status `awaiting_approval`) → approve → leaves run Pi agents → `verify` commands pass → statuses bubble up via `recomputeStatus` → root flips to `done` → UI shows "codebase matches databank."
 
 Keep recursion shallow (architect → leaves, optional one inner layer). Only demo criteria that have a `verify` command.
 
