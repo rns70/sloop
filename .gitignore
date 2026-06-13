@@ -1,1 +1,21 @@
+node_modules/
+dist/
+*.log
+npm-debug.log*
+
+# Env / secrets — never commit real keys
+.env
+.env.local
+.env.*.local
+
+# Local editor / harness state
+.DS_Store
+.claude/settings.local.json
+.vite/
+
+# Superpowers scratch
 .superpowers/
+
+# The sample workspace is a git repo in its own right at runtime; ignore any
+# nested git metadata that gets initialized under it during a cascade demo.
+fixtures/sample-workspace/.git/

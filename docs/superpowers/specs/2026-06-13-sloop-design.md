@@ -209,7 +209,7 @@ So the architect could plan on `nemotron` and execute leaves on `haiku`, or any 
 
 Aesthetic: clean, light, typographic, minimal — Notion-like. Three primary areas:
 
-1. **Databank** — browse/edit ADRs. Markdown editor with **inline diff vs last accepted** (core requested capability).
+1. **Databank** — browse/edit ADRs. A **block-based rich-text editor (BlockNote)** with markdown import/export — edits the ADR body, not a raw textarea — plus **inline diff vs last accepted** (core requested capability).
 2. **Cascades / Mission Control** — the live **loop tree** for a cascade. Nodes show role tag, model chip, status; expandable to children of unbounded depth; root status answers "in sync?". The checkpoint approval lives here.
 3. **Loop page** — a single loop rendered as a Notion page: frontmatter as inline **properties**, body as the plan, children as a nested list. This is just the markdown file, viewed nicely.
 4. **Libraries** — manage roles and process templates (both just markdown lists). Template picker appears at cascade kickoff.
