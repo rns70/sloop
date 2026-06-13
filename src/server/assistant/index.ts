@@ -1,9 +1,7 @@
-// Global assistant — server side. One pi-ai call returning a delimited envelope, parsed
-// into a typed proposal (answer/edit/create-*). The logic behind `POST /api/assistant`.
-export {
-  createAssistantService, toPiModel,
-  type AssistantService, type AssistantDeps, type AssistantFiles, type AssistantModelCall,
-} from './assistantService';
+// Global assistant — server side. A streaming, multi-turn agent loop over pi-ai native
+// tools; auto-applies writes. Behind `POST /api/assistant/stream`.
+export { runAssistantAgent, type AgentDeps, type StreamFn } from './agent';
+export { ASSISTANT_TOOLS, createToolExecutor, type AssistantWorkspace, type ToolExecutor, type ToolRunResult } from './tools';
 export { buildAssistantSystemPrompt, pickAssistantAlias } from './prompt';
-export { parseEnvelope } from './envelope';
+export { toPiModel } from './piModel';
 export { toModelOptions } from './models';
