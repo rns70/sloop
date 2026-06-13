@@ -183,14 +183,23 @@ function createOfflinePlanner(files: FilesService, env: NodeJS.ProcessEnv): Arch
   };
 }
 
-/** Resolve the single model the executor runs leaves on. */
-function buildExecutorModel(registry: ModelRegistry, env: NodeJS.ProcessEnv): ResolvedModel {
-  if (isDryRun(env)) {
-    // The agent is skipped in dry-run (verify-only), so the model is never used —
-    // a placeholder keeps construction independent of any API key being present.
-    return { provider: 'anthropic', id: 'dry-run', apiKey: 'dry-run' };
-  }
-  const alias = env.SLOOP_EXECUTOR_MODEL?.trim() || env.SLOOP_PLANNER_MODEL?.trim() || 'sonnet';
+/**
+ * Resolve the model a single leaf runs on, at run time (never at construction). Honors the
+ * leaf's own planned `model` alias first, then SLOOP_EXECUTOR_MODEL / SLOOP_PLANNER_MODEL,
+ * then a default — so the architect can route different leaves to different providers and
+ * Anthropic/Nebius keys are interchangeable per leaf. A missing key throws here (per-leaf
+ * "blocked"), not at boot, so the server starts with zero or partial keys configured.
+ */
+function resolveLeafModel(
+  loop: LoopDoc,
+  registry: ModelRegistry,
+  env: NodeJS.ProcessEnv,
+): ResolvedModel {
+  const alias =
+    loop.frontmatter.model?.trim() ||
+    env.SLOOP_EXECUTOR_MODEL?.trim() ||
+    env.SLOOP_PLANNER_MODEL?.trim() ||
+    'sonnet';
   return resolveModel(alias, registry, env);
 }
 
@@ -208,6 +217,7 @@ export class RealApi implements StreamingSloopApi {
     private readonly git: ReturnType<typeof createGitService>,
     private readonly engine: CascadeEngine,
     private readonly assistantService: AssistantService,
+    private readonly env: NodeJS.ProcessEnv,
   ) {}
 
   static async create(root: string, env: NodeJS.ProcessEnv): Promise<RealApi> {
@@ -216,10 +226,7 @@ export class RealApi implements StreamingSloopApi {
     const registry = await files.readModelRegistry();
     bootstrapPi(registry, env);
 
-    // NOTE(merge): adapter to the new per-leaf createExecutor(ResolveLeafModel) signature
-    // landed on dev-jelle. buildExecutorModel resolves one model for all leaves, so ignore
-    // the leaf. The parallel per-leaf refactor (resolveLeafModel) will replace this.
-    const executor = createExecutor(() => buildExecutorModel(registry, env));
+    const executor = createExecutor((loop) => resolveLeafModel(loop, registry, env));
     const assistantService = createAssistantService({ files, env });
 
     // Late-bound holder so the writeLoop decorator can reach the not-yet-created instance.
@@ -239,7 +246,7 @@ export class RealApi implements StreamingSloopApi {
       onOutput: (loopId, chunk) => ref.api?.onLoopOutput(loopId, chunk),
     });
 
-    const api = new RealApi(files, git, engine, assistantService);
+    const api = new RealApi(files, git, engine, assistantService, env);
     ref.api = api;
     return api;
   }
@@ -296,7 +303,7 @@ export class RealApi implements StreamingSloopApi {
   // ---- Global assistant ----------------------------------------------------
 
   async listModels(): Promise<GetModelsResponse> {
-    return toModelOptions(await this.files.readModelRegistry());
+    return toModelOptions(await this.files.readModelRegistry(), this.env);
   }
 
   async assistant(req: AssistantRequest): Promise<AssistantResponse> {
