@@ -23,6 +23,7 @@
 
 import type {
   AdrDoc, TemplateDef, RoleDef, CascadeSummary, LoopDoc, AuthorRequest,
+  AssistantRequest, AssistantProposal, ModelOption,
 } from '../../shared/index';
 
 export interface Ok {
@@ -66,6 +67,12 @@ export interface AuthorResponse {
   proposal: string;
 }
 
+export type GetModelsResponse = ModelOption[];
+/** POST /api/assistant — global assistant (answer/edit/create-*). Returns a typed
+ *  proposal the rail previews; never writes. */
+export type AssistantRequestBody = AssistantRequest;
+export type AssistantResponse = AssistantProposal;
+
 /** Events pushed over WS while a cascade runs. */
 export type CascadeStreamEvent =
   | { type: 'loop-update'; loop: LoopDoc }
@@ -83,6 +90,10 @@ export interface SloopApi {
   listCascades(): Promise<GetCascadesResponse>;
   /** Cursor-style authoring edit (WP-7); returns a proposal, never writes. */
   author(req: AuthorRequest): Promise<AuthorResponse>;
+  /** Configured model aliases for the picker (no API keys). */
+  listModels(): Promise<GetModelsResponse>;
+  /** Global assistant: returns a typed proposal, never writes. */
+  assistant(req: AssistantRequest): Promise<AssistantResponse>;
   createCascade(req: CreateCascadeRequest): Promise<CreateCascadeResponse>;
   getCascade(id: string): Promise<GetCascadeResponse>;
   approveCascade(id: string): Promise<ApproveCascadeResponse>;

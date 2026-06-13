@@ -35,18 +35,21 @@ import { createCascadeEngine } from '../cascade/cascadeEngine';
 import { createArchitect, pickPlannerAlias, type ArchitectPlanner } from '../planner/architect';
 import type { ArchitectPlan, ProposedLeaf } from '../planner/prompt';
 import { createAuthorService, type AuthorService } from '../author/index';
+import { createAssistantService, toModelOptions, type AssistantService } from '../assistant/index';
 import type {
   AdrDiffResponse,
   ApproveCascadeResponse,
+  AssistantResponse,
   AuthorResponse,
   CascadeDetail,
   CascadeStreamEvent,
   CreateCascadeRequest,
+  GetModelsResponse,
   Ok,
   PutAdrRequest,
   SloopApi,
 } from './contract';
-import type { AuthorRequest } from '../../shared/index';
+import type { AuthorRequest, AssistantRequest } from '../../shared/index';
 
 const OK: Ok = { ok: true };
 
@@ -202,6 +205,7 @@ export class RealApi implements StreamingSloopApi {
     private readonly git: ReturnType<typeof createGitService>,
     private readonly engine: CascadeEngine,
     private readonly authorService: AuthorService,
+    private readonly assistantService: AssistantService,
   ) {}
 
   static async create(root: string, env: NodeJS.ProcessEnv): Promise<RealApi> {
@@ -212,6 +216,7 @@ export class RealApi implements StreamingSloopApi {
 
     const executor = createExecutor(buildExecutorModel(registry, env));
     const authorService = createAuthorService({ files, env });
+    const assistantService = createAssistantService({ files, env });
 
     // Late-bound holder so the writeLoop decorator can reach the not-yet-created instance.
     const ref: { api?: RealApi } = {};
@@ -230,7 +235,7 @@ export class RealApi implements StreamingSloopApi {
       onOutput: (loopId, chunk) => ref.api?.onLoopOutput(loopId, chunk),
     });
 
-    const api = new RealApi(files, git, engine, authorService);
+    const api = new RealApi(files, git, engine, authorService, assistantService);
     ref.api = api;
     return api;
   }
@@ -276,6 +281,16 @@ export class RealApi implements StreamingSloopApi {
   async author(req: AuthorRequest): Promise<AuthorResponse> {
     const { proposal } = await this.authorService.author(req);
     return { proposal };
+  }
+
+  // ---- Global assistant ----------------------------------------------------
+
+  async listModels(): Promise<GetModelsResponse> {
+    return toModelOptions(await this.files.readModelRegistry());
+  }
+
+  async assistant(req: AssistantRequest): Promise<AssistantResponse> {
+    return this.assistantService.assistant(req);
   }
 
   // ---- Cascades ------------------------------------------------------------
