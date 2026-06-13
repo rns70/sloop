@@ -162,6 +162,7 @@ function normalizeCriteria(value: unknown): AcceptanceCriterion[] {
       passed: Boolean(c.passed),
     };
     if (c.verify !== undefined) criterion.verify = String(c.verify);
+    if (c.locked !== undefined) criterion.locked = Boolean(c.locked);
     return criterion;
   });
 }
