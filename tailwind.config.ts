@@ -1,7 +1,8 @@
 import type { Config } from 'tailwindcss';
 
-// Notion-style: light, typographic, minimal. Tokens kept intentionally small;
-// WP-4 owns the real design system under src/web/design/.
+// Notion-style design tokens — the single source of truth for sloop's visual
+// language (WP-4). Light, typographic, minimal: warm grays + one accent, hairline
+// dividers, soft pastel role pills. WP-5 reuses these tokens via the design kit.
 export default {
   content: ['./src/web/index.html', './src/web/**/*.{ts,tsx}'],
   theme: {
@@ -11,6 +12,7 @@ export default {
           'ui-sans-serif',
           'system-ui',
           '-apple-system',
+          'BlinkMacSystemFont',
           'Segoe UI',
           'Helvetica Neue',
           'Arial',
@@ -19,10 +21,59 @@ export default {
         mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
       },
       colors: {
+        // Text — warm grays.
         ink: {
-          DEFAULT: '#37352f',
-          muted: '#787774',
+          DEFAULT: '#37352f', // primary
+          muted: '#787774', // secondary
+          faint: '#9b9a97', // tertiary
+          subtle: '#b4b3af', // faintest (placeholders, grips)
         },
+        // Surfaces.
+        paper: '#ffffff',
+        sidebar: '#fbfbfa',
+        active: '#f1f0ee', // selected sidebar row
+        // Hairline dividers / borders.
+        line: {
+          DEFAULT: '#ededec',
+          soft: '#f3f2f0',
+          hair: '#f0efed',
+        },
+        // The single accent (blue).
+        accent: {
+          DEFAULT: '#2f5fb0',
+          soft: '#eef3fb',
+        },
+        // Inline-diff treatment.
+        diff: {
+          addBg: '#eaf6ee',
+          addText: '#2f6b45',
+          addAccent: '#5aa978',
+          delBg: '#fdecec',
+          delText: '#9a4040',
+        },
+        // Role pills — soft pastels (Engineer=blue, Architect=purple, QA=green, Security=pink).
+        role: {
+          blue: '#2f6cb0',
+          blueBg: '#eaf2fb',
+          purple: '#7c5cb8',
+          purpleBg: '#f1ecfa',
+          green: '#2f6b45',
+          greenBg: '#eaf6ee',
+          pink: '#b0467f',
+          pinkBg: '#fbecf4',
+          gray: '#615f5a',
+          grayBg: '#f1f0ee',
+        },
+        // Status dots/labels.
+        status: {
+          running: '#2f5fb0',
+          done: '#2f6b45',
+          failed: '#c0392b',
+          queued: '#b4b3af',
+        },
+      },
+      maxWidth: {
+        prose: '700px',
       },
     },
   },

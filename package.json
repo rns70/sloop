@@ -17,13 +17,19 @@
     "start": "tsx src/server/index.ts"
   },
   "dependencies": {
+    "@blocknote/core": "^0.51.4",
+    "@blocknote/mantine": "^0.51.4",
+    "@blocknote/react": "^0.51.4",
     "@earendil-works/pi-agent-core": "^0.79.3",
     "@earendil-works/pi-ai": "^0.79.3",
     "@earendil-works/pi-coding-agent": "^0.79.3",
+    "@mantine/core": "^8.3.18",
+    "@mantine/hooks": "^8.3.18",
     "express": "^4.21.2",
     "gray-matter": "^4.0.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-router-dom": "^6.30.4",
     "simple-git": "^3.27.0",
     "ws": "^8.18.0"
   },
