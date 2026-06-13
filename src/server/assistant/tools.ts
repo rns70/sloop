@@ -50,6 +50,17 @@ function baseId(path: string | undefined): string {
   return (path.split('/').pop() ?? '').replace(/\.md$/, '');
 }
 
+/** posix directory of a relPath: 'loops/x/auth.md' -> 'loops/x'; 'auth.md' -> ''. */
+function dirOf(relPath: string): string {
+  const i = relPath.lastIndexOf('/');
+  return i < 0 ? '' : relPath.slice(0, i);
+}
+
+/** Append `link` to `children`, preserving order and dropping duplicates. */
+function withChild(children: string[], link: string): string[] {
+  return children.includes(link) ? children : [...children, link];
+}
+
 export const ASSISTANT_TOOLS: Tool[] = [
   {
     name: 'list_docs',
@@ -73,8 +84,14 @@ export const ASSISTANT_TOOLS: Tool[] = [
   },
   {
     name: 'create_adr',
-    description: 'Create a new loops ADR. content is the markdown body only.',
-    parameters: Type.Object({ title: Type.String(), content: Type.String(), slug: Type.Optional(Type.String()) }),
+    description:
+      'Create a new loops ADR. content is the markdown body only. Pass parent (the relPath or id of an existing ADR) to link the new ADR into the structure: it is placed alongside the parent and appended to the parent\'s children. Omit parent only for a genuinely top-level ADR.',
+    parameters: Type.Object({
+      title: Type.String(),
+      content: Type.String(),
+      slug: Type.Optional(Type.String()),
+      parent: Type.Optional(Type.String({ description: 'relPath (e.g. loops/auth.md) or id (e.g. auth) of the parent ADR to nest under' })),
+    }),
   },
   {
     name: 'create_role',
@@ -140,13 +157,27 @@ export function createToolExecutor(ws: AssistantWorkspace): ToolExecutor {
             return { ok: true, text: `Edited ${path}.`, path };
           }
           case 'create_adr': {
-            const taken = new Set((await ws.listAdrs()).map((d) => baseId(d.relPath)));
+            const adrs = await ws.listAdrs();
+            // Resolve an optional parent (by relPath or id) so the new ADR is nested under it.
+            const parentRef = String(a.parent ?? '').trim();
+            let parent: AdrDoc | undefined;
+            if (parentRef) {
+              parent = adrs.find((d) => d.relPath === parentRef) ?? adrs.find((d) => d.id === parentRef || baseId(d.relPath) === baseId(parentRef));
+              if (!parent) return { ok: false, text: `Unknown parent ADR: ${parentRef}. Use list_docs to find its relPath or id.` };
+            }
+            const taken = new Set(adrs.map((d) => baseId(d.relPath)));
             const id = uniqueSlug(baseId(String(a.slug ?? '')) || slugify(String(a.title ?? 'untitled')), taken);
-            const relPath = `loops/${id}.md`;
+            // Children live alongside their parent (the parent's `children` link is authoritative,
+            // matching planWorkflowScaffold); top-level ADRs go in loops/.
+            const dir = parent ? dirOf(parent.relPath) : 'loops';
+            const relPath = dir ? `${dir}/${id}.md` : `${id}.md`;
             const body = String(a.content ?? '');
             await ws.writeAdr({ id, relPath, title: String(a.title ?? 'Untitled'), body, acceptanceCriteria: [], children: [], status: 'idle', outputs: [] });
+            // Link the new ADR into its parent's children so the structure stays connected.
+            if (parent) await ws.writeAdr({ ...parent, children: withChild(parent.children, relPath) });
             const warning = bodyHasNoCriteria(body) ? NO_CRITERIA_WARNING : undefined;
-            return { ok: true, text: `Created ${relPath}.${warning ? ` ⚠ ${warning}` : ''}`, path: relPath, ...(warning ? { warning } : {}) };
+            const linked = parent ? ` Linked under ${parent.relPath}.` : '';
+            return { ok: true, text: `Created ${relPath}.${linked}${warning ? ` ⚠ ${warning}` : ''}`, path: relPath, ...(warning ? { warning } : {}) };
           }
           case 'create_role':
           case 'create_workflow': {

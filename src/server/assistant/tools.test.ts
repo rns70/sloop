@@ -37,6 +37,46 @@ describe('createToolExecutor', () => {
     expect(writes).toContainEqual({ path: 'loops/auth-2.md', body: 'New body' });
   });
 
+  it('create_adr nests under a parent (by relPath) and links it into the parent children', async () => {
+    const writes: Array<{ path: string; children: string[] }> = [];
+    const adrs: AdrDoc[] = [{ id: 'auth', relPath: 'loops/auth.md', title: 'Auth', body: 'Auth rules', acceptanceCriteria: [], children: [], status: 'idle', outputs: [] }];
+    const { ws } = fakeWorkspace({
+      listAdrs: async () => adrs,
+      readAdr: async (p) => { const x = adrs.find((d) => d.relPath === p); if (!x) throw new Error('not found'); return x; },
+      writeAdr: async (d) => { writes.push({ path: d.relPath, children: d.children }); },
+    });
+    const exec = createToolExecutor(ws);
+    const r = await exec.run({ type: 'toolCall', id: 'p1', name: 'create_adr', arguments: { title: 'Login', content: 'body', parent: 'loops/auth.md' } });
+    expect(r.ok).toBe(true);
+    expect(r.path).toBe('loops/login.md'); // sibling of the parent, in the parent's directory
+    expect(r.text).toContain('Linked under loops/auth.md');
+    // child written first (no children), then the parent re-written with the child relPath appended
+    expect(writes).toContainEqual({ path: 'loops/login.md', children: [] });
+    expect(writes).toContainEqual({ path: 'loops/auth.md', children: ['loops/login.md'] });
+  });
+
+  it('create_adr accepts a parent by id and de-dupes existing children links', async () => {
+    const adrs: AdrDoc[] = [{ id: 'auth', relPath: 'loops/auth.md', title: 'Auth', body: '', acceptanceCriteria: [], children: ['loops/login.md'], status: 'idle', outputs: [] }];
+    const writes: Array<{ path: string; children: string[] }> = [];
+    const { ws } = fakeWorkspace({
+      listAdrs: async () => adrs,
+      writeAdr: async (d) => { writes.push({ path: d.relPath, children: d.children }); },
+    });
+    const exec = createToolExecutor(ws);
+    const r = await exec.run({ type: 'toolCall', id: 'p2', name: 'create_adr', arguments: { title: 'Tokens', content: 'body', parent: 'auth' } });
+    expect(r.ok).toBe(true);
+    expect(writes).toContainEqual({ path: 'loops/auth.md', children: ['loops/login.md', 'loops/tokens.md'] });
+  });
+
+  it('create_adr with an unknown parent returns an error and writes nothing', async () => {
+    const { ws, writes } = fakeWorkspace();
+    const exec = createToolExecutor(ws);
+    const r = await exec.run({ type: 'toolCall', id: 'p3', name: 'create_adr', arguments: { title: 'X', content: 'body', parent: 'loops/missing.md' } });
+    expect(r.ok).toBe(false);
+    expect(r.text).toContain('Unknown parent ADR');
+    expect(writes).toHaveLength(0);
+  });
+
   it('create_adr warns when the body has no acceptance criteria', async () => {
     const { ws } = fakeWorkspace();
     const exec = createToolExecutor(ws);
