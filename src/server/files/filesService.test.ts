@@ -103,6 +103,20 @@ describe('FilesService', () => {
     const registry = await files.readModelRegistry();
     expect(registry.models.opus.provider).toBe('anthropic');
     expect(registry.providers.nebius.baseUrl).toContain('nebius');
+
+    // New roles load with their briefs.
+    expect(roles.map((r) => r.id)).toEqual(
+      expect.arrayContaining(['architect', 'engineer', 'qa', 'security', 'explorer', 'debugger']),
+    );
+    expect(roles.find((r) => r.id === 'explorer')?.brief).toContain('read-only');
+
+    // New templates load, and gate stages parse as a boolean true.
+    expect(templates.map((t) => t.id)).toEqual(
+      expect.arrayContaining(['spec-driven', 'tdd', 'waterfall', 'debug', 'migrate']),
+    );
+    const debug = templates.find((t) => t.id === 'debug');
+    expect(debug?.stages.find((s) => s.name === 'reproduce')?.gate).toBe(true);
+    expect(debug?.stages.find((s) => s.name === 'localize')?.gate).toBeUndefined();
   });
 
   it('carries the locked flag on acceptance criteria through normalizeCriteria', async () => {
