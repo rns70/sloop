@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { getModels, type ModelOption } from '../api-client/index';
 import { Button, Label, cx } from '../design/index';
 import { useAssistant } from '../assistant/AssistantContext';
@@ -146,8 +147,8 @@ export function AssistantRail({ className }: { className?: string }) {
               /* Assistant messages: render markdown */
               <>
                 {m.text && (
-                  <div className="text-[12.5px] leading-relaxed text-ink [&_a]:text-accent [&_a]:underline [&_code]:rounded [&_code]:bg-line-soft [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[11.5px] [&_h1]:font-semibold [&_h2]:font-semibold [&_h3]:font-semibold [&_ol]:my-1 [&_ol]:list-decimal [&_ol]:pl-4 [&_p]:my-1 [&_pre]:overflow-x-auto [&_pre]:rounded [&_pre]:bg-line-soft [&_pre]:p-2 [&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-4">
-                    <ReactMarkdown>{m.text}</ReactMarkdown>
+                  <div className="text-[12.5px] leading-relaxed text-ink [&_a]:text-accent [&_a]:underline [&_code]:rounded [&_code]:bg-line-soft [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[11.5px] [&_h1]:font-semibold [&_h2]:font-semibold [&_h3]:font-semibold [&_ol]:my-1 [&_ol]:list-decimal [&_ol]:pl-4 [&_p]:my-1 [&_pre]:overflow-x-auto [&_pre]:rounded [&_pre]:bg-line-soft [&_pre]:p-2 [&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-4 [&_del]:line-through [&_del]:text-ink-faint [&_table]:my-1 [&_table]:block [&_table]:w-full [&_table]:overflow-x-auto [&_table]:border-collapse [&_th]:border [&_th]:border-line-soft [&_th]:px-2 [&_th]:py-1 [&_th]:text-left [&_th]:font-semibold [&_td]:border [&_td]:border-line-soft [&_td]:px-2 [&_td]:py-1">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.text}</ReactMarkdown>
                     {streaming && i === messages.length - 1 && (
                       <span className="ml-px inline-block h-[0.95em] w-[2px] animate-pulse bg-ink align-text-bottom" />
                     )}
