@@ -91,11 +91,12 @@ describe('FilesService', () => {
     await files.writeAdr(adr);
     const readBack = await files.readAdr(adr.relPath);
 
-    // Field round-trips; body now carries the criteria section.
-    expect(readBack.acceptanceCriteria).toEqual(adr.acceptanceCriteria);
+    // Field round-trips (text + passed); ADRs no longer persist ids, so id is empty.
+    expect(readBack.acceptanceCriteria).toEqual([{ id: '', text: 'Holds', passed: false }]);
     expect(readBack.body).toContain('Context.');
     expect(readBack.body).toContain('## Acceptance criteria');
-    expect(readBack.body).toContain('**ac-1** Holds');
+    expect(readBack.body).toContain('- [ ] Holds');
+    expect(readBack.body).not.toContain('**ac-1**');
 
     // Criteria are no longer in frontmatter on disk.
     const raw = await fs.readFile(path.join(root, adr.relPath), 'utf8');
@@ -178,7 +179,7 @@ describe('FilesService', () => {
       acceptanceCriteria: [{ id: 'ac-9', text: 'From field', passed: false }],
     });
     const readBack = await files.readAdr(relPath);
-    expect(readBack.acceptanceCriteria).toEqual([{ id: 'ac-1', text: 'From body', passed: true }]);
+    expect(readBack.acceptanceCriteria).toEqual([{ id: '', text: 'From body', passed: true }]);
   });
 
   it('reads a legacy loop with frontmatter criteria (fallback)', async () => {
@@ -229,7 +230,8 @@ describe('FilesService', () => {
     // Read injects a canonical body section so the editor shows criteria immediately.
     const read = await files.readAdr('databank/adr-legacy.md');
     expect(read.body).toContain('## Acceptance criteria');
-    expect(read.body).toContain('**ac-1** old style');
+    expect(read.body).toContain('- [ ] old style');
+    expect(read.body).not.toContain('**ac-1**');
     expect(read.acceptanceCriteria[0].locked).toBe(true);
 
     // Writing it back migrates the disk file: criteria leave frontmatter, enter the body.
@@ -237,7 +239,7 @@ describe('FilesService', () => {
     const raw = await fs.readFile(path.join(root, 'databank/adr-legacy.md'), 'utf8');
     expect(raw).not.toContain('acceptanceCriteria:');
     expect(raw).toContain('## Acceptance criteria');
-    expect(raw).toContain('🔒');
+    expect(raw).not.toContain('🔒');
   });
 
   describe('moveAdr', () => {
@@ -288,6 +290,51 @@ describe('FilesService', () => {
       await expect(files.moveAdr('databank/auth/a.md', 'databank/api/a.md')).rejects.toMatchObject({
         code: 'conflict',
       });
+    });
+
+    it('allows a case-only file rename (a.md -> A.md)', async () => {
+      const files = createFilesService(root);
+      await writeAdrFile('databank/auth/a.md', 'A');
+      await files.moveAdr('databank/auth/a.md', 'databank/auth/A.md');
+      // On a case-insensitive volume the bytes live at the same inode under the new
+      // casing; on a case-sensitive volume the rename creates A.md. Either way the
+      // content must be reachable and the move must not throw a spurious conflict.
+      const dir = await fs.readdir(path.join(root, 'databank/auth'));
+      expect(dir).toContain('A.md');
+      expect(dir).not.toContain('a.md');
+    });
+
+    it('rejects moving a file onto an existing folder of the same name', async () => {
+      const files = createFilesService(root);
+      await writeAdrFile('databank/auth/a.md', 'A');
+      await writeAdrFile('databank/api/a.md/inner.md', 'Inner'); // makes databank/api/a.md a dir
+      await expect(files.moveAdr('databank/auth/a.md', 'databank/api/a.md')).rejects.toMatchObject({
+        code: 'conflict',
+      });
+    });
+
+    it('rejects moving a folder onto an existing file of the same name', async () => {
+      const files = createFilesService(root);
+      await writeAdrFile('databank/auth/a.md', 'A');
+      await writeAdrFile('databank/api/auth', 'NotAFolder'); // a *file* literally named "auth"
+      await expect(files.moveAdr('databank/auth', 'databank/api/auth')).rejects.toMatchObject({
+        code: 'conflict',
+      });
+    });
+
+    it('leaves a folder merge fully un-applied when any descendant collides (all-or-nothing)', async () => {
+      const files = createFilesService(root);
+      await writeAdrFile('databank/auth/a.md', 'A');
+      await writeAdrFile('databank/auth/b.md', 'B');
+      await writeAdrFile('databank/api/auth/b.md', 'Existing B'); // collides with auth/b.md
+      await expect(files.moveAdr('databank/auth', 'databank/api/auth')).rejects.toMatchObject({
+        code: 'conflict',
+      });
+      // The non-colliding sibling (a.md) must NOT have been moved — the merge is rejected
+      // before touching disk, so the source folder stays intact.
+      expect(await fs.access(path.join(root, 'databank/auth/a.md')).then(() => true)).toBe(true);
+      expect(await fs.access(path.join(root, 'databank/auth/b.md')).then(() => true)).toBe(true);
+      await expect(fs.access(path.join(root, 'databank/api/auth/a.md'))).rejects.toThrow();
     });
 
     it('rejects moving a folder into its own descendant', async () => {

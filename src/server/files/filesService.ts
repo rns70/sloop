@@ -90,7 +90,7 @@ export class FilesServiceImpl implements FilesService {
       : normalizeCriteria(data.acceptanceCriteria);
     let outBody = body;
     if (!parsed.hasSection && acceptanceCriteria.length > 0) {
-      outBody = upsertCriteriaInBody(body, acceptanceCriteria);
+      outBody = upsertCriteriaInBody(body, acceptanceCriteria, 'plain');
     }
     return {
       id: String(data.id ?? ''),
@@ -107,8 +107,8 @@ export class FilesServiceImpl implements FilesService {
     // (covers programmatic creation, e.g. createDatabankItem with an empty list).
     const parsed = parseCriteriaFromBody(doc.body);
     const criteria = parsed.hasSection ? parsed.criteria : doc.acceptanceCriteria;
-    // Always re-serialize so the on-disk section is canonical (ids filled, format normalized).
-    const body = upsertCriteriaInBody(doc.body, criteria);
+    // ADR criteria are a plain checklist; ids/lock belong to loops only.
+    const body = upsertCriteriaInBody(doc.body, criteria, 'plain');
     const frontmatter = { id: doc.id, title: doc.title };
     await this.writeFile(doc.relPath, serializeFrontmatter(frontmatter, body));
   }
