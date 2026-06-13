@@ -63,6 +63,10 @@ export default {
           pinkBg: '#fbecf4',
           gray: '#615f5a',
           grayBg: '#f1f0ee',
+          teal: '#2f8f80',
+          tealBg: '#e6f4f1',
+          amber: '#a8722f',
+          amberBg: '#f7efe3',
         },
         // Status dots/labels.
         status: {
