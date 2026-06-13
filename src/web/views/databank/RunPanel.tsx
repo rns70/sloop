@@ -223,7 +223,7 @@ export function RunPanel({ adr, onApplied }: RunPanelProps) {
         </div>
       )}
 
-      {snapshot && adrs && (
+      {adrs && (snapshot || adr.children.length > 0) && (
         <div className="mt-4 overflow-hidden rounded-lg border border-line">
           <AdrRunTree adrs={adrs} root={adr} runStateOf={runStateOf} />
         </div>
