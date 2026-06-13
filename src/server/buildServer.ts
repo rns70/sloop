@@ -97,7 +97,7 @@ export function buildServer(opts: BuildServerOptions): { server: Server; uiMount
     const ac = new AbortController();
     req.on('close', () => ac.abort());
     api.assistantStream(req.body, (e) => {
-      res.write(`data: ${JSON.stringify(e)}\n\n`);
+      if (!res.writableEnded) res.write(`data: ${JSON.stringify(e)}\n\n`);
     }, ac.signal).catch((err: unknown) => {
       if (!res.writableEnded) {
         res.write(`data: ${JSON.stringify({ type: 'error', message: err instanceof Error ? err.message : 'internal error' })}\n\n`);

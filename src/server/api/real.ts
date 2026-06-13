@@ -294,6 +294,10 @@ export class RealApi implements StreamingSloopApi {
       writeRaw: async (relPath, content) => {
         const abs = normalize(join(root, relPath));
         if (abs !== root && !abs.startsWith(root + sep)) throw new Error(`Path escapes the workspace: ${relPath}`);
+        const rel = abs.slice(root.length + 1).split(sep).join('/'); // normalize to forward slashes
+        const allowed = /^databank\/.+\.md$/.test(rel)
+          || /^\.sloop\/(roles|templates)\/.+\.md$/.test(rel);
+        if (!allowed) throw new Error(`Path not writable by the assistant: ${relPath} (only databank/ and .sloop/{roles,templates}/ *.md)`);
         await fs.mkdir(dirname(abs), { recursive: true });
         await fs.writeFile(abs, content, 'utf8');
       },
