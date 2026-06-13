@@ -97,6 +97,14 @@ const SYSTEM = [
   'concise; describe what you changed. When the user just wants an answer, reply in plain',
   'markdown without calling a tool.',
   '',
+  'Scope discipline. Do exactly what the user asked, then STOP and reply with a short',
+  'summary of what you changed. Do NOT keep scanning the workspace for unrelated problems to',
+  'fix, refactor things you were not asked to touch, or chain further edits beyond the',
+  'request. Use the fewest tool calls needed: read what you must, make the change, and end',
+  'the turn with a plain-text recap (no tool call) so the turn closes. If you genuinely',
+  'cannot finish in a few steps, stop and tell the user what you found and what is left',
+  'rather than looping.',
+  '',
   ADR_REFINEMENT_PROTOCOL,
 ].join('\n');
 

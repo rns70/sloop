@@ -21,6 +21,25 @@ export interface AgentDeps {
 
 const DEFAULT_MAX_ITERATIONS = 12;
 
+/** Hard ceiling for the per-turn tool loop, regardless of env. Runaway guard. */
+const MAX_ITERATIONS_CEILING = 12;
+
+/** Tokens per model iteration. Generous enough that a turn can reach its final
+ *  text-only message instead of being truncated into yet another tool round. */
+const MAX_TOKENS_PER_ITERATION = 8192;
+
+/**
+ * Resolve the per-turn tool-loop cap: `SLOOP_ASSISTANT_MAX_ITERATIONS` when set to a
+ * positive integer, else the default. Clamped to [1, MAX_ITERATIONS_CEILING] so an
+ * operator can dial it DOWN (e.g. 4 to curb the "keeps finding issues" loop) but never
+ * above the runaway-guard ceiling.
+ */
+export function resolveMaxIterations(env: NodeJS.ProcessEnv): number {
+  const parsed = Number.parseInt(env.SLOOP_ASSISTANT_MAX_ITERATIONS ?? '', 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_MAX_ITERATIONS;
+  return Math.min(parsed, MAX_ITERATIONS_CEILING);
+}
+
 const ZERO_USAGE = {
   input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0,
   cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
@@ -64,12 +83,12 @@ export async function runAssistantAgent(
   const model = toPiModel(resolved);
   const system = buildAssistantSystemPrompt();
   const messages = toPiMessages(req.messages, model);
-  const max = deps.maxIterations ?? DEFAULT_MAX_ITERATIONS;
+  const max = deps.maxIterations ?? resolveMaxIterations(deps.env);
 
   for (let i = 0; i < max; i += 1) {
     if (signal?.aborted) { emit({ type: 'done' }); return; }
     const context: Context = { systemPrompt: system, messages, tools: ASSISTANT_TOOLS };
-    const piStream = deps.stream(model, context, { apiKey: resolved.apiKey, signal, maxTokens: 4096 });
+    const piStream = deps.stream(model, context, { apiKey: resolved.apiKey, signal, maxTokens: MAX_TOKENS_PER_ITERATION });
 
     let final: AssistantMessage | undefined;
     const calls: ToolCall[] = [];
