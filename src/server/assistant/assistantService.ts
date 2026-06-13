@@ -43,14 +43,24 @@ export function toPiModel(resolved: ResolvedModel): Model<Api> {
     reasoning: false, contextWindow: 128_000, maxTokens: 8_192 };
 }
 
+/**
+ * Strip `<think>…</think>` reasoning blocks some open models (e.g. Nemotron on Nebius)
+ * emit inline in their text. Left in, they would defeat the envelope parser and surface
+ * as noise in answers. Anthropic models don't emit these, so this is a no-op for them.
+ */
+function stripReasoning(text: string): string {
+  return text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+}
+
 const piAssistantCall: AssistantModelCall = async (resolved, parts) => {
   const model = toPiModel(resolved);
   const context: Context = { systemPrompt: parts.systemPrompt,
     messages: [{ role: 'user', content: parts.userPrompt, timestamp: Date.now() }] };
   const message = await complete(model, context, { apiKey: resolved.apiKey, maxTokens: 4_096 });
-  return message.content
+  const text = message.content
     .filter((b): b is { type: 'text'; text: string } => b.type === 'text')
     .map((b) => b.text).join('\n').trim();
+  return stripReasoning(text);
 };
 
 /** Load context docs, fail-soft per doc (an unreadable doc is skipped, not fatal). */

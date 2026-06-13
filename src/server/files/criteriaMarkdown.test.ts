@@ -138,3 +138,48 @@ describe('upsertCriteriaInBody validation', () => {
     ).toThrow(/backtick/);
   });
 });
+
+describe('fenced code blocks are ignored', () => {
+  it('does not match a heading or bullets inside a fenced block', () => {
+    const body = [
+      '# Doc',
+      '',
+      'Example of the format:',
+      '',
+      '```markdown',
+      '## Acceptance criteria',
+      '',
+      '- [ ] **ac-1** not a real criterion',
+      '```',
+      '',
+      'Real prose after.',
+    ].join('\n');
+    const r = parseCriteriaFromBody(body);
+    expect(r.hasSection).toBe(false);
+    expect(r.criteria).toEqual([]);
+    // the fenced example is preserved verbatim in the remaining body
+    expect(r.bodyWithoutSection).toContain('```markdown');
+    expect(r.bodyWithoutSection).toContain('## Acceptance criteria');
+    expect(r.bodyWithoutSection).toContain('Real prose after.');
+  });
+
+  it('parses the real section while leaving a fenced example untouched', () => {
+    const body = [
+      '# Doc',
+      '',
+      '```',
+      '## Acceptance criteria',
+      '- [ ] **ac-9** fake inside fence',
+      '```',
+      '',
+      '## Acceptance criteria',
+      '',
+      '- [x] **ac-1** real one',
+    ].join('\n');
+    const r = parseCriteriaFromBody(body);
+    expect(r.hasSection).toBe(true);
+    expect(r.criteria).toEqual([{ id: 'ac-1', text: 'real one', passed: true }]);
+    expect(r.bodyWithoutSection).toContain('```');
+    expect(r.bodyWithoutSection).toContain('**ac-9** fake inside fence');
+  });
+});

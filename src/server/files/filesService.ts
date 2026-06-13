@@ -28,6 +28,17 @@ export class MoveError extends Error {
     this.name = 'MoveError';
   }
 }
+/** Failure modes of `deleteAdr`, discriminated by `code` so the API layer can map
+ *  them to HTTP statuses without importing fs-specific error types. */
+export class DeleteError extends Error {
+  constructor(
+    readonly code: 'not_found' | 'invalid',
+    message: string,
+  ) {
+    super(message);
+    this.name = 'DeleteError';
+  }
+}
 const WORKFLOWS_DIR = path.join('.sloop', 'workflows');
 const ROLES_DIR = path.join('.sloop', 'roles');
 const CONFIG_FILE = path.join('.sloop', 'config.md');
@@ -174,10 +185,28 @@ export class FilesServiceImpl implements FilesService {
 
   /** Reject paths that normalize outside databank/ (traversal defense). */
   private assertInDatabank(relPath: string): void {
-    const norm = path.normalize(relPath);
-    if (norm !== DATABANK_DIR && !norm.startsWith(DATABANK_PREFIX)) {
+    if (!isInsideDatabank(relPath)) {
       throw new MoveError('invalid', `Path is outside databank/: ${relPath}`);
     }
+  }
+
+  async deleteAdr(relPath: string): Promise<void> {
+    // Traversal defense, and never let a caller wipe the databank/ root itself —
+    // only files and folders *inside* it are deletable.
+    if (!isInsideDatabank(relPath) || path.normalize(relPath) === DATABANK_DIR) {
+      throw new DeleteError('invalid', `Refusing to delete outside databank/ or its root: ${relPath}`);
+    }
+
+    const relPaths = (await this.listAdrs()).map((a) => a.relPath);
+    const isFile = relPaths.includes(relPath);
+    const isFolder = relPaths.some((p) => p.startsWith(`${relPath}/`));
+    if (!isFile && !isFolder) {
+      throw new DeleteError('not_found', `Nothing to delete at: ${relPath}`);
+    }
+
+    // recursive handles both a single file and a whole folder subtree.
+    await fs.rm(this.abs(relPath), { recursive: true, force: true });
+    await this.pruneEmptyDirs(path.dirname(relPath));
   }
 
   async readLoop(relPath: string): Promise<LoopDoc> {
@@ -185,10 +214,10 @@ export class FilesServiceImpl implements FilesService {
     const { data, body } = parseFrontmatter<LoopFrontmatter>(raw);
     const parsed = parseCriteriaFromBody(body);
     // Body is the on-disk source; fall back to legacy frontmatter criteria.
-    data.acceptanceCriteria = parsed.hasSection
+    const acceptanceCriteria = parsed.hasSection
       ? parsed.criteria
       : normalizeCriteria(data.acceptanceCriteria);
-    return { frontmatter: data, body, relPath };
+    return { frontmatter: { ...data, acceptanceCriteria }, body, relPath };
   }
 
   async writeLoop(loop: LoopDoc): Promise<void> {
@@ -199,7 +228,7 @@ export class FilesServiceImpl implements FilesService {
     const body = upsertCriteriaInBody(loop.body, acceptanceCriteria);
     await this.writeFile(
       loop.relPath,
-      serializeFrontmatter(frontmatter as unknown as Record<string, unknown>, body),
+      serializeFrontmatter(frontmatter as Record<string, unknown>, body),
     );
   }
 
@@ -301,6 +330,12 @@ function normalizeCriteria(value: unknown): AcceptanceCriterion[] {
     if (c.locked !== undefined) criterion.locked = Boolean(c.locked);
     return criterion;
   });
+}
+
+/** True if `relPath` normalizes to databank/ or somewhere inside it (traversal defense). */
+function isInsideDatabank(relPath: string): boolean {
+  const norm = path.normalize(relPath);
+  return norm === DATABANK_DIR || norm.startsWith(DATABANK_PREFIX);
 }
 
 /** True if `abs` exists on disk. */

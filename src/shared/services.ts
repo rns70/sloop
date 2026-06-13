@@ -11,6 +11,10 @@ export interface FilesService {
    *  `from`/`to` are databank-prefixed paths. Throws MoveError on collision,
    *  cycle, traversal, or a missing source. */
   moveAdr(from: string, to: string): Promise<void>;
+  /** Delete an ADR file, or a whole folder subtree, on the working tree.
+   *  `relPath` is a databank-prefixed path. Throws DeleteError on traversal,
+   *  an attempt to delete the databank/ root, or a missing target. */
+  deleteAdr(relPath: string): Promise<void>;
   readLoop(relPath: string): Promise<LoopDoc>;
   writeLoop(loop: LoopDoc): Promise<void>;
   listLoops(cascadeId: string): Promise<LoopDoc[]>;

@@ -39,14 +39,17 @@ export const putAdr = (relPath: string, doc: AdrDoc): Promise<Ok> =>
   http(`/adrs/${enc(relPath)}`, { method: 'PUT', body: JSON.stringify(doc) });
 export const getAdrDiff = (relPath: string): Promise<AdrDiffResponse> =>
   http(`/adrs/${enc(relPath)}/diff`);
+/** Move/rename an ADR file, or a whole folder prefix. `from`/`to` are databank-prefixed
+ *  paths (e.g. `databank/auth/a.md`). Folder moves carry all descendants. */
+export const moveAdr = (from: string, to: string): Promise<Ok> =>
+  http(`/adrs/${enc(from)}/move`, { method: 'POST', body: JSON.stringify({ to }) });
 
 export const getWorkflows = (): Promise<WorkflowDef[]> => http('/workflows');
 export const getRoles = (): Promise<RoleDef[]> => http('/roles');
 
-/** Raw markdown of any workspace file (role/workflow/config). Per the canonical
- *  contract (`GET/PUT /api/files/:relPath`); the mock backend wires it in WP-6.
- *  Libraries reads role/workflow content from the typed getRoles/getWorkflows
- *  responses, so viewing works today; Save round-trips once /api/files exists. */
+/** Raw markdown of any workspace file (role/workflow/config), via the
+ *  `GET/PUT /api/files/:relPath` bridge. Libraries reads role/workflow content from
+ *  the typed getRoles/getWorkflows responses; Save round-trips through /api/files. */
 export interface FileContent {
   content: string;
 }

@@ -1,11 +1,12 @@
 // Single source of live cascade state, shared by the Mission Control tree and the
 // Loop page so there is exactly one WebSocket subscription and one output buffer.
 //
-// Flow (built against the WP-0 mock's scripted stream):
+// Flow:
 //   1. mount         → getCascade(id): root is `awaiting_approval`, leaves `planned`.
 //   2. approve()     → approveCascade(id) flips leaves to `queued`, then we OPEN the
-//                      WS. The mock replays its progression on connect, so we must not
-//                      subscribe before approval or the checkpoint would never show.
+//                      WS. The backend buffers every event from kickoff, so a late
+//                      subscriber catches up — but we still subscribe only after
+//                      approval so the checkpoint is shown before execution starts.
 //   3. loop-update   → replace the loop in place; the root loop flipping to `done` is
 //                      the convergence "money shot".
 //   4. output        → append chunk to that loop's buffer (streamed to the Loop page).
@@ -35,7 +36,7 @@ interface CascadeContextValue {
   detail: CascadeDetail | null;
   error: string | null;
   /** True once the user approved the checkpoint (gates the checkpoint independently of
-   *  loop status, since the mock keeps the architect `awaiting_approval` until the end). */
+   *  loop status, since the architect stays `awaiting_approval` until the end). */
   approved: boolean;
   streaming: boolean;
   outputs: Record<string, string>;

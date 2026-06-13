@@ -21,7 +21,7 @@ export function Placeholder({ section }: { section: string }) {
 /**
  * Placeholder for a single cascade. WP-5 replaces this with Mission Control, but it
  * already loads and shows the real summary so the "kick off cascade" flow resolves to
- * something concrete from the mock.
+ * something concrete.
  */
 export function CascadePlaceholder() {
   const { id = '' } = useParams();
