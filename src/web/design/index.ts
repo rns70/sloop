@@ -44,5 +44,5 @@ export type { InlineDiffViewProps } from './InlineDiffView';
 export { cx } from './cx';
 export { roleTone, TONE_CLASS } from './tokens';
 export type { Tone } from './tokens';
-export { diffLines, hasChanges } from './diff';
-export type { DiffLine, DiffOp } from './diff';
+export { diffLines, hasChanges, wordDiff, diffRows, diffStats } from './diff';
+export type { DiffLine, DiffOp, Seg, Row } from './diff';
