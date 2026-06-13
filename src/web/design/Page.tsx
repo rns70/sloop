@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { cx } from './cx';
 
 export interface PageProps {
-  /** Quiet breadcrumb shown at the left of the top bar (e.g. `Databank / adr-007.md`). */
+  /** Quiet breadcrumb shown at the left of the top bar (e.g. `Docs / adr-007.md`). */
   breadcrumb?: ReactNode;
   /** Minor right-aligned context (toggles, Save, etc.). */
   actions?: ReactNode;

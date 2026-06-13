@@ -8,7 +8,7 @@ import { resolve, dirname, join } from 'node:path';
 import type { Server } from 'node:http';
 import { createRealApi } from './api/real';
 import { buildServer } from './buildServer';
-import { loadDotEnv } from './env';
+import { loadSloopEnv } from './env';
 import { getLogger, configureLogger, resolveLogLevel } from './log';
 
 const DEFAULT_PORT = 5174;
@@ -36,7 +36,7 @@ export interface StartedServer {
  * API + WS + built UI on one port. Used by the `sloop` CLI. `root` must be a git repo.
  */
 export async function startServer(opts: { root: string; port?: number }): Promise<StartedServer> {
-  loadDotEnv(); // Provider keys from a gitignored .env; real shell env still wins.
+  loadSloopEnv({ cwd: resolve(opts.root) }); // Provider keys from .env / .sloop/.env / ~/.sloop/.env; real shell env still wins.
   // Re-read SLOOP_LOG_LEVEL now that .env is loaded (the module-load logger predates it).
   configureLogger({ level: resolveLogLevel(process.env) });
   const root = resolve(opts.root);
@@ -60,8 +60,9 @@ export async function startServer(opts: { root: string; port?: number }): Promis
 }
 
 async function main(): Promise<void> {
-  // Provider keys from a gitignored .env; real shell env still wins. Log key NAMES only.
-  const loaded = loadDotEnv();
+  // Provider keys from .env / .sloop/.env / ~/.sloop/.env; real shell env still wins.
+  // Log key NAMES only.
+  const loaded = loadSloopEnv();
   const log = configureLogger({ level: resolveLogLevel(process.env) });
   if (loaded.length > 0) {
     log.info(`loaded ${loaded.length} var(s) from .env`, { vars: loaded.join(',') });
