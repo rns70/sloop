@@ -71,8 +71,10 @@ export function AdrEditor() {
   const dirty = adr !== null && (body !== adr.body || title !== adr.title);
   const missingCriteria = bodyHasNoCriteria(body);
 
-  async function save() {
-    if (!adr) return;
+  /** Persist the current buffer. Returns true on success so callers (e.g. the
+   *  "Add with assistant" shortcut) can avoid acting on stale on-disk content. */
+  async function save(): Promise<boolean> {
+    if (!adr) return false;
     setSaving(true);
     setError(null);
     try {
@@ -80,8 +82,10 @@ export function AdrEditor() {
       const next: AdrDoc = { ...adr, title, body };
       await putAdr(relPath, next);
       setAdr(next);
+      return true;
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
+      return false;
     } finally {
       setSaving(false);
     }
@@ -141,7 +145,9 @@ export function AdrEditor() {
                 <Button
                   variant="subtle"
                   onClick={async () => {
-                    await save(); // persist the buffer so the agent edits the latest on-disk content
+                    // Persist the buffer first so the agent edits the latest on-disk
+                    // content; skip the assistant if the save failed (error is shown).
+                    if (!(await save())) return;
                     runAssistant(`Edit the design file \`${relPath}\`. ${CRITERIA_ASSISTANT_INSTRUCTION}`);
                   }}
                 >
