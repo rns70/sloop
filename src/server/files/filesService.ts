@@ -93,10 +93,10 @@ export class FilesServiceImpl implements FilesService {
     const { data, body } = parseFrontmatter<LoopFrontmatter>(raw);
     const parsed = parseCriteriaFromBody(body);
     // Body is the on-disk source; fall back to legacy frontmatter criteria.
-    data.acceptanceCriteria = parsed.hasSection
+    const acceptanceCriteria = parsed.hasSection
       ? parsed.criteria
       : normalizeCriteria(data.acceptanceCriteria);
-    return { frontmatter: data, body, relPath };
+    return { frontmatter: { ...data, acceptanceCriteria }, body, relPath };
   }
 
   async writeLoop(loop: LoopDoc): Promise<void> {
@@ -107,7 +107,7 @@ export class FilesServiceImpl implements FilesService {
     const body = upsertCriteriaInBody(loop.body, acceptanceCriteria);
     await this.writeFile(
       loop.relPath,
-      serializeFrontmatter(frontmatter as unknown as Record<string, unknown>, body),
+      serializeFrontmatter(frontmatter as Record<string, unknown>, body),
     );
   }
 

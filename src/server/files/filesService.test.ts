@@ -167,6 +167,33 @@ describe('FilesService', () => {
     expect(readBack.acceptanceCriteria).toEqual([{ id: 'ac-1', text: 'From body', passed: true }]);
   });
 
+  it('reads a legacy loop with frontmatter criteria (fallback)', async () => {
+    await fs.mkdir(path.join(root, 'cascades/legacy-cascade'), { recursive: true });
+    await fs.writeFile(
+      path.join(root, 'cascades/legacy-cascade/leaf-y.md'),
+      [
+        '---',
+        'id: leaf-y',
+        'kind: leaf',
+        'role: engineer',
+        'model: haiku',
+        'status: planned',
+        'children: []',
+        'acceptanceCriteria:',
+        '  - { id: ac-1, text: "legacy crit", verify: "npm test", locked: true }',
+        '---',
+        '',
+        'Prose body.',
+      ].join('\n'),
+      'utf8',
+    );
+    const files = createFilesService(root);
+    const read = await files.readLoop('cascades/legacy-cascade/leaf-y.md');
+    expect(read.frontmatter.acceptanceCriteria).toEqual([
+      { id: 'ac-1', text: 'legacy crit', verify: 'npm test', locked: true, passed: false },
+    ]);
+  });
+
   it('migrates a legacy frontmatter ADR into the body on read and write', async () => {
     await fs.mkdir(path.join(root, 'databank'), { recursive: true });
     await fs.writeFile(
