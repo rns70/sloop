@@ -121,6 +121,27 @@ describe('RealApi happy path (dry-run, offline)', () => {
     expect(rootDone).toBe(true);
   });
 
+  it('listCascades enumerates created cascades, newest first', async () => {
+    const api = await createRealApi(workspace, process.env);
+
+    const a = await api.createCascade({ templateId: 'spec-driven' });
+    const b = await api.createCascade({ templateId: 'spec-driven' });
+
+    const list = await api.listCascades();
+    const ids = list.map((s) => s.id);
+    expect(ids).toContain(a.id);
+    expect(ids).toContain(b.id);
+
+    // Descending id sort (date-prefixed ids => chronological, newest first).
+    const sorted = [...ids].sort((x, y) => y.localeCompare(x));
+    expect(ids).toEqual(sorted);
+
+    // Each entry is a real derived summary, not a stub.
+    const entry = list.find((s) => s.id === a.id);
+    expect(entry?.rootLoopId).toBeTruthy();
+    expect(entry?.deltas).toBeDefined();
+  });
+
   it('subscribe replays buffered events to a late subscriber and closes when done', async () => {
     const api = await createRealApi(workspace, process.env);
     const summary = await api.createCascade({ templateId: 'spec-driven' });

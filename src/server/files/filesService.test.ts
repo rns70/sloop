@@ -70,7 +70,7 @@ describe('FilesService', () => {
     expect(ids).toEqual(['_architect', 'leaf-x']);
   });
 
-  it('writes an ADR then reads it back with its acceptance criteria', async () => {
+  it('writes an ADR (criteria in body) then reads it back', async () => {
     const files = createFilesService(root);
     const adr: AdrDoc = {
       id: 'adr-099',
@@ -82,7 +82,16 @@ describe('FilesService', () => {
 
     await files.writeAdr(adr);
     const readBack = await files.readAdr(adr.relPath);
-    expect(readBack).toEqual(adr);
+
+    // Field round-trips; body now carries the criteria section.
+    expect(readBack.acceptanceCriteria).toEqual(adr.acceptanceCriteria);
+    expect(readBack.body).toContain('Context.');
+    expect(readBack.body).toContain('## Acceptance criteria');
+    expect(readBack.body).toContain('**ac-1** Holds');
+
+    // Criteria are no longer in frontmatter on disk.
+    const raw = await fs.readFile(path.join(root, adr.relPath), 'utf8');
+    expect(raw).not.toContain('acceptanceCriteria:');
 
     const all = await files.listAdrs();
     expect(all.map((a) => a.id)).toEqual(['adr-099']);

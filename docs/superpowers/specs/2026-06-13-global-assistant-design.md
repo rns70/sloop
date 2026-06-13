@@ -103,12 +103,11 @@ interface AssistantProposal {
     - `edit` (other doc) → diff preview + **Apply** → `putAdr`.
     - `create-adr` → preview (title + body) + **Create** → construct `AdrDoc`, `putAdr`, route to it.
     - `create-role` / `create-template` → raw file preview + **Create** → `putFile`, route to it.
-- **Collision safety:** before any create write, the rail runs the proposed slug through a small
-  `slugify`/`uniqueSlug` helper against the live id/path set — the model proposes a name, the
-  client guarantees uniqueness.
-- **`AdrEditor`**: registers its open doc + `applyProposal` handle with `AssistantContext` so the
-  rail can route an edit of the open doc through the editor's inline diff. The pre-existing (and
-  currently orphaned) `src/web/author/*` assistant stack is removed as part of the migration.
+- **Collision safety:** before any create write, the rail runs the proposed slug through the
+  existing `uniqueSlug` (`createItem.ts`) against the live id/path set — the model proposes a
+  name, the client guarantees uniqueness.
+- **`AdrEditor`**: the embedded `AssistantPanel` is **removed**; the editor instead registers its
+  open doc + `applyProposal` with `AssistantContext`.
 
 ### 4. Error handling
 

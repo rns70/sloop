@@ -1,64 +1,79 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { getAdr, getAdrDiff, getAdrs, putAdr, type AdrDoc } from '../../api-client/index';
-import { Button, Page, cx } from '../../design/index';
+import { useParams, useSearchParams } from 'react-router-dom';
+import { getAdr, getAdrs, getAdrDiff, putAdr, type AdrDoc } from '../../api-client/index';
+import { Button, EditableTitle, Page, cx } from '../../design/index';
 import { AuthoredEditor } from '../../author/AuthoredEditor';
+import type { DocRef } from '../../author/AssistantPanel';
 import { InlineDiff } from './InlineDiff';
 
 type Mode = 'edit' | 'changes';
 
 /**
- * Opens one ADR (a plain markdown file) in the shared editor. The frontmatter and
- * acceptance criteria are structured data shown alongside; the editor edits only the
- * markdown *body* (export is lossy), and Save recombines the edited body with the
- * untouched rest of the document.
+ * Opens one ADR (a plain markdown file) in the shared editor. The route is a splat
+ * (`databank/*`) so ADRs nested in folders open by their full subpath. The title and
+ * acceptance criteria are structured data; the editor edits the title (inline) and the
+ * markdown *body*, and Save recombines them with the untouched rest of the document.
  */
 export function AdrEditor() {
-  const { file = '' } = useParams();
+  const params = useParams();
+  const file = params['*'] ?? ''; // splat: may include folders, e.g. auth/adr-007.md
   const relPath = `databank/${file}`;
+  const [searchParams] = useSearchParams();
+  const isNew = searchParams.get('new') === '1';
 
   const [adr, setAdr] = useState<AdrDoc | null>(null);
+  const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [committed, setCommitted] = useState(''); // last-accepted body (diff baseline)
+  const [availableDocs, setAvailableDocs] = useState<DocRef[]>([]); // other ADRs for wide context
   const [mode, setMode] = useState<Mode>('edit');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [availableDocs, setAvailableDocs] = useState<{ relPath: string; title: string }[]>([]);
 
   useEffect(() => {
     let cancelled = false;
     setAdr(null);
     setError(null);
     setMode('edit');
-    Promise.all([getAdr(relPath), getAdrDiff(relPath), getAdrs()])
-      .then(([doc, diff, all]) => {
+    getAdr(relPath)
+      .then((doc) => {
         if (cancelled) return;
         setAdr(doc);
+        setTitle(doc.title);
         setBody(doc.body);
-        setCommitted(diff.before);
-        setAvailableDocs(
-          all
-            .filter((a) => a.relPath !== relPath)
-            .map((a) => ({ relPath: a.relPath, title: a.title })),
-        );
       })
       .catch((e: unknown) => {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
       });
+    // The diff is best-effort: a brand-new ADR has no committed baseline yet.
+    getAdrDiff(relPath)
+      .then((diff) => !cancelled && setCommitted(diff.before))
+      .catch(() => !cancelled && setCommitted(''));
+    // Offer the other databank ADRs as wide multi-doc context for the assistant.
+    getAdrs()
+      .then((docs) => {
+        if (cancelled) return;
+        setAvailableDocs(
+          docs
+            .filter((d) => d.relPath !== relPath)
+            .map((d) => ({ relPath: d.relPath, title: d.title })),
+        );
+      })
+      .catch(() => !cancelled && setAvailableDocs([]));
     return () => {
       cancelled = true;
     };
   }, [relPath]);
 
-  const dirty = adr !== null && body !== adr.body;
+  const dirty = adr !== null && (body !== adr.body || title !== adr.title);
 
   async function save() {
     if (!adr) return;
     setSaving(true);
     setError(null);
     try {
-      // Recombine: only the body changed; frontmatter + criteria are passed through.
-      const next: AdrDoc = { ...adr, body };
+      // Recombine: title + body changed; criteria and the rest are passed through.
+      const next: AdrDoc = { ...adr, title, body };
       await putAdr(relPath, next);
       setAdr(next);
     } catch (e: unknown) {
@@ -76,7 +91,7 @@ export function AdrEditor() {
           type="button"
           onClick={() => setMode(m)}
           className={cx(
-            'flex items-center gap-1.5 rounded px-2 py-0.5 text-[12px] transition-colors',
+            'flex min-h-6 items-center gap-1.5 rounded px-2 text-[12px] transition-colors',
             mode === m ? 'bg-paper font-medium text-ink shadow-sm' : 'text-ink-muted',
           )}
         >
@@ -109,15 +124,13 @@ export function AdrEditor() {
 
       {adr && (
         <>
-          <div className="mb-1 font-mono text-[12px] text-ink-faint">{file}</div>
-          <div className="mb-5 text-[13px] text-ink-faint">
-            Markdown on disk · inline diff vs last accepted commit
-          </div>
+          <EditableTitle value={title} onChange={setTitle} autoFocus={isNew} />
+          <div className="mb-5 mt-1 font-mono text-[12px] text-ink-faint">{file}</div>
 
           {mode === 'edit' ? (
             <AuthoredEditor
               relPath={relPath}
-              title={file}
+              title={title}
               value={body}
               onChange={setBody}
               availableDocs={availableDocs}

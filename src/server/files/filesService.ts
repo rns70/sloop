@@ -11,6 +11,7 @@ import type {
 } from '../../shared';
 import type { FilesService } from '../../shared';
 import { parseFrontmatter, serializeFrontmatter } from './frontmatter';
+import { parseCriteriaFromBody, upsertCriteriaInBody } from './criteriaMarkdown';
 
 const DATABANK_DIR = 'databank';
 const CASCADES_DIR = 'cascades';
@@ -55,22 +56,36 @@ export class FilesServiceImpl implements FilesService {
   async readAdr(relPath: string): Promise<AdrDoc> {
     const raw = await fs.readFile(this.abs(relPath), 'utf8');
     const { data, body } = parseFrontmatter<Partial<AdrDoc>>(raw);
+    const parsed = parseCriteriaFromBody(body);
+    // Body is authoritative. Legacy files keep criteria in frontmatter — fall back
+    // to them and inject a canonical section into the returned body so the editor
+    // shows them immediately (disk migrates on the next write).
+    const acceptanceCriteria = parsed.hasSection
+      ? parsed.criteria
+      : normalizeCriteria(data.acceptanceCriteria);
+    const outBody = parsed.hasSection
+      ? body
+      : acceptanceCriteria.length > 0
+        ? upsertCriteriaInBody(body, acceptanceCriteria)
+        : body;
     return {
       id: String(data.id ?? ''),
       relPath,
       title: String(data.title ?? ''),
-      body,
-      acceptanceCriteria: normalizeCriteria(data.acceptanceCriteria),
+      body: outBody,
+      acceptanceCriteria,
     };
   }
 
   async writeAdr(doc: AdrDoc): Promise<void> {
-    const frontmatter = {
-      id: doc.id,
-      title: doc.title,
-      acceptanceCriteria: doc.acceptanceCriteria,
-    };
-    await this.writeFile(doc.relPath, serializeFrontmatter(frontmatter, doc.body));
+    // The body is the source of truth for ADR criteria (the editor edits the body).
+    // If the body has a criteria section, use it; otherwise fall back to the field
+    // (covers programmatic creation, e.g. createDatabankItem with an empty list).
+    const parsed = parseCriteriaFromBody(doc.body);
+    const criteria = parsed.hasSection ? parsed.criteria : doc.acceptanceCriteria;
+    const body = upsertCriteriaInBody(doc.body, criteria);
+    const frontmatter = { id: doc.id, title: doc.title };
+    await this.writeFile(doc.relPath, serializeFrontmatter(frontmatter, body));
   }
 
   async readLoop(relPath: string): Promise<LoopDoc> {

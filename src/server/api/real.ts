@@ -281,16 +281,22 @@ export class RealApi implements StreamingSloopApi {
   // ---- Cascades ------------------------------------------------------------
 
   async listCascades(): Promise<CascadeSummary[]> {
-    // The engine never writes a cascade-summary file (meta lives in memory + loops),
-    // so enumerate the on-disk cascade dirs and rebuild each summary via the engine.
-    // A dir mid-write (no readable root loop yet) is skipped rather than failing the list.
+    // Enumerate cascade dirs, then derive each summary via the engine (same path
+    // as `getCascade`). A dir that fails to load (mid-write, malformed) is skipped
+    // so the sidebar still lists the rest. Newest first: ids are date-prefixed, so
+    // a descending id sort is chronological — matching the mock.
     const ids = await this.files.listCascadeIds();
     const summaries = await Promise.all(
-      ids.map((id) => this.engine.get(id).then((d) => d.summary, () => null)),
+      ids.map((id) =>
+        this.engine
+          .get(id)
+          .then((detail) => detail.summary)
+          .catch(() => undefined),
+      ),
     );
     return summaries
-      .filter((s): s is CascadeSummary => s !== null)
-      .sort((a, b) => b.id.localeCompare(a.id)); // newest first (ids are date-prefixed)
+      .filter((s): s is CascadeSummary => s !== undefined)
+      .sort((a, b) => b.id.localeCompare(a.id));
   }
 
   async createCascade(req: CreateCascadeRequest): Promise<CascadeSummary> {

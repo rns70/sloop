@@ -1,0 +1,119 @@
+import type { AcceptanceCriterion } from '../../shared';
+
+/**
+ * The canonical on-disk format for acceptance criteria. Criteria live as a task
+ * list under a `## Acceptance criteria` heading in the markdown *body* of ADR and
+ * loop files. One criterion per line:
+ *
+ *   - [ ] **ac-1** <text> — verify: `<shell command>` 🔒
+ *
+ *   `[ ]`/`[x]`  -> passed (case-insensitive)
+ *   **ac-N**     -> id (stable; survives reorder/edit)
+ *   — verify: `…` -> verify command (optional; en-dash/hyphen tolerated)
+ *   🔒           -> locked (optional)
+ *   remainder    -> text
+ *
+ * Flat (non-nested) single-line items are used deliberately: they survive the
+ * databank editor's lossy BlockNote markdown export far more reliably than nested
+ * lists or HTML comments. This module is the single source of truth for the format.
+ * Note: verify commands must not contain backticks (they delimit the inline code span).
+ */
+export const CRITERIA_HEADING = '## Acceptance criteria';
+
+export interface ParsedCriteria {
+  criteria: AcceptanceCriterion[];
+  /** The body with the criteria section removed, trimmed. */
+  bodyWithoutSection: string;
+  /** Whether a criteria section was present at all. */
+  hasSection: boolean;
+}
+
+const HEADING_RE = /^##\s+acceptance\s+criteria\s*$/i;
+const ANY_HEADING_RE = /^#{1,6}\s/;
+const ITEM_RE = /^\s*-\s*\[([ xX])\]\s*(.*?)\s*$/;
+const ID_RE = /^\*\*(ac-\d+)\*\*\s*/;
+const VERIFY_RE = /\s*[—–-]\s*verify:\s*`([^`]+)`\s*$/i;
+const LOCKED_RE = /\s*🔒\s*$/u;
+
+/** Extract the criteria section from a markdown body. */
+export function parseCriteriaFromBody(body: string): ParsedCriteria {
+  const lines = body.split('\n');
+  const start = lines.findIndex((l) => HEADING_RE.test(l.trim()));
+  if (start === -1) {
+    return { criteria: [], bodyWithoutSection: body.trim(), hasSection: false };
+  }
+  let end = lines.length;
+  for (let i = start + 1; i < lines.length; i++) {
+    if (ANY_HEADING_RE.test(lines[i].trim())) {
+      end = i;
+      break;
+    }
+  }
+  const criteria: AcceptanceCriterion[] = [];
+  for (const raw of lines.slice(start + 1, end)) {
+    const m = raw.match(ITEM_RE);
+    if (m) criteria.push(parseItem(m[1], m[2]));
+  }
+  const bodyWithoutSection = [...lines.slice(0, start), ...lines.slice(end)]
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  return { criteria, bodyWithoutSection, hasSection: true };
+}
+
+function parseItem(box: string, content: string): AcceptanceCriterion {
+  let rest = content;
+  let locked = false;
+  if (LOCKED_RE.test(rest)) {
+    locked = true;
+    rest = rest.replace(LOCKED_RE, '');
+  }
+  let verify: string | undefined;
+  const vm = rest.match(VERIFY_RE);
+  if (vm) {
+    verify = vm[1];
+    rest = rest.replace(VERIFY_RE, '');
+  }
+  let id = '';
+  const im = rest.match(ID_RE);
+  if (im) {
+    id = im[1].trim();
+    rest = rest.replace(ID_RE, '');
+  }
+  const criterion: AcceptanceCriterion = { id, text: rest.trim(), passed: box.toLowerCase() === 'x' };
+  if (verify !== undefined) criterion.verify = verify;
+  if (locked) criterion.locked = true;
+  return criterion;
+}
+
+/** Fill any empty/whitespace id with the next free `ac-N`. Returns a new array. */
+export function assignMissingIds(criteria: AcceptanceCriterion[]): AcceptanceCriterion[] {
+  let max = 0;
+  for (const c of criteria) {
+    const m = /^ac-(\d+)$/.exec((c.id ?? '').trim());
+    if (m) max = Math.max(max, Number(m[1]));
+  }
+  return criteria.map((c) => ((c.id ?? '').trim() ? c : { ...c, id: `ac-${++max}` }));
+}
+
+/** Replace (or append, or remove-if-empty) the criteria section in a body. */
+export function upsertCriteriaInBody(body: string, criteriaIn: AcceptanceCriterion[]): string {
+  const { bodyWithoutSection } = parseCriteriaFromBody(body);
+  const base = bodyWithoutSection.trim();
+  const criteria = assignMissingIds(criteriaIn);
+  if (criteria.length === 0) return base ? `${base}\n` : '';
+  const section = `${CRITERIA_HEADING}\n\n${criteria.map(renderCriterion).join('\n')}`;
+  return `${base ? `${base}\n\n` : ''}${section}\n`;
+}
+
+function renderCriterion(c: AcceptanceCriterion): string {
+  let line = `- [${c.passed ? 'x' : ' '}] **${c.id}** ${c.text}`.trimEnd();
+  if (c.verify) {
+    if (c.verify.includes('`')) {
+      throw new Error(`verify command must not contain a backtick: ${c.verify}`);
+    }
+    line += ` — verify: \`${c.verify}\``;
+  }
+  if (c.locked) line += ' 🔒';
+  return line;
+}

@@ -12,6 +12,8 @@
 //   GET  /api/adrs/:relPath/diff   -> AdrDiffResponse
 //   GET  /api/templates            -> TemplateDef[]
 //   GET  /api/roles                -> RoleDef[]
+//   POST /api/author               -> AuthorResponse                body: AuthorRequestBody
+//   GET  /api/cascades             -> CascadeSummary[]
 //   POST /api/cascades             -> CascadeSummary               body: CreateCascadeRequest
 //   GET  /api/cascades/:id         -> CascadeDetail
 //   POST /api/cascades/:id/approve -> { ok: true }
