@@ -21,9 +21,9 @@ const models: ModelOption[] = [
 ];
 
 const steps: WorkflowStep[] = [
-  { name: 'plan', role: 'architect', model: 'opus' },
-  { name: 'build', role: 'engineer', model: 'haiku', gate: true },
-];
+  Object.freeze({ name: 'plan', role: 'architect', model: 'opus' }),
+  Object.freeze({ name: 'build', role: 'engineer', model: 'haiku', gate: true }),
+] as WorkflowStep[];
 
 describe('workflowSteps helpers', () => {
   it('makeStep defaults to the first role and its default model, not gated', () => {
@@ -51,6 +51,10 @@ describe('workflowSteps helpers', () => {
     expect(moveStep(steps, 0, -1)).toEqual(steps);
   });
 
+  it('moveStep(+1) swaps a step downward', () => {
+    expect(moveStep(steps, 0, 1)).toEqual([steps[1], steps[0]]);
+  });
+
   it('updateStep patches one step immutably', () => {
     const next = updateStep(steps, 0, { name: 'design' });
     expect(next[0]).toEqual({ name: 'design', role: 'architect', model: 'opus' });
@@ -67,6 +71,14 @@ describe('workflowSteps helpers', () => {
 
   it('validateSteps rejects a blank step name', () => {
     expect(validateSteps([{ name: '  ', role: 'engineer', model: 'haiku' }])).toMatch(/name/i);
+  });
+
+  it('validateSteps rejects a step with no role', () => {
+    expect(validateSteps([{ name: 'a', role: '', model: 'haiku' }])).toMatch(/role/i);
+  });
+
+  it('validateSteps rejects a step with no model', () => {
+    expect(validateSteps([{ name: 'a', role: 'engineer', model: '' }])).toMatch(/model/i);
   });
 
   it('withCurrent prepends the current value when missing', () => {

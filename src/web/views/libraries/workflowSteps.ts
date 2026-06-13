@@ -6,7 +6,9 @@ import type { RoleDef, ModelOption, WorkflowDef } from '../../api-client/index';
 
 export type WorkflowStep = WorkflowDef['steps'][number];
 
-/** A fresh, blank-named step defaulting to the first role and that role's default model. */
+/** A fresh, blank-named step defaulting to the first role and that role's default model.
+ *  Precondition: `roles` is normally non-empty (the editor loads roles before adding
+ *  steps); with no roles, role/model fall back to '' and `validateSteps` will reject it. */
 export function makeStep(roles: RoleDef[], models: ModelOption[]): WorkflowStep {
   const role = roles[0]?.id ?? '';
   const model = roles[0]?.defaultModel || models[0]?.alias || '';
@@ -21,7 +23,8 @@ export function removeStep(steps: WorkflowStep[], index: number): WorkflowStep[]
   return steps.filter((_, i) => i !== index);
 }
 
-/** Move the step at `index` by `dir` (-1 up, +1 down). No-op at the boundaries. */
+/** Move the step at `index` by `dir` (-1 up, +1 down). At a boundary this is a no-op
+ *  and returns the original `steps` array (same reference). */
 export function moveStep(steps: WorkflowStep[], index: number, dir: -1 | 1): WorkflowStep[] {
   const target = index + dir;
   if (target < 0 || target >= steps.length) return steps;
