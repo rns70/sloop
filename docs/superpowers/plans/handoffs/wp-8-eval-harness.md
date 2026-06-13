@@ -29,7 +29,7 @@ Do not edit other WPs' source. You may depend on `CascadeEngine`/`FilesService` 
    - run each `heldOut` command in the repo (`child_process`), `independentPass = all exit 0`,
    - collect cost (by model), tree loops/maxDepth, latency, criteria counts,
    - append the JSON line to `evals/results/<run-id>/runs.jsonl`, reset the repo.
-5. `report.ts`: read `runs.jsonl` → write `evals/results/<run-id>/summary.md`: convergence + false-positive rate, the per-mix table, the **sloop-vs-baseline-flat delta**, and a line citing the SWE-bench Verified ≈95% reference as backdrop (eval spec §8) — clearly marked as context, not a claimed rank.
+5. `report.ts`: read `runs.jsonl` → write `evals/results/<run-id>/summary.md`: convergence + false-positive rate, the per-mix table, the **sloop-vs-baseline-flat delta**, and a line citing the SWE-bench **Pro** standardized ≈59% figure as backdrop (eval spec §8; note the scaffold caveat) — clearly marked as context, not a claimed rank.
 6. Author the **handmade task suite**: 3–5 scenarios (decomposition/template showcases). Held-out suites genuinely separate from agent-visible `verify`. Tiny-but-real target repos.
 7. Tests: `aggregate()` math (convergence %, false-positive %, per-mix means, sloop-vs-baseline delta) on hand-built run arrays; task-file + SWE-bench parsing; a `SLOOP_DRY_RUN` smoke test of the runner on one task of each system (plumbing only, not real numbers).
 
