@@ -88,15 +88,25 @@ The in-memory shapes are unchanged — `AdrDoc.acceptanceCriteria` and
 UI status displays are untouched; they keep reading the same field.
 
 - `readAdr` (`src/server/files/filesService.ts:55`): parse criteria from the body via
-  `parseCriteriaFromBody`. **Fallback:** if no `## Acceptance criteria` section exists, fall
-  back to `normalizeCriteria(data.acceptanceCriteria)` (frontmatter). This gives lazy
-  migration of old files.
-- `writeAdr` (`:67`): drop `acceptanceCriteria` from the serialized frontmatter; instead
-  `upsertCriteriaInBody(doc.body, doc.acceptanceCriteria)` and write the combined document.
-- `readLoop` (`:76`): after `parseFrontmatter`, parse criteria from the body and set
-  `data.acceptanceCriteria` (same frontmatter fallback as ADRs).
-- `writeLoop` (`:82`): strip `acceptanceCriteria` from frontmatter; serialize it into the
-  body via `upsertCriteriaInBody`.
+  `parseCriteriaFromBody`. **Fallback + migration injection:** if the body has no
+  `## Acceptance criteria` section, take criteria from `normalizeCriteria(data.acceptanceCriteria)`
+  (frontmatter) **and** inject a canonical section into the returned `body` so the editor shows
+  them immediately. Lazy migration: disk migrates on the next write.
+- `writeAdr` (`:67`): the **body is the source** for ADRs (the editor edits the body). Parse
+  the body; if it has a criteria section, use those criteria; if not, fall back to the
+  `doc.acceptanceCriteria` field (covers programmatic creation, e.g. `createItem.ts:82`).
+  Assign ids to any criterion missing one. Re-serialize the section canonically into the body
+  and drop `acceptanceCriteria` from frontmatter. The stale field is otherwise ignored.
+- `readLoop` (`:76`): after `parseFrontmatter`, parse criteria from the body into
+  `data.acceptanceCriteria` (frontmatter fallback when no section; no body injection needed —
+  loops aren't body-edited).
+- `writeLoop` (`:82`): the **structured field is the source** for loops (the engine mutates
+  `loop.frontmatter.acceptanceCriteria[].passed`). Serialize that field into the body via
+  `upsertCriteriaInBody` and drop `acceptanceCriteria` from frontmatter.
+
+**Why the asymmetry:** ADRs are edited body-first by a human in BlockNote, so the body is
+authoritative on write. Loops are mutated field-first by the engine (no body editing), so the
+structured array is authoritative. Both converge on the same on-disk format.
 
 Because server-side serialization is exact string manipulation (no BlockNote), the engine
 flipping `passed` mid-run rewrites only the criteria section and never disturbs the rest of
