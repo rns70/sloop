@@ -1,0 +1,28 @@
+{
+  "runId": "dry-run-smoke",
+  "createdAt": "2026-06-13T12:34:37.018Z",
+  "trials": 1,
+  "taskIds": [
+    "001-add-slugify",
+    "002-add-clamp",
+    "003-sum-handles-empty"
+  ],
+  "resolvedModels": [
+    {
+      "alias": "opus",
+      "provider": "anthropic",
+      "id": "claude-opus-4-8"
+    },
+    {
+      "alias": "haiku",
+      "provider": "anthropic",
+      "id": "claude-haiku-4-5-20251001"
+    },
+    {
+      "alias": "nemotron",
+      "provider": "nebius",
+      "id": "nvidia/llama-3.1-nemotron-70b-instruct"
+    }
+  ],
+  "dryRun": true
+}

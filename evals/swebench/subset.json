@@ -1,0 +1,67 @@
+{
+  "label": "5 tasks from SWE-bench Lite",
+  "_note": "Curated subset. instance_id + repo are real SWE-bench Lite ids. base_commit, FAIL_TO_PASS, PASS_TO_PASS and image MUST be synced from the official dataset snapshot before a REAL run — load `princeton-nlp/SWE-bench_Lite` (HuggingFace) and copy the exact fields per instance, and `docker pull` the matching prepared image. Wrong test ids fail loudly; they are never silently skipped. Running these requires docker + the cached images (eval spec §8/§10); without docker the runner skips them with a logged reason, so the dry-run smoke and handmade headline numbers are unaffected.",
+  "_howToPopulate": "python -c \"from datasets import load_dataset; d=load_dataset('princeton-nlp/SWE-bench_Lite', split='test'); [print(x['instance_id'], x['base_commit']) for x in d]\"",
+  "defaultModelMixes": [
+    { "plan": "opus", "execute": "haiku" },
+    { "plan": "opus", "execute": "nemotron" },
+    { "plan": "opus", "execute": "opus" }
+  ],
+  "instances": [
+    {
+      "instance_id": "astropy__astropy-12907",
+      "repo": "astropy/astropy",
+      "base_commit": "<SYNC-FROM-DATASET>",
+      "problem_statement": "Modeling's `separability_matrix` does not compute separability correctly for nested CompoundModels. Fix the separability computation so nested compound models report the correct separability matrix.",
+      "FAIL_TO_PASS": ["astropy/modeling/tests/test_separable.py::test_separable"],
+      "PASS_TO_PASS": ["astropy/modeling/tests/test_separable.py::test_coord_matrix"],
+      "image": "swebench/sweb.eval.x86_64.astropy_1776_astropy-12907:latest",
+      "repoPathInImage": "/testbed",
+      "testCmd": "python -m pytest -q --no-header"
+    },
+    {
+      "instance_id": "django__django-11099",
+      "repo": "django/django",
+      "base_commit": "<SYNC-FROM-DATASET>",
+      "problem_statement": "UsernameValidator allows trailing newline in usernames. Tighten the ASCII/Unicode username validator regexes to reject a trailing newline.",
+      "FAIL_TO_PASS": ["tests/auth_tests/test_validators.py::UsernameValidatorsTests::test_unicode_validator"],
+      "PASS_TO_PASS": ["tests/auth_tests/test_validators.py::UsernameValidatorsTests::test_ascii_validator"],
+      "image": "swebench/sweb.eval.x86_64.django_1776_django-11099:latest",
+      "repoPathInImage": "/testbed",
+      "testCmd": "python -m pytest -q --no-header"
+    },
+    {
+      "instance_id": "sympy__sympy-20590",
+      "repo": "sympy/sympy",
+      "base_commit": "<SYNC-FROM-DATASET>",
+      "problem_statement": "Symbol instances unexpectedly have a __dict__ since a recent change, breaking __slots__. Restore __slots__ so Symbol has no __dict__.",
+      "FAIL_TO_PASS": ["sympy/core/tests/test_basic.py::test_immutable"],
+      "PASS_TO_PASS": ["sympy/core/tests/test_basic.py::test_structure"],
+      "image": "swebench/sweb.eval.x86_64.sympy_1776_sympy-20590:latest",
+      "repoPathInImage": "/testbed",
+      "testCmd": "python -m pytest -q --no-header"
+    },
+    {
+      "instance_id": "scikit-learn__scikit-learn-13241",
+      "repo": "scikit-learn/scikit-learn",
+      "base_commit": "<SYNC-FROM-DATASET>",
+      "problem_statement": "KernelPCA with rbf kernel produces results that differ in sign across runs. Make the sign of the eigenvectors deterministic.",
+      "FAIL_TO_PASS": ["sklearn/decomposition/tests/test_kernel_pca.py::test_kernel_pca_deterministic_output"],
+      "PASS_TO_PASS": ["sklearn/decomposition/tests/test_kernel_pca.py::test_kernel_pca"],
+      "image": "swebench/sweb.eval.x86_64.scikit-learn_1776_scikit-learn-13241:latest",
+      "repoPathInImage": "/testbed",
+      "testCmd": "python -m pytest -q --no-header"
+    },
+    {
+      "instance_id": "pytest-dev__pytest-5221",
+      "repo": "pytest-dev/pytest",
+      "base_commit": "<SYNC-FROM-DATASET>",
+      "problem_statement": "Display fixture scope with `pytest --fixtures`. Include each fixture's scope in the --fixtures listing output.",
+      "FAIL_TO_PASS": ["testing/python/fixtures.py::TestShowFixtures::test_show_fixtures_with_scope"],
+      "PASS_TO_PASS": ["testing/python/fixtures.py::TestShowFixtures::test_show_fixtures"],
+      "image": "swebench/sweb.eval.x86_64.pytest-dev_1776_pytest-5221:latest",
+      "repoPathInImage": "/testbed",
+      "testCmd": "python -m pytest -q --no-header"
+    }
+  ]
+}
