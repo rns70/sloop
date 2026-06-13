@@ -57,7 +57,7 @@ export function Button({
       aria-busy={loading || undefined}
       {...rest}
     >
-      {loading && <Spinner size="sm" label="" className="-ml-0.5" />}
+      {loading && <Spinner size="sm" className="-ml-0.5" />}
       {children}
     </button>
   );

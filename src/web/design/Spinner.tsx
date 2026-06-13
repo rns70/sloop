@@ -11,7 +11,12 @@ const SIZE_CLASS: Record<SpinnerSize, string> = {
 
 export interface SpinnerProps {
   size?: SpinnerSize;
-  /** Accessible label announced to screen readers (defaults to "Loading"). */
+  /**
+   * Accessible label. Provide one only when the spinner is the *sole* indication of a
+   * loading state — it then becomes its own `status` live region. When omitted (the
+   * common case, alongside button text / `aria-busy` / adjacent copy) the spinner is
+   * decorative and hidden from assistive tech, avoiding a redundant announcement.
+   */
   label?: string;
   className?: string;
 }
@@ -22,9 +27,14 @@ export interface SpinnerProps {
  * elsewhere). Under reduced-motion the ring stops spinning and pulses instead, so it
  * still reads as "busy" without rotation.
  */
-export function Spinner({ size = 'md', label = 'Loading', className }: SpinnerProps) {
+export function Spinner({ size = 'md', label, className }: SpinnerProps) {
   return (
-    <span role="status" aria-label={label} className={cx('inline-flex', className)}>
+    <span
+      role={label ? 'status' : undefined}
+      aria-label={label || undefined}
+      aria-hidden={label ? undefined : true}
+      className={cx('inline-flex', className)}
+    >
       <svg
         viewBox="0 0 24 24"
         fill="none"
