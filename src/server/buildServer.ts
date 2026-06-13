@@ -56,6 +56,9 @@ export function buildServer(opts: BuildServerOptions): { server: Server; uiMount
   app.post('/api/adrs/:relPath/move', h(async (req, res) =>
     res.json(await api.moveAdr(decodeURIComponent(req.params.relPath), String(req.body?.to ?? ''))),
   ));
+  app.delete('/api/adrs/:relPath', h(async (req, res) =>
+    res.json(await api.deleteAdr(decodeURIComponent(req.params.relPath))),
+  ));
 
   app.get('/api/workflows', h(async (_req, res) => res.json(await api.listWorkflows())));
   app.get('/api/roles', h(async (_req, res) => res.json(await api.listRoles())));
@@ -72,6 +75,16 @@ export function buildServer(opts: BuildServerOptions): { server: Server; uiMount
     const abs = safeWorkspacePath(decodeURIComponent(req.params.relPath));
     await fs.mkdir(dirname(abs), { recursive: true });
     await fs.writeFile(abs, String(req.body?.content ?? ''), 'utf8');
+    res.json({ ok: true });
+  }));
+  // Raw delete for non-ADR workspace files (roles/workflows) and cascade dirs. ADRs use
+  // the structured DELETE /api/adrs route (dir-pruning + streaming aware); this is the
+  // symmetric counterpart to the PUT bridge. Recursive so a cascade dir goes in one call.
+  app.delete('/api/files/:relPath', h(async (req, res) => {
+    const rel = decodeURIComponent(req.params.relPath);
+    const abs = safeWorkspacePath(rel);
+    if (abs === workspaceRoot) throw new NotFound(`Refusing to delete the workspace root`);
+    await fs.rm(abs, { recursive: true, force: true });
     res.json({ ok: true });
   }));
 

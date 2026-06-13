@@ -74,6 +74,9 @@ export const getAdrDiff = (relPath: string): Promise<AdrDiffResponse> =>
  *  paths (e.g. `databank/auth/a.md`). Folder moves carry all descendants. */
 export const moveAdr = (from: string, to: string): Promise<Ok> =>
   http(`/adrs/${enc(from)}/move`, { method: 'POST', body: JSON.stringify({ to }) });
+/** Delete an ADR file, or a whole folder subtree (databank-prefixed path). */
+export const deleteAdr = (relPath: string): Promise<Ok> =>
+  http(`/adrs/${enc(relPath)}`, { method: 'DELETE' });
 
 export const getWorkflows = (): Promise<WorkflowDef[]> => http('/workflows');
 export const getRoles = (): Promise<RoleDef[]> => http('/roles');
@@ -87,6 +90,9 @@ export interface FileContent {
 export const getFile = (relPath: string): Promise<FileContent> => http(`/files/${enc(relPath)}`);
 export const putFile = (relPath: string, content: string): Promise<Ok> =>
   http(`/files/${enc(relPath)}`, { method: 'PUT', body: JSON.stringify({ content }) });
+/** Delete a raw workspace file (role/workflow) or directory (a cascade). Recursive. */
+export const deleteFile = (relPath: string): Promise<Ok> =>
+  http(`/files/${enc(relPath)}`, { method: 'DELETE' });
 
 /** Global assistant: configured model aliases for the picker (no keys). */
 export const getModels = (): Promise<GetModelsResponse> => http('/models');

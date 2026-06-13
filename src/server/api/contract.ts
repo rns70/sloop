@@ -88,6 +88,7 @@ export interface SloopApi {
   getAdr(relPath: string): Promise<GetAdrResponse>;
   putAdr(relPath: string, doc: PutAdrRequest): Promise<PutAdrResponse>;
   moveAdr(from: string, to: string): Promise<MoveAdrResponse>;
+  deleteAdr(relPath: string): Promise<DeleteAdrResponse>;
   getAdrDiff(relPath: string): Promise<AdrDiffResponse>;
   listWorkflows(): Promise<GetWorkflowsResponse>;
   listRoles(): Promise<GetRolesResponse>;

@@ -3,6 +3,10 @@
 // folder endpoint — a folder exists exactly when it holds a file. Each folder and the
 // root can spawn a new ADR (instant) or a new subfolder (name-first inline input, since a
 // folder's name *is* its path). Navigation/refresh is the parent's job via callbacks.
+//
+// Files and folders also carry a right-click context menu (Rename / Duplicate / Delete, plus
+// New entry / New folder on folders). Rename reuses the same inline-edit + move path as
+// double-click; Duplicate/Delete call back to the parent (SidebarNav).
 
 import { useState, type ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
@@ -20,6 +24,7 @@ import {
 } from '@dnd-kit/core';
 import type { AdrDoc } from '../api-client/index';
 import { IconButton, cx } from '../design/index';
+import { useContextMenu, type MenuEntry } from './ContextMenu';
 import {
   fileMoveTarget,
   folderMoveTarget,
@@ -81,9 +86,22 @@ export interface DatabankTreeProps {
   onNewFolder: (parent: string, name: string) => void;
   /** Move/rename: `from`/`to` are databank-prefixed paths. */
   onMove: (from: string, to: string) => void;
+  /** Duplicate the ADR at `relPath` (databank-prefixed). */
+  onDuplicate: (relPath: string) => void;
+  /** Delete the file or folder subtree at `relPath` (databank-prefixed). */
+  onDelete: (relPath: string) => void;
   /** Whether the root-level "new folder" input is open (driven by the group header). */
   rootAdding: boolean;
   onRootAddingDone: () => void;
+}
+
+/** The callbacks the tree threads down to every Folder/FileRow. */
+interface TreeActions {
+  onNewItem: (folder: string) => void;
+  onNewFolder: (parent: string, name: string) => void;
+  onMove: (from: string, to: string) => void;
+  onDuplicate: (relPath: string) => void;
+  onDelete: (relPath: string) => void;
 }
 
 export function DatabankTree({
@@ -91,10 +109,13 @@ export function DatabankTree({
   onNewItem,
   onNewFolder,
   onMove,
+  onDuplicate,
+  onDelete,
   rootAdding,
   onRootAddingDone,
 }: DatabankTreeProps) {
   const root = buildTree(adrs);
+  const actions: TreeActions = { onNewItem, onNewFolder, onMove, onDuplicate, onDelete };
   const [dragLabel, setDragLabel] = useState<string | null>(null);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -133,17 +154,10 @@ export function DatabankTree({
             />
           )}
           {root.folders.map((f) => (
-            <Folder
-              key={f.path}
-              node={f}
-              depth={0}
-              onNewItem={onNewItem}
-              onNewFolder={onNewFolder}
-              onMove={onMove}
-            />
+            <Folder key={f.path} node={f} depth={0} actions={actions} />
           ))}
           {root.files.map((leaf) => (
-            <FileRow key={leaf.to} leaf={leaf} depth={0} onMove={onMove} />
+            <FileRow key={leaf.to} leaf={leaf} depth={0} actions={actions} />
           ))}
           {root.folders.length === 0 && root.files.length === 0 && !rootAdding && (
             <p className="px-2 py-1 text-[12px] text-ink-subtle">No entries yet</p>
@@ -173,19 +187,8 @@ function RootDrop({ children }: { children: ReactNode }) {
 
 const indent = (depth: number) => ({ paddingLeft: `${depth * 12 + 8}px` });
 
-function Folder({
-  node,
-  depth,
-  onNewItem,
-  onNewFolder,
-  onMove,
-}: {
-  node: FolderNode;
-  depth: number;
-  onNewItem: (folder: string) => void;
-  onNewFolder: (parent: string, name: string) => void;
-  onMove: (from: string, to: string) => void;
-}) {
+function Folder({ node, depth, actions }: { node: FolderNode; depth: number; actions: TreeActions }) {
+  const { openMenu } = useContextMenu();
   const [open, setOpen] = useState(true);
   const [adding, setAdding] = useState(false);
   const [renaming, setRenaming] = useState(false);
@@ -206,16 +209,50 @@ function Folder({
         initial={node.name}
         onSubmit={(name) => {
           setRenaming(false);
-          onMove(relPath, folderRenameTarget(relPath, name));
+          actions.onMove(relPath, folderRenameTarget(relPath, name));
         }}
         onCancel={() => setRenaming(false)}
       />
     );
   }
 
+  const menu: MenuEntry[] = [
+    {
+      label: 'New entry',
+      onSelect: () => {
+        setOpen(true);
+        actions.onNewItem(node.path);
+      },
+    },
+    {
+      label: 'New folder',
+      onSelect: () => {
+        setOpen(true);
+        setAdding(true);
+      },
+    },
+    { label: 'Rename', onSelect: () => setRenaming(true) },
+    'separator',
+    {
+      label: 'Delete folder',
+      danger: true,
+      confirm: 'Delete folder & contents?',
+      onSelect: () => actions.onDelete(relPath),
+    },
+  ];
+
   return (
     <div ref={setDropRef} className={cx('rounded-md', isOver && 'ring-1 ring-accent/50')}>
-      <div className={cx('group/row flex items-center rounded-md hover:bg-line-soft', isDragging && 'opacity-50')}>
+      <div
+        className={cx(
+          'group/row flex items-center rounded-md hover:bg-line-soft',
+          isDragging && 'opacity-50',
+        )}
+        onContextMenu={(e) => {
+          e.stopPropagation();
+          openMenu(e, menu);
+        }}
+      >
         <button
           type="button"
           ref={setDragRef}
@@ -241,7 +278,7 @@ function Folder({
           <span className="truncate font-medium">{node.name}</span>
         </button>
         <div className="flex shrink-0 items-center pr-1 opacity-0 transition-opacity group-hover/row:opacity-100">
-          <IconButton aria-label={`New entry in ${node.name}`} onClick={() => onNewItem(node.path)}>
+          <IconButton aria-label={`New entry in ${node.name}`} onClick={() => actions.onNewItem(node.path)}>
             <span className="text-[13px] leading-none">＋</span>
           </IconButton>
           <IconButton
@@ -262,24 +299,17 @@ function Folder({
             <FolderNameInput
               depth={depth + 1}
               onSubmit={(name) => {
-                onNewFolder(node.path, name);
+                actions.onNewFolder(node.path, name);
                 setAdding(false);
               }}
               onCancel={() => setAdding(false)}
             />
           )}
           {node.folders.map((f) => (
-            <Folder
-              key={f.path}
-              node={f}
-              depth={depth + 1}
-              onNewItem={onNewItem}
-              onNewFolder={onNewFolder}
-              onMove={onMove}
-            />
+            <Folder key={f.path} node={f} depth={depth + 1} actions={actions} />
           ))}
           {node.files.map((leaf) => (
-            <FileRow key={leaf.to} leaf={leaf} depth={depth + 1} onMove={onMove} />
+            <FileRow key={leaf.to} leaf={leaf} depth={depth + 1} actions={actions} />
           ))}
         </div>
       )}
@@ -287,15 +317,8 @@ function Folder({
   );
 }
 
-function FileRow({
-  leaf,
-  depth,
-  onMove,
-}: {
-  leaf: FileLeaf;
-  depth: number;
-  onMove: (from: string, to: string) => void;
-}) {
+function FileRow({ leaf, depth, actions }: { leaf: FileLeaf; depth: number; actions: TreeActions }) {
+  const { openMenu } = useContextMenu();
   const [renaming, setRenaming] = useState(false);
   const {
     setNodeRef,
@@ -311,12 +334,24 @@ function FileRow({
         initial={leaf.title}
         onSubmit={(name) => {
           setRenaming(false);
-          onMove(leaf.relPath, fileRenameTarget(leaf.relPath, name));
+          actions.onMove(leaf.relPath, fileRenameTarget(leaf.relPath, name));
         }}
         onCancel={() => setRenaming(false)}
       />
     );
   }
+
+  const menu: MenuEntry[] = [
+    { label: 'Rename', onSelect: () => setRenaming(true) },
+    { label: 'Duplicate', onSelect: () => actions.onDuplicate(leaf.relPath) },
+    'separator',
+    {
+      label: 'Delete',
+      danger: true,
+      confirm: 'Delete entry?',
+      onSelect: () => actions.onDelete(leaf.relPath),
+    },
+  ];
 
   return (
     <div
@@ -326,6 +361,10 @@ function FileRow({
       onDoubleClick={(e) => {
         e.preventDefault();
         setRenaming(true);
+      }}
+      onContextMenu={(e) => {
+        e.stopPropagation();
+        openMenu(e, menu);
       }}
       className={isDragging ? 'opacity-50' : undefined}
     >

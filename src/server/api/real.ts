@@ -40,13 +40,14 @@ import type {
   CascadeDetail,
   CascadeStreamEvent,
   CreateCascadeRequest,
+  DeleteAdrResponse,
   GetModelsResponse,
   MoveAdrResponse,
   Ok,
   PutAdrRequest,
   SloopApi,
 } from './contract';
-import { MoveError } from '../files/filesService';
+import { MoveError, DeleteError } from '../files/filesService';
 import type { AssistantRequest } from '../../shared/index';
 
 const OK: Ok = { ok: true };
@@ -273,6 +274,19 @@ export class RealApi implements StreamingSloopApi {
       if (err instanceof MoveError) {
         if (err.code === 'not_found') throw new NotFound(err.message);
         throw new Conflict(err.message); // 'conflict' | 'invalid'
+      }
+      throw err;
+    }
+    return OK;
+  }
+
+  async deleteAdr(relPath: string): Promise<DeleteAdrResponse> {
+    try {
+      await this.files.deleteAdr(relPath);
+    } catch (err) {
+      if (err instanceof DeleteError) {
+        if (err.code === 'not_found') throw new NotFound(err.message);
+        throw new Conflict(err.message); // 'invalid' (e.g. path outside databank/)
       }
       throw err;
     }
