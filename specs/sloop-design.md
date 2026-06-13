@@ -13,6 +13,8 @@ Sloop is a meta-IDE for defining and running nested agent loops. It lets users d
 - Sloop is paper-first: the main surface is a Notion-like block editor over canonical Markdown.
 - The UI should stay minimal, simple, and document-like.
 - Primary loop state should not be presented as dashboard cards or a permanent inspector panel.
+- Frontmatter is part of the document UI. Users should see and edit common loop metadata as quiet controls above the block editor, not as raw YAML or a separate settings dashboard.
+- The first frontmatter UI should cover loop id, type, status, auto-apply, child stages, eval criteria, code outputs, and deterministic commands while preserving unknown metadata during saves.
 - Loop status, running child loops, evaluation results, and pause/resume controls should live as a quiet footer/status section at the bottom of the document.
 - Diffs should be inline near the changed document content, using document-native change marks rather than framed review cards.
 - A strong full diff viewer is still a core part of the product for expanded review.
@@ -30,7 +32,7 @@ Sloop is a meta-IDE for defining and running nested agent loops. It lets users d
 ### Source Of Truth
 
 - Markdown files are the canonical source of truth.
-- Frontmatter may be used for structured metadata.
+- Frontmatter is used for structured metadata and should remain canonical even when edited through UI controls.
 - Any database or index is derived state and must be rebuildable from Markdown files and Git history.
 
 ### Loop And Document Model
@@ -41,6 +43,10 @@ Sloop is a meta-IDE for defining and running nested agent loops. It lets users d
 - The `PRD -> architecture docs -> implementation plans -> build agents` flow is only an example/template, not a hardcoded product structure.
 - A loop may fan out into multiple alternatives, evaluate them, select a winner, and continue cascading only from the selected path.
 - Losing alternatives remain visible as archived/collapsible docs or runs for provenance.
+- A stage that produces code always has a Markdown controller doc.
+- Code files are outputs of code controller docs; they are not standalone loop stages.
+- Code stages may use shorthand in parent frontmatter. When a `kind: code` stage omits `doc`, Sloop materializes a controller doc at `loops/build/<stage-id>.md`.
+- Controller docs own runnable code-stage contracts: allowed output paths, deterministic eval commands, failure evidence, and retry context.
 
 ### Evaluation
 
@@ -48,6 +54,9 @@ Sloop is a meta-IDE for defining and running nested agent loops. It lets users d
 - Evaluation criteria are defined canonically as text in Markdown.
 - Implementation agents may derive deterministic checks from the textual criteria, such as tests, lint commands, fixtures, schemas, or replay cases.
 - Passing evaluation gates is required before auto-application of agent changes.
+- For code stages, eval happens inside the isolated worktree after each Pi attempt.
+- Failed eval evidence is fed back into the same loop and Pi retries until eval passes, Pi cannot continue, or Sloop reaches the configured max attempt count.
+- Parent design criteria are inherited as context, while code controller docs own the concrete commands that decide whether code outputs pass.
 
 ### Cascading Changes
 

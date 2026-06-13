@@ -80,10 +80,6 @@ function docPath(path: string): string {
   return `/api/docs/${path.split("/").map(encodeURIComponent).join("/")}`;
 }
 
-export function createSampleWorkspace(): Promise<WorkspaceSummary> {
-  return requestJson<WorkspaceSummary>("/api/sample-workspace", jsonInit("POST"));
-}
-
 export function getWorkspace(): Promise<WorkspaceSummary> {
   return requestJson<WorkspaceSummary>("/api/workspace");
 }

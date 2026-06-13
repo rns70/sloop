@@ -12,7 +12,7 @@ loop:
   stages:
     - id: auth-architecture
       title: Auth architecture
-      doc: sample-workspace/architecture/auth.md
+      doc: loops/architecture/auth.md
       status: evaluating
       agent: pi
 evals:
@@ -23,7 +23,7 @@ evals:
 Sessions must be covered.
 `;
 
-    const doc = parseLoopMarkdown("sample-workspace/PRD.md", raw);
+    const doc = parseLoopMarkdown("loops/PRD.md", raw);
 
     expect(doc.title).toBe("Authentication Requirements");
     expect(doc.loop.type).toBe("prd");
@@ -31,10 +31,14 @@ Sessions must be covered.
     expect(doc.stages).toEqual([
       {
         id: "auth-architecture",
+        kind: "doc",
         title: "Auth architecture",
-        doc: "sample-workspace/architecture/auth.md",
+        doc: "loops/architecture/auth.md",
         status: "evaluating",
-        agent: "pi"
+        agent: "pi",
+        outputs: [],
+        evals: [],
+        commands: []
       }
     ]);
     expect(doc.evals).toHaveLength(1);
@@ -43,5 +47,62 @@ Sessions must be covered.
     const serialized = serializeLoopMarkdown(doc.frontmatter, doc.body);
     expect(serialized).toContain("autoApply: true");
     expect(serialized).toContain("# Authentication Requirements");
+  });
+
+  it("normalizes code stage shorthand and controller metadata", () => {
+    const raw = `---
+loop:
+  id: auth-plan
+  type: implementation-plan
+  status: running
+  autoApply: true
+  stages:
+    - id: build-auth-session
+      kind: code
+      title: Build auth session
+      status: idle
+      outputs:
+        - src/auth/**
+        - tests/auth/**
+      evals:
+        - Code covers session expiry.
+      eval:
+        commands:
+          - npm test -- auth
+outputs:
+  - src/auth/**
+commands:
+  - npm run typecheck
+evals:
+  - Implementation plan traces to architecture.
+---
+# Auth Session Plan
+
+Build the auth session feature.
+`;
+
+    const doc = parseLoopMarkdown("loops/plans/auth-session.md", raw);
+
+    expect(doc.outputs).toEqual(["src/auth/**"]);
+    expect(doc.commands).toEqual(["npm run typecheck"]);
+    expect(doc.stages).toEqual([
+      {
+        id: "build-auth-session",
+        kind: "code",
+        title: "Build auth session",
+        doc: "loops/build/build-auth-session.md",
+        status: "idle",
+        agent: undefined,
+        outputs: ["src/auth/**", "tests/auth/**"],
+        evals: [
+          {
+            id: "eval-1",
+            text: "Code covers session expiry.",
+            status: "pending"
+          }
+        ],
+        commands: ["npm test -- auth"]
+      }
+    ]);
   });
 });

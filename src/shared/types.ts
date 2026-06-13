@@ -9,13 +9,18 @@ export type DocStatus =
   | "archived";
 
 export type AgentRuntime = "pi";
+export type LoopStageKind = "doc" | "code";
 
 export interface LoopStage {
   id: string;
+  kind: LoopStageKind;
   title: string;
   doc: string;
   status: DocStatus;
   agent?: AgentRuntime;
+  outputs: string[];
+  evals: EvalCriteria[];
+  commands: string[];
 }
 
 export interface EvalCriteria {
@@ -39,6 +44,8 @@ export interface LoopDoc {
   loop: LoopMetadata;
   stages: LoopStage[];
   evals: EvalCriteria[];
+  outputs: string[];
+  commands: string[];
   body: string;
   raw: string;
 }

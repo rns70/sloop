@@ -1,72 +1,284 @@
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { ensureSampleWorkspace } from "../server/lib/sampleWorkspace.js";
-import { runSimulatedPiCascade } from "../server/lib/runs.js";
-import { readHistory } from "../server/lib/history.js";
+import { runPiCascade } from "../server/lib/runs.js";
 import { planCascade } from "../server/lib/cascade.js";
 import { runEvaluation } from "../server/lib/evaluation.js";
+import { createPiAgentAdapter } from "../server/lib/piRuntime.js";
+import { materializeCodeStageControllers } from "../server/lib/stageControllers.js";
 import { createRunBranchName } from "../server/lib/worktrees.js";
 import { listDocs } from "../server/lib/workspace.js";
+import type { AgentAdapter } from "../src/shared/types.js";
+
+const prdPath = "loops/PRD.md";
+const architecturePath = "loops/architecture/auth-a.md";
+const planPath = "loops/plans/auth-session.md";
+
+async function createLoopWorkspace(workspaceRoot: string): Promise<void> {
+  await mkdir(join(workspaceRoot, "loops/architecture"), { recursive: true });
+  await mkdir(join(workspaceRoot, "loops/plans"), { recursive: true });
+  await writeFile(
+    join(workspaceRoot, prdPath),
+    `---
+loop:
+  id: prd-auth
+  type: prd
+  status: passing
+  autoApply: true
+  stages:
+    - id: auth-architecture-a
+      title: Auth architecture A
+      doc: ${architecturePath}
+      status: evaluating
+      agent: pi
+    - id: auth-session-plan
+      title: Auth session plan
+      doc: ${planPath}
+      status: passed
+      agent: pi
+evals:
+  - Every authentication requirement has a downstream architecture decision.
+---
+# Authentication Requirements
+
+Sessions must be covered.
+`,
+    "utf8"
+  );
+  await writeFile(
+    join(workspaceRoot, architecturePath),
+    `---
+loop:
+  id: auth-architecture-a
+  type: architecture
+  status: evaluating
+  autoApply: true
+  stages:
+    - id: auth-session-plan
+      title: Auth session plan
+      doc: ${planPath}
+      status: passed
+      agent: pi
+evals:
+  - Architecture covers the session requirement.
+---
+# Auth Architecture A
+
+Session expiry TBD.
+`,
+    "utf8"
+  );
+  await writeFile(
+    join(workspaceRoot, planPath),
+    `---
+loop:
+  id: auth-session-plan
+  type: implementation-plan
+  status: passed
+  autoApply: true
+  stages: []
+evals:
+  - Implementation includes deterministic tests.
+---
+# Auth Session Plan
+
+Refresh behavior unspecified.
+`,
+    "utf8"
+  );
+}
 
 describe("Pi cascade", () => {
-  it("updates downstream docs, passes eval, and records history", async () => {
+  it("runs through the Pi adapter seam and preserves a provided run id", async () => {
     const workspaceRoot = await mkdtemp(join(tmpdir(), "sloop-pi-run-"));
-    await ensureSampleWorkspace(workspaceRoot);
+    await createLoopWorkspace(workspaceRoot);
+    const adapter: AgentAdapter = {
+      runtime: "pi",
+      async run(input) {
+        return {
+          id: "adapter-run-id",
+          runtime: "pi",
+          sourcePath: input.sourcePath,
+          status: "passed",
+          changedFiles: [architecturePath, planPath],
+          eval: {
+            status: "passed",
+            evidence: [`Adapter saw ${input.workspaceRoot}`]
+          }
+        };
+      }
+    };
 
-    const result = await runSimulatedPiCascade({
+    const result = await runPiCascade({
       workspaceRoot,
-      sourcePath: "sample-workspace/PRD.md"
+      sourcePath: prdPath,
+      runId: "stable-run-id",
+      adapter
     });
 
+    expect(result.id).toBe("stable-run-id");
     expect(result.status).toBe("passed");
-    expect(result.changedFiles).toContain("sample-workspace/architecture/auth-a.md");
-    expect(result.changedFiles).toContain("sample-workspace/plans/auth-session.md");
+    expect(result.changedFiles).toContain(architecturePath);
+    expect(result.changedFiles).toContain(planPath);
     expect(result.eval.status).toBe("passed");
-
-    const architecture = await readFile(
-      join(workspaceRoot, "sample-workspace/architecture/auth-a.md"),
-      "utf8"
-    );
-    expect(architecture).toContain("Sessions expire after 30 days");
-
-    const history = await readHistory(workspaceRoot);
-    expect(history[0]?.kind).toBe("cascade");
-    expect(history[0]?.changedFiles).toEqual(result.changedFiles);
+    expect(result.eval.evidence).toEqual([`Adapter saw ${workspaceRoot}`]);
   });
 });
 
 describe("server-side helper modules", () => {
   it("plans affected child stage docs from changed loop docs", async () => {
     const workspaceRoot = await mkdtemp(join(tmpdir(), "sloop-cascade-plan-"));
-    await ensureSampleWorkspace(workspaceRoot);
+    await createLoopWorkspace(workspaceRoot);
 
     const docs = await listDocs(workspaceRoot);
     const plan = planCascade({
       docs,
-      sourcePath: "sample-workspace/PRD.md",
-      changedPaths: ["sample-workspace/PRD.md"]
+      sourcePath: prdPath,
+      changedPaths: [prdPath]
     });
 
-    expect(plan.affectedDocs.map((doc) => doc.path)).toEqual([
-      "sample-workspace/architecture/auth-a.md",
-      "sample-workspace/plans/auth-session.md"
-    ]);
+    expect(plan.affectedDocs.map((doc) => doc.path)).toEqual([architecturePath, planPath]);
   });
 
   it("evaluates Pi runs and fails empty changes", () => {
-    expect(runEvaluation({ runtime: "pi", changedFiles: ["sample-workspace/PRD.md"] })).toEqual({
+    expect(runEvaluation({ runtime: "pi", changedFiles: [prdPath] })).toEqual({
       status: "passed",
-      evidence: ["Pi evaluation accepted 1 changed file: sample-workspace/PRD.md"]
+      evidence: [`Pi evaluation accepted 1 changed file: ${prdPath}`]
     });
 
     expect(runEvaluation({ runtime: "pi", changedFiles: [] }).status).toBe("failed");
   });
 
   it("creates safe run branch names", () => {
-    expect(createRunBranchName("run 123", "sample-workspace/PRD.md")).toBe(
-      "sloop/run/run-123-sample-workspace-prd-md"
+    expect(createRunBranchName("run 123", prdPath)).toBe("sloop/run/run-123-loops-prd-md");
+  });
+
+  it("materializes missing code stage controller docs", async () => {
+    const workspaceRoot = await mkdtemp(join(tmpdir(), "sloop-code-controller-"));
+    await mkdir(join(workspaceRoot, "loops/plans"), { recursive: true });
+    await writeFile(
+      join(workspaceRoot, "loops/plans/auth-session.md"),
+      `---
+loop:
+  id: auth-session-plan
+  type: implementation-plan
+  status: running
+  autoApply: true
+  stages:
+    - id: build-auth-session
+      kind: code
+      title: Build auth session
+      outputs:
+        - src/auth/**
+        - tests/auth/**
+      eval:
+        commands:
+          - npm test -- auth
+evals:
+  - The build stage preserves the auth plan.
+---
+# Auth Session Plan
+
+Build auth session handling.
+`,
+      "utf8"
     );
+
+    const result = await materializeCodeStageControllers(workspaceRoot);
+    const controllerPath = "loops/build/build-auth-session.md";
+    const controller = await readFile(join(workspaceRoot, controllerPath), "utf8");
+    const docs = await listDocs(workspaceRoot);
+    const plan = planCascade({
+      docs,
+      sourcePath: "loops/plans/auth-session.md",
+      changedPaths: ["loops/plans/auth-session.md"]
+    });
+
+    expect(result.createdPaths).toEqual([controllerPath]);
+    expect(controller).toContain("type: code");
+    expect(controller).toContain("src/auth/**");
+    expect(controller).toContain("npm test -- auth");
+    expect(controller).toContain("Parent: loops/plans/auth-session.md");
+    expect(plan.affectedDocs.map((doc) => doc.path)).toEqual([controllerPath]);
+  });
+
+  it("retries Pi with eval evidence until command eval passes and captures code outputs", async () => {
+    const workspaceRoot = await mkdtemp(join(tmpdir(), "sloop-code-loop-"));
+    await mkdir(join(workspaceRoot, "loops/plans"), { recursive: true });
+    await writeFile(
+      join(workspaceRoot, "loops/plans/auth-session.md"),
+      `---
+loop:
+  id: auth-session-plan
+  type: implementation-plan
+  status: running
+  autoApply: true
+  stages:
+    - id: build-auth-session
+      kind: code
+      title: Build auth session
+      outputs:
+        - src/auth/**
+      eval:
+        commands:
+          - npm test -- auth
+evals:
+  - Auth sessions expire deterministically.
+---
+# Auth Session Plan
+
+Build auth session handling.
+`,
+      "utf8"
+    );
+    const fakePiPath = join(workspaceRoot, "fake-pi.mjs");
+    await writeFile(
+      fakePiPath,
+      `import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+
+let prompt = "";
+for await (const chunk of process.stdin) prompt += chunk;
+let attempt = 1;
+try {
+  attempt = Number(readFileSync("attempt.txt", "utf8")) + 1;
+} catch {
+  attempt = 1;
+}
+writeFileSync("attempt.txt", String(attempt));
+writeFileSync(\`prompt-\${attempt}.txt\`, prompt);
+mkdirSync("src/auth", { recursive: true });
+writeFileSync("src/auth/session.ts", \`export const attempt = \${attempt};\\n\`);
+`,
+      "utf8"
+    );
+
+    let evalAttempts = 0;
+    const adapter = createPiAgentAdapter({
+      command: process.execPath,
+      args: [fakePiPath, "--print", "--no-approve", "--no-session", "--model", "fake"],
+      maxAttempts: 2,
+      executor: async () => {
+        evalAttempts += 1;
+        return evalAttempts === 1
+          ? { status: "failed", evidence: ["session expiry test failed"] }
+          : { status: "passed", evidence: ["session expiry test passed"] };
+      }
+    });
+
+    const run = await adapter.run({
+      workspaceRoot,
+      sourcePath: "loops/plans/auth-session.md",
+      runId: "retry-run"
+    });
+    const secondPrompt = await readFile(join(workspaceRoot, "prompt-2.txt"), "utf8");
+
+    expect(evalAttempts).toBe(2);
+    expect(run.status).toBe("passed");
+    expect(run.changedFiles).toContain("loops/build/build-auth-session.md");
+    expect(run.changedFiles).toContain("src/auth/session.ts");
+    expect(run.eval.evidence).toContain("session expiry test passed");
+    expect(secondPrompt).toContain("Previous evaluation failed");
+    expect(secondPrompt).toContain("session expiry test failed");
   });
 });

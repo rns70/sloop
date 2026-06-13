@@ -1,6 +1,5 @@
 import express from "express";
 import { join, resolve } from "node:path";
-import { ensureSampleWorkspace } from "./lib/sampleWorkspace.js";
 import { getGitDiff, getGitStatus } from "./lib/git.js";
 import { appendHistory, readHistory } from "./lib/history.js";
 import { readDoc, listDocs, openWorkspace, saveDoc } from "./lib/workspace.js";
@@ -18,15 +17,6 @@ const port = Number(process.env.SLOOP_SERVER_PORT ?? 4873);
 const defaultWorkspace = resolve(process.env.SLOOP_WORKSPACE ?? process.cwd());
 
 app.use(express.json({ limit: "5mb" }));
-
-app.post("/api/sample-workspace", async (_request, response, next) => {
-  try {
-    await ensureSampleWorkspace(defaultWorkspace);
-    response.json(await openWorkspace(defaultWorkspace));
-  } catch (error) {
-    next(error);
-  }
-});
 
 app.get("/api/workspace", async (_request, response, next) => {
   try {
@@ -47,6 +37,14 @@ app.get("/api/docs", async (_request, response, next) => {
 function docPathParam(request: express.Request): string {
   const value = request.params[0];
   return Array.isArray(value) ? value.join("/") : value;
+}
+
+function requiredSourcePath(value: unknown): string {
+  if (typeof value === "string" && value.trim().length > 0) {
+    return value;
+  }
+
+  throw new Error("sourcePath is required");
 }
 
 app.get(/^\/api\/docs\/(.+)$/, async (request, response, next) => {
@@ -242,7 +240,7 @@ app.get("/api/runs", async (_request, response, next) => {
 
 app.post("/api/runs/pi-cascade", async (request, response, next) => {
   try {
-    const sourcePath = String(request.body?.sourcePath ?? "sample-workspace/PRD.md");
+    const sourcePath = requiredSourcePath(request.body?.sourcePath);
     const model = typeof request.body?.model === "string" ? request.body.model : undefined;
     response.json(await runCascadePipeline(sourcePath, model));
   } catch (error) {
@@ -252,7 +250,7 @@ app.post("/api/runs/pi-cascade", async (request, response, next) => {
 
 app.post("/api/runs", async (request, response, next) => {
   try {
-    const sourcePath = String(request.body?.sourcePath ?? "sample-workspace/PRD.md");
+    const sourcePath = requiredSourcePath(request.body?.sourcePath);
     const model = typeof request.body?.model === "string" ? request.body.model : undefined;
     response.json(await runCascadePipeline(sourcePath, model));
   } catch (error) {
@@ -333,7 +331,7 @@ app.post("/api/eval", async (request, response, next) => {
 
 app.get("/api/cascade-plan", async (request, response, next) => {
   try {
-    const sourcePath = String(request.query.sourcePath ?? "sample-workspace/PRD.md");
+    const sourcePath = requiredSourcePath(request.query.sourcePath);
     const docs = await listDocs(defaultWorkspace);
     const diffs = await getGitDiff(defaultWorkspace);
     const plan = planCascade({ docs, sourcePath, diffs });

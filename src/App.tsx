@@ -1,10 +1,9 @@
-import { type CSSProperties, useCallback, useEffect, useMemo, useState } from "react";
+import { type CSSProperties, useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import { BlockNoteView } from "@blocknote/mantine";
 import { useCreateBlockNote } from "@blocknote/react";
 import type { FileDiff, HistoryEntry, LoopDoc, LoopRun, WorkspaceSummary } from "./shared/types";
 import {
   createRun,
-  createSampleWorkspace,
   getGitDiff,
   getDoc,
   getHistory,
@@ -13,29 +12,20 @@ import {
   pauseRun,
   resumeRun,
   runEval,
-  runPiCascade
+  runPiCascade,
+  saveDoc
 } from "./lib/api";
-import { findDiffForSelectedDoc, toInlineDiffLines } from "./lib/documentDiff";
-
-type BottomSection = "graph" | "console";
+import {
+  bottomSectionsReducer,
+  createClosedBottomSections,
+  type BottomSectionsState
+} from "./lib/bottomSections";
+import { HistoryPanel } from "./components/HistoryPanel";
+import { findDiffForSelectedDoc } from "./lib/documentDiff";
+import { FrontmatterPanel } from "./components/FrontmatterPanel";
 
 function ErrorNotice({ message }: { message: string }) {
   return <p className="notice error">{message}</p>;
-}
-
-function InlineDiff({ diff }: { diff?: FileDiff }) {
-  const lines = toInlineDiffLines(diff);
-  if (lines.length === 0) return null;
-
-  return (
-    <div className="inline-diff" aria-label="Inline diff">
-      {lines.slice(0, 12).map((line, index) => (
-        <span key={line.id || `${line.kind}-${index}`} className={`diff-line ${line.kind}`}>
-          {line.symbol} {line.text}
-        </span>
-      ))}
-    </div>
-  );
 }
 
 function StatusFooter({
@@ -53,7 +43,7 @@ function StatusFooter({
   onToggleGraph,
   onToggleConsole,
   running,
-  activeSurface,
+  openSections,
   onOpenDoc
 }: {
   doc: LoopDoc;
@@ -63,7 +53,7 @@ function StatusFooter({
   runs: LoopRun[];
   run?: LoopRun;
   running: boolean;
-  activeSurface: BottomSection | null;
+  openSections: BottomSectionsState;
   onRun: () => void;
   onPause: () => void;
   onResume: () => void;
@@ -77,21 +67,39 @@ function StatusFooter({
     <footer className="loop-status">
       <div className="bottom-sections" aria-label="Document sections">
         <section className="bottom-section">
-          <button type="button" className="section-header" onClick={onToggleGraph}>
+          <button
+            type="button"
+            className="section-header"
+            onClick={onToggleGraph}
+            aria-expanded={openSections.graph}
+            aria-controls="graph-drawer"
+          >
             <strong>Graph</strong>
-            <span>{activeSurface === "graph" ? "Open" : "Closed"}</span>
+            <span>{openSections.graph ? "Close" : "Open"}</span>
           </button>
-          {activeSurface === "graph" ? (
-            <GraphDrawer workspace={workspace} selectedPath={selectedPath} onOpenDoc={onOpenDoc} />
+          {openSections.graph ? (
+            <GraphDrawer
+              id="graph-drawer"
+              workspace={workspace}
+              selectedPath={selectedPath}
+              onOpenDoc={onOpenDoc}
+            />
           ) : null}
         </section>
         <section className="bottom-section">
-          <button type="button" className="section-header" onClick={onToggleConsole}>
+          <button
+            type="button"
+            className="section-header"
+            onClick={onToggleConsole}
+            aria-expanded={openSections.console}
+            aria-controls="console-drawer"
+          >
             <strong>Console</strong>
-            <span>{activeSurface === "console" ? "Open" : "Closed"}</span>
+            <span>{openSections.console ? "Close" : "Open"}</span>
           </button>
-          {activeSurface === "console" ? (
+          {openSections.console ? (
             <ConsoleDrawer
+              id="console-drawer"
               history={history}
               runs={runs}
               run={run}
@@ -131,7 +139,9 @@ function StatusFooter({
               {stage.doc}
             </button>
             <span className={stage.status}>{stage.status}</span>
+            <span>{stage.kind}</span>
             <span>{stage.agent ?? "pi"}</span>
+            {stage.outputs.length > 0 ? <span>{stage.outputs.join(", ")}</span> : null}
           </li>
         ))}
       </ul>
@@ -356,10 +366,12 @@ function buildDagLines(docs: LoopDoc[], selectedPath: string): string[] {
 }
 
 function GraphDrawer({
+  id,
   workspace,
   selectedPath,
   onOpenDoc
 }: {
+  id: string;
   workspace: WorkspaceSummary | null;
   selectedPath: string;
   onOpenDoc: (path: string) => void;
@@ -367,7 +379,7 @@ function GraphDrawer({
   const lines = buildDagLines(workspace?.docs ?? [], selectedPath);
 
   return (
-    <section className="secondary-surface" aria-label="Workspace DAG">
+    <section id={id} className="secondary-surface" aria-label="Workspace DAG">
       <div className="surface-head">
         <strong>Graph</strong>
         <span>{workspace?.docs.length ?? 0} docs</span>
@@ -393,6 +405,7 @@ function GraphDrawer({
 }
 
 function ConsoleDrawer({
+  id,
   history,
   runs,
   run,
@@ -402,6 +415,7 @@ function ConsoleDrawer({
   onResume,
   onEval
 }: {
+  id: string;
   history: HistoryEntry[];
   runs: LoopRun[];
   run?: LoopRun;
@@ -416,7 +430,7 @@ function ConsoleDrawer({
     .slice(0, 8);
 
   return (
-    <section className="secondary-surface" aria-label="Run console">
+    <section id={id} className="secondary-surface" aria-label="Run console">
       <div className="surface-head">
         <strong>Console</strong>
         <span>Pi runtime</span>
@@ -500,33 +514,24 @@ function ConsoleDrawer({
   );
 }
 
-function HistoryDrawer({ history }: { history: HistoryEntry[] }) {
-  return (
-    <details className="history">
-      <summary>History</summary>
-      <ol>
-        {history.length === 0 ? <li>No run history yet.</li> : null}
-        {history.map((entry) => (
-          <li key={`${entry.id}-${entry.kind}-${entry.createdAt}`}>
-            <strong>{entry.title}</strong>
-            <span>{entry.summary}</span>
-          </li>
-        ))}
-      </ol>
-    </details>
-  );
-}
-
 export function App() {
   const editor = useCreateBlockNote();
   const [workspace, setWorkspace] = useState<WorkspaceSummary | null>(null);
-  const [selectedPath, setSelectedPath] = useState("sample-workspace/PRD.md");
+  const [selectedPath, setSelectedPath] = useState("");
   const [doc, setDoc] = useState<LoopDoc | null>(null);
+  const [draftFrontmatter, setDraftFrontmatter] = useState<Record<string, unknown>>({});
+  const [frontmatterDirty, setFrontmatterDirty] = useState(false);
+  const [savingFrontmatter, setSavingFrontmatter] = useState(false);
   const [diffs, setDiffs] = useState<FileDiff[]>([]);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [runs, setRuns] = useState<LoopRun[]>([]);
   const [run, setRun] = useState<LoopRun | undefined>();
-  const [activeSurface, setActiveSurface] = useState<BottomSection | null>(null);
+  const [openSections, dispatchOpenSections] = useReducer(
+    bottomSectionsReducer,
+    undefined,
+    createClosedBottomSections
+  );
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [error, setError] = useState("");
   const [running, setRunning] = useState(false);
 
@@ -545,15 +550,12 @@ export function App() {
     const nextSelectedPath =
       workspaceResult.docs.some((workspaceDoc) => workspaceDoc.path === selectedPath)
         ? selectedPath
-        : workspaceResult.docs[0]?.path ?? selectedPath;
+        : workspaceResult.docs[0]?.path ?? "";
     if (nextSelectedPath !== selectedPath) {
       setSelectedPath(nextSelectedPath);
-      return;
     }
 
-    const docResult = await getDoc(nextSelectedPath);
     setWorkspace(workspaceResult);
-    setDoc(docResult);
     setDiffs(diffResult);
     setHistory(historyResult);
     setRuns(runsResult ?? []);
@@ -565,18 +567,27 @@ export function App() {
 
       return refreshedRuns[0];
     });
+
+    if (!nextSelectedPath) {
+      setDoc(null);
+      setDraftFrontmatter({});
+      setFrontmatterDirty(false);
+      const blocks = editor.tryParseMarkdownToBlocks("No loop documents found.");
+      editor.replaceBlocks(editor.document, blocks);
+      return;
+    }
+
+    const docResult = await getDoc(nextSelectedPath);
+    setDoc(docResult);
+    setDraftFrontmatter(docResult.frontmatter);
+    setFrontmatterDirty(false);
     const blocks = editor.tryParseMarkdownToBlocks(docResult.body || "Start writing...");
     editor.replaceBlocks(editor.document, blocks);
   }, [editor, selectedPath]);
 
   useEffect(() => {
-    refresh().catch(async () => {
-      try {
-        await createSampleWorkspace();
-        await refresh();
-      } catch (unknownError) {
-        setError(unknownError instanceof Error ? unknownError.message : "Could not load workspace");
-      }
+    refresh().catch((unknownError) => {
+      setError(unknownError instanceof Error ? unknownError.message : "Could not load workspace");
     });
   }, [refresh]);
 
@@ -665,15 +676,45 @@ export function App() {
 
   function handleOpenDoc(path: string) {
     setSelectedPath(path);
-    setActiveSurface(null);
+    dispatchOpenSections({ type: "openDoc" });
+    setHistoryOpen(false);
   }
 
   function handleToggleGraph() {
-    setActiveSurface(activeSurface === "graph" ? null : "graph");
+    dispatchOpenSections({ type: "toggle", section: "graph" });
   }
 
   function handleToggleConsole() {
-    setActiveSurface(activeSurface === "console" ? null : "console");
+    dispatchOpenSections({ type: "toggle", section: "console" });
+  }
+
+  function handleToggleHistory() {
+    setHistoryOpen((open) => !open);
+  }
+
+  function handleFrontmatterChange(nextFrontmatter: Record<string, unknown>) {
+    setDraftFrontmatter(nextFrontmatter);
+    setFrontmatterDirty(true);
+  }
+
+  async function handleSaveFrontmatter() {
+    if (!doc || !frontmatterDirty) return;
+    setSavingFrontmatter(true);
+    setError("");
+    try {
+      const savedDoc = await saveDoc(doc.path, {
+        frontmatter: draftFrontmatter,
+        body: doc.body
+      });
+      setDoc(savedDoc);
+      setDraftFrontmatter(savedDoc.frontmatter);
+      setFrontmatterDirty(false);
+      await refresh();
+    } catch (unknownError) {
+      setError(unknownError instanceof Error ? unknownError.message : "Could not save metadata");
+    } finally {
+      setSavingFrontmatter(false);
+    }
   }
 
   return (
@@ -687,10 +728,28 @@ export function App() {
       <section className="workspace">
         <article className="paper">
           <div className="topline">
-            <span>{doc?.path ?? selectedPath}</span>
+            <span>{(doc?.path ?? selectedPath) || "No document selected"}</span>
+            <HistoryPanel
+              history={history}
+              selectedDiff={selectedDiff}
+              open={historyOpen}
+              onClose={() => setHistoryOpen(false)}
+              onToggle={handleToggleHistory}
+            />
           </div>
 
           {error ? <ErrorNotice message={error} /> : null}
+
+          {doc ? (
+            <FrontmatterPanel
+              doc={doc}
+              draftFrontmatter={draftFrontmatter}
+              dirty={frontmatterDirty}
+              saving={savingFrontmatter}
+              onChange={handleFrontmatterChange}
+              onSave={handleSaveFrontmatter}
+            />
+          ) : null}
 
           <BlockNoteView
             editor={editor}
@@ -698,8 +757,6 @@ export function App() {
             theme="light"
             className="sloop-editor"
           />
-
-          <InlineDiff diff={selectedDiff} />
 
           {doc ? (
             <StatusFooter
@@ -710,7 +767,7 @@ export function App() {
               runs={runs}
               run={run}
               running={running}
-              activeSurface={activeSurface}
+              openSections={openSections}
               onRun={handleRun}
               onPause={handlePause}
               onResume={handleResume}
@@ -721,8 +778,6 @@ export function App() {
               onOpenDoc={handleOpenDoc}
             />
           ) : null}
-
-          <HistoryDrawer history={history} />
         </article>
       </section>
     </main>

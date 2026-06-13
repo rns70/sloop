@@ -1,4 +1,5 @@
-import { execFile, spawn } from "node:child_process";
+import { exec, execFile, spawn } from "node:child_process";
+import fg from "fast-glob";
 import { readFile } from "node:fs/promises";
 import { mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
@@ -8,16 +9,54 @@ import type {
   AgentAdapter,
   AgentRunInput,
   EvalCriteria,
+  EvalResult,
   FileDiff,
   LoopDoc,
   LoopRun
 } from "../../src/shared/types.js";
 import { planCascade } from "./cascade.js";
-import { runEvaluation } from "./evaluation.js";
+import {
+  runEvaluation,
+  runStructuredEvaluation,
+  type CommandExecutionResult,
+  type EvaluationCommandInput,
+  type EvaluationInput
+} from "./evaluation.js";
+import { materializeCodeStageControllers } from "./stageControllers.js";
 import { listDocs, workspaceDiff } from "./workspace.js";
 
 const execFileAsync = promisify(execFile);
+const execAsync = promisify(exec);
 const DEFAULT_PI_MODEL = "openai-codex/gpt-5.3-codex";
+const DEFAULT_MAX_ATTEMPTS = 3;
+const CODE_EXTENSIONS = new Set([
+  ".c",
+  ".cc",
+  ".cpp",
+  ".cs",
+  ".css",
+  ".go",
+  ".h",
+  ".hpp",
+  ".html",
+  ".java",
+  ".js",
+  ".json",
+  ".jsx",
+  ".kt",
+  ".md",
+  ".mjs",
+  ".py",
+  ".rb",
+  ".rs",
+  ".scss",
+  ".sh",
+  ".ts",
+  ".tsx",
+  ".txt",
+  ".yml",
+  ".yaml"
+]);
 
 export interface PiRuntimeOptions {
   command?: string;
@@ -25,14 +64,17 @@ export interface PiRuntimeOptions {
   model?: string;
   provider?: string;
   sessionDir?: string;
+  maxAttempts?: number;
+  executor?: EvaluationInput["executor"];
 }
 
 export interface PiPromptContext {
   workspaceRoot: string;
   sourcePath: string;
-  affectedDocs: Array<Pick<LoopDoc, "path" | "title" | "evals">>;
+  affectedDocs: Array<Pick<LoopDoc, "path" | "title" | "evals" | "outputs" | "commands">>;
   currentDiffSummary: string;
   evalCriteria: string[];
+  evalCommands: EvaluationCommandInput[];
 }
 
 interface PiProcessResult {
@@ -62,6 +104,44 @@ function formatEvalCriteria(criteria: EvalCriteria[], docPath: string): string[]
   return criteria.map((criterion) => `${docPath}: ${criterion.text}`);
 }
 
+function formatEvalCommands(commands: string[], docPath: string): EvaluationCommandInput[] {
+  return commands.map((command, index) => ({
+    id: `${docPath}:command-${index + 1}`,
+    command
+  }));
+}
+
+function normalizeRepoPath(path: string): string | undefined {
+  const normalized = path.replace(/\\/g, "/").trim();
+  if (
+    !normalized ||
+    normalized.startsWith("/") ||
+    normalized.split("/").includes(".") ||
+    normalized.split("/").includes("..")
+  ) {
+    return undefined;
+  }
+
+  return normalized;
+}
+
+function extensionOf(path: string): string {
+  const dotIndex = path.lastIndexOf(".");
+  return dotIndex >= 0 ? path.slice(dotIndex).toLowerCase() : "";
+}
+
+function isMarkdownOrCodeFile(path: string): boolean {
+  return CODE_EXTENSIONS.has(extensionOf(path));
+}
+
+function outputPatterns(context: PiPromptContext): string[] {
+  return unique(context.affectedDocs.flatMap((doc) => doc.outputs));
+}
+
+function affectedDocPaths(context: PiPromptContext): string[] {
+  return unique(context.affectedDocs.map((doc) => doc.path));
+}
+
 function summarizeDiff(diff: FileDiff): string {
   const adds = diff.lines.filter((line) => line.type === "add").length;
   const removes = diff.lines.filter((line) => line.type === "remove").length;
@@ -84,7 +164,7 @@ function summarizeDiffs(diffs: FileDiff[]): string {
   return diffs.map(summarizeDiff).join("\n\n");
 }
 
-async function gitMarkdownChangedFiles(workspaceRoot: string): Promise<string[]> {
+async function gitChangedCodeFiles(workspaceRoot: string): Promise<string[]> {
   try {
     const { stdout } = await execFileAsync(
       "git",
@@ -97,11 +177,25 @@ async function gitMarkdownChangedFiles(workspaceRoot: string): Promise<string[]>
         .map((line) => line.trim())
         .filter(Boolean)
         .map((line) => line.slice(3))
-        .filter((path) => path.endsWith(".md"))
+        .map((path) => (path.includes(" -> ") ? path.split(" -> ").at(-1) ?? path : path))
+        .filter((path) => Boolean(normalizeRepoPath(path)) && isMarkdownOrCodeFile(path))
     );
   } catch {
     return [];
   }
+}
+
+async function existingOutputFiles(workspaceRoot: string, patterns: string[]): Promise<string[]> {
+  if (patterns.length === 0) return [];
+
+  return unique(
+    await fg(patterns, {
+      cwd: workspaceRoot,
+      onlyFiles: true,
+      dot: true,
+      ignore: ["node_modules/**", "dist/**", ".sloop/**"]
+    })
+  );
 }
 
 async function readWorkspaceFile(workspaceRoot: string, path: string): Promise<string | undefined> {
@@ -123,6 +217,87 @@ async function snapshotFiles(
     })
   );
   return snapshot;
+}
+
+function configuredMaxAttempts(options: PiRuntimeOptions): number {
+  const raw = options.maxAttempts ?? Number(process.env.SLOOP_LOOP_MAX_ATTEMPTS);
+  return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : DEFAULT_MAX_ATTEMPTS;
+}
+
+function globMatches(path: string, pattern: string): boolean {
+  const normalizedPath = path.replace(/\\/g, "/");
+  const normalizedPattern = pattern.replace(/\\/g, "/").trim();
+
+  if (!normalizedPattern.includes("*")) {
+    return normalizedPath === normalizedPattern;
+  }
+
+  if (normalizedPattern.endsWith("/**")) {
+    const prefix = normalizedPattern.slice(0, -3);
+    return normalizedPath === prefix || normalizedPath.startsWith(`${prefix}/`);
+  }
+
+  let expression = normalizedPattern.replace(/[.+^${}()|[\]\\]/g, "\\$&");
+  expression = expression
+    .replace(/\*\*/g, "__DOUBLE_STAR__")
+    .replace(/\*/g, "[^/]*")
+    .replace(/__DOUBLE_STAR__/g, ".*");
+
+  return new RegExp(`^${expression}$`).test(normalizedPath);
+}
+
+function validateChangedFiles(context: PiPromptContext, changedFiles: string[]): string[] {
+  const docs = new Set(affectedDocPaths(context));
+  const outputs = outputPatterns(context);
+
+  return changedFiles.filter((path) => {
+    if (docs.has(path)) return false;
+    return !outputs.some((pattern) => globMatches(path, pattern));
+  });
+}
+
+function createShellExecutor(workspaceRoot: string): NonNullable<EvaluationInput["executor"]> {
+  return async (command): Promise<CommandExecutionResult> => {
+    try {
+      const { stdout, stderr } = await execAsync(command, {
+        cwd: workspaceRoot,
+        encoding: "utf8",
+        maxBuffer: 1024 * 1024 * 10
+      });
+      return {
+        status: "passed",
+        evidence: [`Command passed: ${command}`],
+        stdout,
+        stderr,
+        exitCode: 0
+      };
+    } catch (error) {
+      const result = error as Error & {
+        code?: number;
+        stdout?: string;
+        stderr?: string;
+      };
+      return {
+        status: "failed",
+        evidence: [`Command failed: ${command}`],
+        stdout: result.stdout,
+        stderr: result.stderr,
+        exitCode: typeof result.code === "number" ? result.code : 1
+      };
+    }
+  };
+}
+
+function retryPrompt(basePrompt: string, attempt: number, evidence: string[]): string {
+  return [
+    basePrompt,
+    "",
+    `Previous evaluation failed after attempt ${attempt}.`,
+    "Use the evidence below to fix the same worktree without undoing valid changes.",
+    "",
+    "Evaluation evidence:",
+    ...evidence.map((line) => `- ${line}`)
+  ].join("\n");
 }
 
 function commandUsesShell(command: string, options: PiRuntimeOptions): boolean {
@@ -279,14 +454,27 @@ export async function buildPiPromptContext(input: AgentRunInput): Promise<PiProm
     changedPaths
   });
   const sourceDoc = docs.find((doc) => doc.path === input.sourcePath);
-  const affectedDocs = plan.affectedDocs.map((doc) => ({
+  const executableSourceDoc =
+    sourceDoc && (sourceDoc.loop.type === "code" || sourceDoc.outputs.length > 0 || sourceDoc.commands.length > 0)
+      ? [sourceDoc]
+      : [];
+  const executableDocsByPath = new Map(
+    [...executableSourceDoc, ...plan.affectedDocs].map((doc) => [doc.path, doc])
+  );
+  const executableDocs = [...executableDocsByPath.values()];
+  const affectedDocs = executableDocs.map((doc) => ({
     path: doc.path,
     title: doc.title,
-    evals: doc.evals
+    evals: doc.evals,
+    outputs: doc.outputs,
+    commands: doc.commands
   }));
   const evalCriteria = [
     ...(sourceDoc ? formatEvalCriteria(sourceDoc.evals, sourceDoc.path) : []),
     ...plan.affectedDocs.flatMap((doc) => formatEvalCriteria(doc.evals, doc.path))
+  ];
+  const evalCommands = [
+    ...executableDocs.flatMap((doc) => formatEvalCommands(doc.commands, doc.path))
   ];
 
   return {
@@ -294,7 +482,8 @@ export async function buildPiPromptContext(input: AgentRunInput): Promise<PiProm
     sourcePath: input.sourcePath,
     affectedDocs,
     currentDiffSummary: summarizeDiffs(sourceDiffs),
-    evalCriteria
+    evalCriteria,
+    evalCommands
   };
 }
 
@@ -307,7 +496,23 @@ export function createPiPrompt(context: PiPromptContext): string {
               doc.evals.length > 0
                 ? doc.evals.map((criterion) => `    - ${criterion.text}`).join("\n")
                 : "    - No explicit criteria in this downstream doc.";
-            return `- ${doc.path} (${doc.title})\n${criteria}`;
+            const outputs =
+              doc.outputs.length > 0
+                ? doc.outputs.map((output) => `    - ${output}`).join("\n")
+                : "    - No code outputs declared.";
+            const commands =
+              doc.commands.length > 0
+                ? doc.commands.map((command) => `    - ${command}`).join("\n")
+                : "    - No deterministic commands declared.";
+            return [
+              `- ${doc.path} (${doc.title})`,
+              "  Criteria:",
+              criteria,
+              "  Allowed outputs:",
+              outputs,
+              "  Commands:",
+              commands
+            ].join("\n");
           })
           .join("\n")
       : "- No affected downstream docs were found. Do not edit unrelated docs.";
@@ -334,10 +539,56 @@ export function createPiPrompt(context: PiPromptContext): string {
     "",
     "Instructions:",
     "- Update only the affected downstream docs listed above.",
-    "- Do not edit unrelated files, package files, tests, or docs outside the affected downstream set.",
+    "- For code controller docs, you may also edit only the allowed output paths listed for that doc.",
+    "- Do not edit unrelated files, package files, tests, or docs outside the affected downstream set and allowed outputs.",
     "- Keep Markdown/frontmatter structure intact.",
-    "- Make the smallest changes needed for the downstream docs to reflect the source diff and pass the evaluation criteria."
+    "- Make the smallest changes needed for the downstream docs and code outputs to reflect the source diff and pass evaluation."
   ].join("\n");
+}
+
+async function trackedRunFiles(
+  workspaceRoot: string,
+  context: PiPromptContext,
+  extraPaths: string[] = []
+): Promise<string[]> {
+  return unique([
+    ...affectedDocPaths(context),
+    ...extraPaths,
+    ...(await gitChangedCodeFiles(workspaceRoot)),
+    ...(await existingOutputFiles(workspaceRoot, outputPatterns(context)))
+  ]);
+}
+
+async function evaluateAttempt(
+  context: PiPromptContext,
+  changedFiles: string[],
+  options: PiRuntimeOptions
+) {
+  const disallowedFiles = validateChangedFiles(context, changedFiles);
+  if (disallowedFiles.length > 0) {
+    return {
+      status: "failed" as const,
+      evidence: [`Pi changed files outside affected docs or allowed outputs: ${disallowedFiles.join(", ")}`]
+    };
+  }
+
+  if (context.evalCommands.length > 0) {
+    return runStructuredEvaluation({
+      runtime: "pi",
+      changedFiles: changedFiles.length > 0 ? changedFiles : [context.sourcePath],
+      commands: context.evalCommands,
+      executor: options.executor ?? createShellExecutor(context.workspaceRoot)
+    });
+  }
+
+  if (changedFiles.length === 0) {
+    return {
+      status: "passed" as const,
+      evidence: ["Pi completed successfully and reported no file changes were needed."]
+    };
+  }
+
+  return runEvaluation({ runtime: "pi", changedFiles });
 }
 
 export function createPiAgentAdapter(options: PiRuntimeOptions = {}): AgentAdapter {
@@ -345,37 +596,71 @@ export function createPiAgentAdapter(options: PiRuntimeOptions = {}): AgentAdapt
     runtime: "pi",
     async run(input: AgentRunInput): Promise<LoopRun> {
       const runId = input.runId ?? `pi-${Date.now()}`;
-      const context = await buildPiPromptContext(input);
-      const prompt = input.prompt ?? createPiPrompt(context);
-      const beforeFiles = unique([
-        ...context.affectedDocs.map((doc) => doc.path),
-        ...(await gitMarkdownChangedFiles(input.workspaceRoot))
-      ]);
-      const before = await snapshotFiles(input.workspaceRoot, beforeFiles);
-      const result = await runPiCommand(input, runId, prompt, options);
-      const afterFiles = unique([
-        ...beforeFiles,
-        ...(await gitMarkdownChangedFiles(input.workspaceRoot))
-      ]);
-      const after = await snapshotFiles(input.workspaceRoot, afterFiles);
-      const changedFiles = afterFiles.filter((path) => before.get(path) !== after.get(path));
+      const materializedPaths = new Set<string>();
+      const initialMaterialized = await materializeCodeStageControllers(input.workspaceRoot);
+      for (const path of initialMaterialized.createdPaths) materializedPaths.add(path);
 
-      const evalResult =
-        result.exitCode === 0
-          ? changedFiles.length === 0
-            ? {
-                status: "passed" as const,
-                evidence: ["Pi completed successfully and reported no file changes were needed."]
-              }
-            : runEvaluation({ runtime: "pi", changedFiles })
-          : {
-              status: "failed" as const,
-              evidence: [
-                result.error
-                  ? `Pi runtime failed to start: ${result.error}`
-                  : `Pi runtime exited with code ${result.exitCode ?? "unknown"}.`
-              ]
-            };
+      let context = await buildPiPromptContext(input);
+      const basePrompt = input.prompt ?? createPiPrompt(context);
+      let prompt = basePrompt;
+      const beforeFiles = await trackedRunFiles(input.workspaceRoot, context, [...materializedPaths]);
+      const before = await snapshotFiles(input.workspaceRoot, beforeFiles);
+      const attempts = configuredMaxAttempts(options);
+      let changedFiles: string[] = [...materializedPaths].sort();
+      let evalResult: EvalResult = {
+        status: "failed" as const,
+        evidence: ["Pi did not run."]
+      };
+      let lastResult: PiProcessResult = {
+        exitCode: null,
+        stdout: "",
+        stderr: "",
+        error: "Pi did not run."
+      };
+
+      for (let attempt = 1; attempt <= attempts; attempt += 1) {
+        const result = await runPiCommand(input, runId, prompt, options);
+        lastResult = result;
+
+        if (result.exitCode !== 0) {
+          evalResult = {
+            status: "failed" as const,
+            evidence: [
+              result.error
+                ? `Pi runtime failed to start: ${result.error}`
+                : `Pi runtime exited with code ${result.exitCode ?? "unknown"}.`
+            ]
+          };
+          break;
+        }
+
+        const materialized = await materializeCodeStageControllers(input.workspaceRoot);
+        for (const path of materialized.createdPaths) materializedPaths.add(path);
+        context = await buildPiPromptContext(input);
+        const afterFiles = await trackedRunFiles(input.workspaceRoot, context, [...beforeFiles, ...materializedPaths]);
+        const after = await snapshotFiles(input.workspaceRoot, afterFiles);
+        changedFiles = unique([
+          ...materializedPaths,
+          ...afterFiles.filter((path) => before.get(path) !== after.get(path))
+        ]);
+        evalResult = await evaluateAttempt(context, changedFiles, options);
+
+        if (evalResult.status === "passed") {
+          break;
+        }
+
+        if (attempt < attempts) {
+          prompt = retryPrompt(createPiPrompt(context), attempt, evalResult.evidence);
+        } else {
+          evalResult = {
+            ...evalResult,
+            evidence: [
+              ...evalResult.evidence,
+              `Stopped after ${attempts} Pi ${attempts === 1 ? "attempt" : "attempts"}.`
+            ]
+          };
+        }
+      }
 
       const run: PiLoopRun = {
         id: runId,
@@ -385,8 +670,8 @@ export function createPiAgentAdapter(options: PiRuntimeOptions = {}): AgentAdapt
         changedFiles,
         eval: evalResult,
         logs: {
-          stdout: result.stdout,
-          stderr: result.stderr
+          stdout: lastResult.stdout,
+          stderr: lastResult.stderr
         }
       };
 

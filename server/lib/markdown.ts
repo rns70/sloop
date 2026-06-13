@@ -15,9 +15,19 @@ function asBoolean(value: unknown, fallback: boolean): boolean {
   return typeof value === "boolean" ? value : fallback;
 }
 
+function asStringList(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.map((entry) => (typeof entry === "string" ? entry.trim() : "")).filter(Boolean)
+    : [];
+}
+
 function titleFromBody(body: string, fallback: string): string {
   const title = body.match(/^#\s+(.+)$/m)?.[1]?.trim();
   return title || fallback;
+}
+
+function stageControllerPath(id: string): string {
+  return `loops/build/${id}.md`;
 }
 
 function normalizeStages(value: unknown): LoopStage[] {
@@ -25,14 +35,23 @@ function normalizeStages(value: unknown): LoopStage[] {
 
   return value.map((stage, index) => {
     const record = asRecord(stage);
-    const doc = asString(record.doc, "");
+    const kind = record.kind === "code" ? "code" : "doc";
+    const titleFallback = kind === "code" ? `Code stage ${index + 1}` : `Stage ${index + 1}`;
+    const rawTitle = asString(record.title, asString(record.doc, titleFallback));
+    const id = asString(record.id, rawTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-"));
+    const doc = asString(record.doc, kind === "code" ? stageControllerPath(id) : "");
     const title = asString(record.title, doc || `Stage ${index + 1}`);
+    const evalRecord = asRecord(record.eval);
     return {
-      id: asString(record.id, title.toLowerCase().replace(/[^a-z0-9]+/g, "-")),
+      id,
+      kind,
       title,
       doc,
       status: asString(record.status, "idle") as LoopStage["status"],
-      agent: record.agent === "pi" ? record.agent : undefined
+      agent: record.agent === "pi" ? record.agent : undefined,
+      outputs: asStringList(record.outputs),
+      evals: normalizeEvals(record.evals),
+      commands: asStringList(record.commands).concat(asStringList(evalRecord.commands))
     };
   });
 }
@@ -83,6 +102,8 @@ export function parseLoopMarkdown(path: string, raw: string): LoopDoc {
     loop,
     stages,
     evals: normalizeEvals(frontmatter.evals),
+    outputs: asStringList(frontmatter.outputs),
+    commands: asStringList(frontmatter.commands),
     body,
     raw
   };
