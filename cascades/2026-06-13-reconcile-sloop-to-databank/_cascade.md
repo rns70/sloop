@@ -1,7 +1,7 @@
 ---
 id: 2026-06-13-reconcile-sloop-to-databank
 createdAt: 2026-06-13T12:00:00.000Z
-template: spec-driven
+workflow: spec-driven
 deltas: { add: 16, change: 0, delete: 0 }
 rootLoopId: _architect
 status: awaiting_approval

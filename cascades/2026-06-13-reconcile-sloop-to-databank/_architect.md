@@ -7,7 +7,7 @@ status: awaiting_approval
 delta: add
 children: [wire-depthcap-from-config]
 sourceAdr: adr-003
-template: spec-driven
+workflow: spec-driven
 acceptanceCriteria: []
 ---
 

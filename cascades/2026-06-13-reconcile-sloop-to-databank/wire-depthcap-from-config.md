@@ -7,7 +7,7 @@ status: awaiting_approval
 delta: add
 parent: _architect
 sourceAdr: adr-003
-template: spec-driven
+workflow: spec-driven
 acceptanceCriteria:
   - id: ac-1
     text: "The cascade engine sources its depth cap from the workspace .sloop/config.md depthCap field."
