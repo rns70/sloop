@@ -102,3 +102,28 @@ export interface AuthorRequest {
   selectionText?: string;    // required when scope='selection'
   model?: string;            // registry alias; falls back to a config default
 }
+
+// ---- Global assistant (app-wide: answer / edit / create ADR|role|template) ----
+
+/** A configured model alias surfaced to the picker. Never carries an API key. */
+export interface ModelOption {
+  alias: string;          // registry key, e.g. 'opus'
+  provider: ProviderName;
+  id: string;             // concrete provider model id
+}
+
+export type AssistantAction = 'answer' | 'edit' | 'create-adr' | 'create-role' | 'create-template';
+
+export interface AssistantRequest {
+  instruction: string;
+  contextPaths: string[]; // docs loaded as context (current doc + user-attached)
+  model?: string;         // registry alias from the picker
+}
+
+export interface AssistantProposal {
+  action: AssistantAction;
+  summary: string;        // one-line human description shown above the preview
+  targetPath?: string;    // edit: doc to change; create-*: proposed path
+  title?: string;         // create-adr: proposed ADR title
+  content: string;        // answer text | full edited markdown | full new-file content
+}
