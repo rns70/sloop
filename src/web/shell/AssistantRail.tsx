@@ -19,7 +19,7 @@ function useGoToPath() {
 
 export function AssistantRail({ className }: { className?: string }) {
   const goToPath = useGoToPath();
-  const { openDoc } = useAssistant();
+  const { openDoc, registerRunner } = useAssistant();
   const [models, setModels] = useState<ModelOption[]>([]);
   const [alias, setAlias] = useState('');
   const [modelsError, setModelsError] = useState<string | null>(null);
@@ -42,6 +42,15 @@ export function AssistantRail({ className }: { className?: string }) {
   };
 
   const { messages, streaming, error, send, stop } = useAssistantChat({ model: alias || undefined, onWrote });
+
+  // Let external UI (e.g. the missing-criteria shortcut) trigger a chat turn. Keep the
+  // latest `send` in a ref so the registered runner never calls a stale closure.
+  const sendRef = useRef(send);
+  sendRef.current = send;
+  useEffect(() => {
+    registerRunner((text) => void sendRef.current(text));
+    return () => registerRunner(null);
+  }, [registerRunner]);
 
   // Track whether the user is near the bottom.
   const handleScroll = () => {

@@ -621,3 +621,91 @@ Tasks 1–6 already committed their changes.
 - **Deviations from spec (intentional, called out at hand-off):** (a) component-level RTL tests are replaced by typecheck + manual verification because the repo has no jsdom/RTL harness and `vitest` includes only `.test.ts`; (b) the assistant button is not disabled-on-busy (editor can't see rail `busy`; the rail's own guard dedupes); (c) the loop link resolves `sourceAdr` id→path via `getAdrs()` with a databank-index fallback (the spec assumed a direct path was available).
 - **Type consistency:** `bodyHasNoCriteria(string): boolean`, `runAssistant(string): void`, `registerRunner(fn|null): void`, `run(textArg?: string)`, `CriteriaWarning` props `{ variant?, action?, className? }` — names used identically across Tasks 1–6.
 - **Placeholders:** none — every code step shows complete content.
+
+---
+
+# ⚠️ REVISION 2026-06-13 — assistant subsystem replaced (chat API)
+
+**Context:** Mid-execution, an `assistant-chatbot` branch was merged into the base. The single-shot assistant (`requestAssistant` → `AssistantProposal` → `AssistantRail.run()` → `openDoc.applyInline` inline diff) **no longer exists**. The assistant is now a **streaming chatbot**:
+
+- `useAssistantChat({ model?, onWrote? }): { messages, streaming, error, send, stop }` (`src/web/assistant/useAssistantChat.ts`). `send(text)` appends a user turn, streams the agent, and the agent **writes files directly via its own tools** (no inline diff). On completion, written paths are passed to `onWrote(paths)`.
+- `streamAssistant({ messages, model }, onEvent)` (`src/web/api-client/index.ts`) — request carries the full thread; there are **no `contextPaths`**. The agent decides which file to edit from the instruction text.
+- `AssistantRail` owns the hook locally and only uses `openDoc` for a "Context:" label.
+
+**Tasks 1 & 2 are unaffected and already committed.** Task 6 is unaffected (loop criteria still come from `fm.acceptanceCriteria`). **Tasks 3–5 below SUPERSEDE their originals above.**
+
+All work happens in the worktree `.claude/worktrees/warn-criteria` (branch `feat/warn-criteria`). Verification: `npm test` for logic; for typecheck use a scoped grep on the touched files — HEAD carries unrelated pre-existing errors (`src/eval/**`, `src/server/api/real.ts`, `src/server/index.ts`) that must be IGNORED.
+
+## Task 3 (REVISED): Assistant context channel
+
+**Files:** Modify `src/web/assistant/AssistantContext.tsx`
+
+Unchanged in shape from the original — add a one-way trigger channel. Extend `AssistantContextValue` with:
+- `runAssistant: (instruction: string) => void` — forwards to a registered runner; no-op if none.
+- `registerRunner: (fn: ((instruction: string) => void) | null) => void`.
+
+Implement with a `useRef` for the runner (so registering doesn't re-render) and `useCallback` for both methods; add both to the `useMemo` value. (Same code as the original Task 3 block above — it does not depend on the old assistant API.)
+
+Commit: `feat(assistant): add runAssistant channel to AssistantContext`
+
+## Task 4 (REVISED): Wire the rail's chat `send` to the runner
+
+**Files:** Modify `src/web/shell/AssistantRail.tsx`
+
+The rail already destructures `{ messages, streaming, error, send, stop } = useAssistantChat(...)`. Register a runner that forwards to `send` (which already guards against empty text / concurrent sends via `sendingRef`).
+
+- Add `useRef` to the React import (already imports `useEffect, useRef, useState` — confirm `useRef` present).
+- Change `const { openDoc } = useAssistant();` to `const { openDoc, registerRunner } = useAssistant();`.
+- After the `useAssistantChat` destructure, add a ref to the latest `send` + a one-time registration effect (stale-closure-safe, since `send` is re-created when `messages`/`model` change):
+
+```tsx
+  const sendRef = useRef(send);
+  sendRef.current = send;
+  useEffect(() => {
+    registerRunner((text) => void sendRef.current(text));
+    return () => registerRunner(null);
+  }, [registerRunner]);
+```
+
+Optional nicety: the runner may also mirror the instruction into the draft box for visibility, but it is NOT required — `send` does not read `draft`. Keep it minimal: just call `send`.
+
+Commit: `feat(assistant): let external callers trigger a chat send`
+
+## Task 5 (REVISED): ADR editor — banner, badge, assistant button (chat)
+
+**Files:** Modify `src/web/views/databank/AdrEditor.tsx`
+
+Banner + badge are unchanged from the original Task 5 (live `bodyHasNoCriteria(body)` flag, `CriteriaWarning` banner below the title in edit mode, compact badge next to Save). **Only the assistant button changes:**
+
+Because the chat agent writes the file on disk (no editor-buffer diff) and receives no implicit context, the click handler must (a) persist the current buffer first so the agent edits the latest content, and (b) hand the agent an instruction that explicitly names the target file.
+
+- Import: `import { bodyHasNoCriteria, CRITERIA_ASSISTANT_INSTRUCTION } from '../../../shared/index';` and add `CriteriaWarning` to the design import.
+- Pull `runAssistant`: `const { registerOpenDoc, runAssistant } = useAssistant();`.
+- Live flag: `const missingCriteria = bodyHasNoCriteria(body);`.
+- Button handler (save-then-send, path-scoped instruction):
+
+```tsx
+            <Button
+              variant="subtle"
+              onClick={async () => {
+                await save(); // persist buffer so the agent edits the latest on-disk content
+                runAssistant(`Edit the design file \`${relPath}\`. ${CRITERIA_ASSISTANT_INSTRUCTION}`);
+              }}
+            >
+              Add with assistant
+            </Button>
+```
+
+(`save()` and `relPath` already exist in the component. `save()` is async and safe to await; it no-ops nothing harmful when not dirty.)
+
+**Known v1 limitation (call out at hand-off, do not over-build):** after the agent writes the open ADR, the editor buffer does not auto-refresh — the rail's `onWrote` navigates, but navigating to the already-open path does not re-fetch. The user sees the write in the chat (tool activity) and the banner clears on next load/navigation. A live refetch (e.g. bumping a reload nonce when the assistant writes the open doc's path) is deferred unless the user wants it now.
+
+Badge accessibility note (from Task 2 review): banner and badge co-render on this page; both currently use `role="status"`. Leave as-is for v1 (static content; only announced on change).
+
+Commit: `feat(databank): warn + chat shortcut when an ADR has no criteria`
+
+## Task 6: unchanged (see original above)
+
+## Task 7: unchanged (final review + manual verification), but verify behaviour against the CHAT flow:
+- Clicking "Add with assistant" saves, then posts a message in the assistant rail that names the file; the agent streams and writes the ADR; tool activity shows in the chat.
+- Confirm the warning clears after reload/navigation.
