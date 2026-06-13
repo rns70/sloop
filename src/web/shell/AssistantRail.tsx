@@ -54,10 +54,22 @@ export function AssistantRail({ className }: { className?: string }) {
         {messages.map((m, i) => (
           <div key={i} className={cx('rounded-md px-3 py-2', m.role === 'user' ? 'bg-line-soft' : 'border border-line-soft bg-paper')}>
             <div className="mb-1 text-[10px] uppercase tracking-[0.07em] text-ink-faint">{m.role}</div>
-            <pre className="whitespace-pre-wrap break-words text-[12.5px] leading-relaxed text-ink">{m.text || (streaming && i === messages.length - 1 ? '…' : '')}</pre>
+            {m.text && (
+              <pre className="whitespace-pre-wrap break-words text-[12.5px] leading-relaxed text-ink">{m.text}{streaming && i === messages.length - 1 && <span className="ml-px inline-block h-[0.95em] w-[2px] animate-pulse bg-ink align-text-bottom" />}</pre>
+            )}
             {m.tools?.map((t, j) => (
               <div key={j} className="mt-1 font-mono text-[11px] text-ink-faint">{t.ok ? '✎' : '⚠'} {t.tool}{t.path ? ` ${t.path}` : ''}</div>
             ))}
+            {streaming && i === messages.length - 1 && !m.text && (
+              <div className="flex items-center gap-2 text-[12px] text-ink-faint">
+                <span className="flex gap-1" aria-hidden>
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-ink-faint [animation-delay:-0.3s]" />
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-ink-faint [animation-delay:-0.15s]" />
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-ink-faint" />
+                </span>
+                <span>{(m.tools?.length ?? 0) > 0 ? 'Working…' : 'Thinking…'}</span>
+              </div>
+            )}
           </div>
         ))}
         {(error || modelsError) && <p className="text-[12px] text-status-failed">{error ?? modelsError}</p>}
