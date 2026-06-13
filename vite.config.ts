@@ -15,7 +15,10 @@ export default defineConfig({
     port: WEB_PORT,
     strictPort: true,
     proxy: {
-      '/api': {
+      // Anchored regex, not a bare '/api' prefix: a prefix would also swallow the
+      // app's own '/api-client/index.ts' module path and 404 it. Every real API/WS
+      // call uses '/api/…', so this matches them while leaving module paths alone.
+      '^/api/': {
         target: `http://localhost:${SERVER_PORT}`,
         changeOrigin: true,
         ws: true,
