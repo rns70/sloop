@@ -34,13 +34,11 @@ import { createExecutor } from '../executor/index';
 import { createCascadeEngine } from '../cascade/cascadeEngine';
 import { createArchitect, pickPlannerAlias, type ArchitectPlanner } from '../planner/architect';
 import type { ArchitectPlan, ProposedLeaf } from '../planner/prompt';
-import { createAuthorService, type AuthorService } from '../author/index';
 import { createAssistantService, toModelOptions, type AssistantService } from '../assistant/index';
 import type {
   AdrDiffResponse,
   ApproveCascadeResponse,
   AssistantResponse,
-  AuthorResponse,
   CascadeDetail,
   CascadeStreamEvent,
   CreateCascadeRequest,
@@ -49,7 +47,7 @@ import type {
   PutAdrRequest,
   SloopApi,
 } from './contract';
-import type { AuthorRequest, AssistantRequest } from '../../shared/index';
+import type { AssistantRequest } from '../../shared/index';
 
 const OK: Ok = { ok: true };
 
@@ -204,7 +202,6 @@ export class RealApi implements StreamingSloopApi {
     private readonly files: FilesService,
     private readonly git: ReturnType<typeof createGitService>,
     private readonly engine: CascadeEngine,
-    private readonly authorService: AuthorService,
     private readonly assistantService: AssistantService,
   ) {}
 
@@ -215,7 +212,6 @@ export class RealApi implements StreamingSloopApi {
     bootstrapPi(registry, env);
 
     const executor = createExecutor(buildExecutorModel(registry, env));
-    const authorService = createAuthorService({ files, env });
     const assistantService = createAssistantService({ files, env });
 
     // Late-bound holder so the writeLoop decorator can reach the not-yet-created instance.
@@ -235,7 +231,7 @@ export class RealApi implements StreamingSloopApi {
       onOutput: (loopId, chunk) => ref.api?.onLoopOutput(loopId, chunk),
     });
 
-    const api = new RealApi(files, git, engine, authorService, assistantService);
+    const api = new RealApi(files, git, engine, assistantService);
     ref.api = api;
     return api;
   }
@@ -274,13 +270,6 @@ export class RealApi implements StreamingSloopApi {
 
   async listRoles() {
     return this.files.listRoles();
-  }
-
-  // ---- Author (WP-7) -------------------------------------------------------
-
-  async author(req: AuthorRequest): Promise<AuthorResponse> {
-    const { proposal } = await this.authorService.author(req);
-    return { proposal };
   }
 
   // ---- Global assistant ----------------------------------------------------

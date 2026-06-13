@@ -6,6 +6,7 @@ import { CascadeProvider } from './views/mission-control/CascadeContext';
 import { CascadeView } from './views/mission-control/CascadeView';
 import { LoopPage } from './views/loop/LoopPage';
 import { LibraryFile } from './views/libraries/LibraryFile';
+import { AssistantProvider } from './assistant/AssistantContext';
 
 /**
  * One CascadeProvider spans a cascade's tree AND its loop pages (nested routes share
@@ -28,8 +29,9 @@ function CascadeLayout() {
  */
 export default function App() {
   return (
-    <Routes>
-      <Route element={<AppShell />}>
+    <AssistantProvider>
+      <Routes>
+        <Route element={<AppShell />}>
         <Route index element={<Navigate to="/databank" replace />} />
         <Route
           path="databank"
@@ -54,7 +56,8 @@ export default function App() {
         />
         <Route path="libraries/:type/:id" element={<LibraryFile />} />
         <Route path="*" element={<Navigate to="/databank" replace />} />
-      </Route>
-    </Routes>
+        </Route>
+      </Routes>
+    </AssistantProvider>
   );
 }

@@ -3,19 +3,19 @@
 // after WP-0); the wire types come from the shared contract, the single source of truth.
 
 import type {
-  AdrDoc, TemplateDef, RoleDef, CascadeSummary, AuthorRequest, AssistantRequest,
+  AdrDoc, TemplateDef, RoleDef, CascadeSummary, AssistantRequest,
 } from '../../shared/index';
 import type {
-  AdrDiffResponse, AuthorResponse, AssistantResponse, GetModelsResponse,
+  AdrDiffResponse, AssistantResponse, GetModelsResponse,
   CascadeDetail, CascadeStreamEvent, CreateCascadeRequest, Ok,
 } from '../../server/api/contract';
 
 export type {
   AdrDoc, TemplateDef, RoleDef, CascadeSummary, LoopDoc,
-  LoopFrontmatter, LoopStatus, LoopKind, Delta, AcceptanceCriterion, AuthorRequest,
+  LoopFrontmatter, LoopStatus, LoopKind, Delta, AcceptanceCriterion,
   AssistantRequest, AssistantProposal, ModelOption,
 } from '../../shared/index';
-export type { AdrDiffResponse, AuthorResponse, CascadeDetail, CascadeStreamEvent } from '../../server/api/contract';
+export type { AdrDiffResponse, CascadeDetail, CascadeStreamEvent } from '../../server/api/contract';
 
 const BASE = '/api';
 
@@ -53,11 +53,6 @@ export interface FileContent {
 export const getFile = (relPath: string): Promise<FileContent> => http(`/files/${enc(relPath)}`);
 export const putFile = (relPath: string, content: string): Promise<Ok> =>
   http(`/files/${enc(relPath)}`, { method: 'PUT', body: JSON.stringify({ content }) });
-
-/** WP-7 authoring assistant: ask the backend for a Cursor-style proposal (replacement
- *  text / edited doc / chat answer). Never writes — the editor shows it as an inline diff. */
-export const requestAuthor = (req: AuthorRequest): Promise<AuthorResponse> =>
-  http('/author', { method: 'POST', body: JSON.stringify(req) });
 
 /** Global assistant: configured model aliases for the picker (no keys). */
 export const getModels = (): Promise<GetModelsResponse> => http('/models');

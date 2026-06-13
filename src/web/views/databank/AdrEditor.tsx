@@ -1,9 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { getAdr, getAdrs, getAdrDiff, putAdr, type AdrDoc } from '../../api-client/index';
-import { Button, EditableTitle, Page, cx } from '../../design/index';
-import { AuthoredEditor } from '../../author/AuthoredEditor';
-import type { DocRef } from '../../author/AssistantPanel';
+import { getAdr, getAdrDiff, putAdr, type AdrDoc } from '../../api-client/index';
+import { Button, EditableTitle, MarkdownEditor, Page, cx, type MarkdownEditorHandle } from '../../design/index';
+import { useAssistant } from '../../assistant/AssistantContext';
 import { InlineDiff } from './InlineDiff';
 
 type Mode = 'edit' | 'changes';
@@ -25,10 +24,12 @@ export function AdrEditor() {
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [committed, setCommitted] = useState(''); // last-accepted body (diff baseline)
-  const [availableDocs, setAvailableDocs] = useState<DocRef[]>([]); // other ADRs for wide context
   const [mode, setMode] = useState<Mode>('edit');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const editorRef = useRef<MarkdownEditorHandle>(null);
+  const { registerOpenDoc } = useAssistant();
 
   useEffect(() => {
     let cancelled = false;
@@ -49,21 +50,21 @@ export function AdrEditor() {
     getAdrDiff(relPath)
       .then((diff) => !cancelled && setCommitted(diff.before))
       .catch(() => !cancelled && setCommitted(''));
-    // Offer the other databank ADRs as wide multi-doc context for the assistant.
-    getAdrs()
-      .then((docs) => {
-        if (cancelled) return;
-        setAvailableDocs(
-          docs
-            .filter((d) => d.relPath !== relPath)
-            .map((d) => ({ relPath: d.relPath, title: d.title })),
-        );
-      })
-      .catch(() => !cancelled && setAvailableDocs([]));
     return () => {
       cancelled = true;
     };
   }, [relPath]);
+
+  // Register this doc with the global assistant so the rail can use it as context and
+  // hand an edit of THIS doc to the editor's inline accept/reject diff (no API write).
+  useEffect(() => {
+    registerOpenDoc({
+      relPath,
+      getValue: () => body,
+      applyInline: (orig, repl) => editorRef.current?.applyProposal(orig, repl),
+    });
+    return () => registerOpenDoc(null);
+  }, [relPath, body, registerOpenDoc]);
 
   const dirty = adr !== null && (body !== adr.body || title !== adr.title);
 
@@ -128,13 +129,7 @@ export function AdrEditor() {
           <div className="mb-5 mt-1 font-mono text-[12px] text-ink-faint">{file}</div>
 
           {mode === 'edit' ? (
-            <AuthoredEditor
-              relPath={relPath}
-              title={title}
-              value={body}
-              onChange={setBody}
-              availableDocs={availableDocs}
-            />
+            <MarkdownEditor ref={editorRef} value={body} onChange={setBody} />
           ) : (
             <InlineDiff before={committed} after={body} />
           )}

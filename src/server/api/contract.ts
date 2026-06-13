@@ -12,7 +12,8 @@
 //   GET  /api/adrs/:relPath/diff   -> AdrDiffResponse
 //   GET  /api/templates            -> TemplateDef[]
 //   GET  /api/roles                -> RoleDef[]
-//   POST /api/author               -> AuthorResponse                body: AuthorRequestBody
+//   GET  /api/models               -> ModelOption[]
+//   POST /api/assistant            -> AssistantProposal             body: AssistantRequestBody
 //   GET  /api/cascades             -> CascadeSummary[]
 //   POST /api/cascades             -> CascadeSummary               body: CreateCascadeRequest
 //   GET  /api/cascades/:id         -> CascadeDetail
@@ -22,7 +23,7 @@
 // `:relPath` is URL-encoded (it contains slashes, e.g. databank/adr-007.md).
 
 import type {
-  AdrDoc, TemplateDef, RoleDef, CascadeSummary, LoopDoc, AuthorRequest,
+  AdrDoc, TemplateDef, RoleDef, CascadeSummary, LoopDoc,
   AssistantRequest, AssistantProposal, ModelOption,
 } from '../../shared/index';
 
@@ -59,14 +60,6 @@ export type GetCascadeResponse = CascadeDetail;
 
 export type ApproveCascadeResponse = Ok;
 
-/** POST /api/author — Cursor-style edit (WP-7). Body: AuthorRequest. Returns a proposal
- *  (replacement text / edited doc / chat answer) the editor shows as an inline diff —
- *  never a silent write. Re-exported here as the canonical body type for the route. */
-export type AuthorRequestBody = AuthorRequest;
-export interface AuthorResponse {
-  proposal: string;
-}
-
 export type GetModelsResponse = ModelOption[];
 /** POST /api/assistant — global assistant (answer/edit/create-*). Returns a typed
  *  proposal the rail previews; never writes. */
@@ -88,8 +81,6 @@ export interface SloopApi {
   listTemplates(): Promise<GetTemplatesResponse>;
   listRoles(): Promise<GetRolesResponse>;
   listCascades(): Promise<GetCascadesResponse>;
-  /** Cursor-style authoring edit (WP-7); returns a proposal, never writes. */
-  author(req: AuthorRequest): Promise<AuthorResponse>;
   /** Configured model aliases for the picker (no API keys). */
   listModels(): Promise<GetModelsResponse>;
   /** Global assistant: returns a typed proposal, never writes. */

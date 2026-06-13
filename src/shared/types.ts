@@ -94,15 +94,6 @@ export interface ResolvedModel {
   apiKey: string;
 }
 
-// ---- Authoring assistant (Cursor-style editing of databank docs) ----
-export interface AuthorRequest {
-  scope: 'selection' | 'doc' | 'multi';
-  instruction: string;       // the user's ask
-  docPaths: string[];        // current doc; plus extra docs when scope='multi'
-  selectionText?: string;    // required when scope='selection'
-  model?: string;            // registry alias; falls back to a config default
-}
-
 // ---- Global assistant (app-wide: answer / edit / create ADR|role|template) ----
 
 /** A configured model alias surfaced to the picker. Never carries an API key. */

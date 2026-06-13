@@ -1,6 +1,7 @@
 import { Outlet } from 'react-router-dom';
 import { KickoffMenu } from './KickoffMenu';
 import { SidebarNav } from './SidebarNav';
+import { AssistantRail } from './AssistantRail';
 
 /**
  * The app shell: a quiet left sidebar (the only navigation — no top tabs) plus the
@@ -27,9 +28,11 @@ export function AppShell() {
         </div>
       </aside>
 
-      <main className="min-w-0 flex-1">
+      <main className="min-w-0 flex-1 overflow-y-auto">
         <Outlet />
       </main>
+
+      <AssistantRail />
     </div>
   );
 }
