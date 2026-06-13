@@ -220,6 +220,8 @@ Primary areas:
 
 Everything shown is a view over markdown on disk; there is no hidden state.
 
+**Navigation is the left sidebar only** (Databank · Cascades · Libraries) — there are no top tabs. The approved visual target lives in `docs/superpowers/mockups/` (with a locked visual-language note); frontend WPs build to it.
+
 ---
 
 ## 8. Cross-cutting concerns

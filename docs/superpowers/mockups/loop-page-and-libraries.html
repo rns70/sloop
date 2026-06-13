@@ -1,0 +1,150 @@
+<h2 style="color:#fff">The other surfaces — same minimal Notion language</h2>
+<p class="subtitle">Three screens stacked: ① Databank / ADR editor (BlockNote + inline diff) · ② Loop page · ③ Libraries. Scroll through and tell me what to refine.</p>
+
+<style>
+  .win{background:#fff;border-radius:12px;overflow:hidden;border:1px solid #ececea;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-serif;color:#37352f;box-shadow:0 12px 40px rgba(0,0,0,.30);margin-bottom:26px}
+  .win .side{width:184px;background:#fbfbfa;border-right:1px solid #f0efed;padding:14px 9px;font-size:13px;flex-shrink:0}
+  .win .side .lbl{color:#b4b3af;font-size:10px;letter-spacing:.07em;margin:14px 6px 4px}
+  .win .side .it{color:#828179;padding:3px 6px}
+  .win .side .on{background:#f1f0ee;color:#37352f;border-radius:5px}
+  .win .scrlabel{font-size:11px;color:#9b9a97;letter-spacing:.05em;text-transform:uppercase;margin:0 0 8px}
+  .crumb{font-size:12px;color:#b4b3af;margin-bottom:10px}
+  .pill{font-size:11.5px;padding:1px 8px;border-radius:4px}
+  .prop{display:flex;font-size:13.5px;line-height:2.1}
+  .prop .k{width:96px;color:#9b9a97}
+  .h1{font-size:23px;font-weight:700;letter-spacing:-.01em}
+</style>
+
+<!-- ① DATABANK / ADR EDITOR -->
+<div class="scrlabel" style="color:#cfcfca">① Databank — ADR editor (BlockNote) + inline diff</div>
+<div class="win" style="display:flex;min-height:380px">
+  <div class="side">
+    <div style="font-weight:600;padding:2px 6px 14px">◆ sloop</div>
+    <div class="lbl" style="margin-top:6px">DATABANK</div>
+    <div class="it on">adr-007 · token rotation</div>
+    <div class="it">adr-012 · device trust</div>
+    <div class="it">adr-003 · legacy SSO</div>
+    <div class="lbl">CASCADES</div>
+    <div class="it">requirements-sync</div>
+    <div class="lbl">LIBRARIES</div>
+    <div class="it">Roles</div><div class="it">Templates</div>
+  </div>
+  <div style="flex:1;min-width:0">
+    <div style="display:flex;align-items:center;gap:12px;padding:10px 20px;border-bottom:1px solid #f0efed;font-size:12.5px">
+      <span style="color:#828179">Databank</span>
+      <span style="margin-left:auto;display:flex;gap:8px">
+        <span class="pill" style="background:#f1f0ee;color:#615f5a">⇄ diff vs last accepted</span>
+        <span class="pill" style="background:#37352f;color:#fff">Save &amp; kick off cascade</span>
+      </span>
+    </div>
+    <div style="display:flex">
+      <!-- editor -->
+      <div style="flex:1;padding:22px 26px;min-width:0">
+        <div class="crumb">Databank /</div>
+        <div class="h1" style="margin-bottom:16px">ADR-007 · Token rotation</div>
+        <!-- blocknote-ish blocks -->
+        <div style="font-size:14.5px;line-height:1.75;color:#37352f">
+          <div style="font-weight:600;font-size:15px;margin:4px 0 6px">Decision</div>
+          <div style="display:flex;gap:8px"><span style="color:#c4c3bf">⠿</span><span>Refresh tokens rotate on every use; a reused token revokes the whole family.</span></div>
+          <div style="display:flex;gap:8px;margin-top:6px"><span style="color:#c4c3bf">⠿</span><span>Access tokens live ≤ 15 minutes.</span></div>
+          <div style="background:#f7f7f5;border-radius:7px;padding:9px 13px;margin:12px 0;color:#615f5a;font-size:13.5px;display:flex;gap:9px"><span>💡</span><span>Supersedes ADR-003's long-lived sessions.</span></div>
+        </div>
+        <!-- criteria -->
+        <div style="margin-top:18px;border-top:1px solid #f0efed;padding-top:14px">
+          <div style="font-size:12px;color:#9b9a97;letter-spacing:.05em;margin-bottom:8px">ACCEPTANCE CRITERIA</div>
+          <div style="font-size:13.5px;line-height:2">
+            <div style="display:flex;gap:9px;align-items:center"><span style="color:#a5a39e">ac-1</span> tokens rotate every ≤15m <span style="margin-left:auto;font-family:ui-monospace,monospace;font-size:11.5px;color:#828179">verify: npm test -- rotation</span></div>
+            <div style="display:flex;gap:9px;align-items:center"><span style="color:#a5a39e">ac-2</span> reuse revokes family <span style="margin-left:auto;font-family:ui-monospace,monospace;font-size:11.5px;color:#828179">verify: npm test -- reuse</span></div>
+          </div>
+        </div>
+      </div>
+      <!-- diff rail -->
+      <div style="width:230px;border-left:1px solid #f0efed;padding:18px 16px;background:#fcfcfb;flex-shrink:0">
+        <div style="font-size:11px;color:#9b9a97;letter-spacing:.05em;margin-bottom:10px">DIFF VS LAST ACCEPTED</div>
+        <div style="font-family:ui-monospace,Menlo,monospace;font-size:11.5px;line-height:1.7">
+          <div style="background:#fdecec;color:#9a4040;padding:1px 6px;border-radius:3px;margin:2px 0;text-decoration:line-through;opacity:.8">Sessions persist in Redis</div>
+          <div style="background:#eaf6ee;color:#356b48;padding:1px 6px;border-radius:3px;margin:2px 0">Refresh tokens rotate; reuse → revoke family</div>
+          <div style="background:#eaf6ee;color:#356b48;padding:1px 6px;border-radius:3px;margin:2px 0">Access tokens ≤ 15m</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ② LOOP PAGE -->
+<div class="scrlabel" style="color:#cfcfca">② Loop page — a single loop as a Notion page</div>
+<div class="win" style="display:flex;min-height:360px">
+  <div class="side">
+    <div style="font-weight:600;padding:2px 6px 14px">◆ sloop</div>
+    <div class="lbl" style="margin-top:6px">CASCADES</div>
+    <div class="it on">requirements-sync</div>
+    <div class="it" style="padding-left:16px;color:#615f5a">rotate refresh tokens</div>
+    <div class="it" style="padding-left:16px">add device-trust check</div>
+  </div>
+  <div style="flex:1;min-width:0;padding:24px 28px">
+    <div class="crumb">requirements-sync / rotate refresh tokens</div>
+    <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:16px">
+      <span class="h1">rotate refresh tokens</span>
+      <span style="font-size:12px;color:#2f6cb0">● executing</span>
+    </div>
+    <div style="margin-bottom:18px">
+      <div class="prop"><span class="k">Role</span><span class="pill" style="background:#eaf2fb;color:#2f6cb0">Engineer</span></div>
+      <div class="prop"><span class="k">Model</span><span style="color:#615f5a">sonnet</span></div>
+      <div class="prop"><span class="k">Status</span><span style="color:#2f6cb0">executing · plan ✓ → execute ● → review</span></div>
+      <div class="prop"><span class="k">Source</span><span style="color:#615f5a">ADR-007 · change</span></div>
+      <div class="prop"><span class="k">Criteria</span><span style="color:#615f5a">1 / 2 passed</span></div>
+    </div>
+    <div style="border-top:1px solid #f0efed;padding-top:14px;font-size:14px;line-height:1.7">
+      <div style="font-weight:600;margin-bottom:5px">Plan</div>
+      <div style="color:#4a4843">Rotate refresh tokens in the auth service; migrate the session store; add reuse-detection that revokes the token family.</div>
+    </div>
+    <div style="margin-top:16px">
+      <div style="font-size:12px;color:#9b9a97;letter-spacing:.05em;margin-bottom:8px">AGENT OUTPUT</div>
+      <div style="background:#f7f7f5;border-radius:7px;padding:10px 13px;font-family:ui-monospace,Menlo,monospace;font-size:11.5px;color:#6b6a66;line-height:1.7">
+        <div style="color:#8a8983">pi · sonnet · /src/auth</div>
+        <div>edited token-service.ts · session-store.ts</div>
+        <div>verify <span style="color:#4a8f5f">npm test -- rotation</span> → <span style="color:#4a8f5f">passed</span></div>
+        <div>verify <span style="color:#b07d3e">npm test -- reuse</span> → running…</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ③ LIBRARIES -->
+<div class="scrlabel" style="color:#cfcfca">③ Libraries — roles &amp; templates</div>
+<div class="win" style="display:flex;min-height:330px">
+  <div class="side">
+    <div style="font-weight:600;padding:2px 6px 14px">◆ sloop</div>
+    <div class="lbl" style="margin-top:6px">LIBRARIES</div>
+    <div class="it on">Roles</div>
+    <div class="it">Templates</div>
+  </div>
+  <div style="flex:1;min-width:0;padding:24px 28px;display:flex;gap:34px">
+    <!-- roles -->
+    <div style="flex:1">
+      <div style="display:flex;align-items:center;margin-bottom:12px"><span style="font-size:16px;font-weight:600">Roles</span><span style="margin-left:auto;font-size:12.5px;color:#b4b3af">+ New</span></div>
+      <div style="font-size:13.5px">
+        <div style="display:flex;align-items:center;gap:9px;padding:8px 0;border-bottom:1px solid #f3f2f0"><span class="pill" style="background:#f6f0fc;color:#9b59c4">Architect</span><span style="color:#9b9a97;margin-left:auto">opus</span></div>
+        <div style="display:flex;align-items:center;gap:9px;padding:8px 0;border-bottom:1px solid #f3f2f0"><span class="pill" style="background:#eaf2fb;color:#2f6cb0">Engineer</span><span style="color:#9b9a97;margin-left:auto">sonnet</span></div>
+        <div style="display:flex;align-items:center;gap:9px;padding:8px 0;border-bottom:1px solid #f3f2f0"><span class="pill" style="background:#eef6ef;color:#4a8f5f">QA</span><span style="color:#9b9a97;margin-left:auto">haiku</span></div>
+        <div style="display:flex;align-items:center;gap:9px;padding:8px 0"><span class="pill" style="background:#fbeef2;color:#b03a5b">Security</span><span style="color:#9b9a97;margin-left:auto">sonnet</span></div>
+      </div>
+    </div>
+    <!-- templates -->
+    <div style="flex:1">
+      <div style="display:flex;align-items:center;margin-bottom:12px"><span style="font-size:16px;font-weight:600">Templates</span><span style="margin-left:auto;font-size:12.5px;color:#b4b3af">+ New</span></div>
+      <div style="font-size:13.5px">
+        <div style="padding:8px 0;border-bottom:1px solid #f3f2f0"><div style="display:flex"><span>spec-driven</span><span style="margin-left:auto;color:#b4b3af">default</span></div><div style="color:#9b9a97;font-size:12px;margin-top:2px">plan → implement → verify</div></div>
+        <div style="padding:8px 0;border-bottom:1px solid #f3f2f0"><div>waterfall</div><div style="color:#9b9a97;font-size:12px;margin-top:2px">requirements → design → implement → verify → deploy</div></div>
+        <div style="padding:8px 0"><div>tdd</div><div style="color:#9b9a97;font-size:12px;margin-top:2px">failing test → implement → refactor</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="options" style="margin-top:8px" data-multiselect>
+  <div class="option" data-choice="databank" onclick="toggleSelect(this)"><div class="letter">A</div><div class="content"><h3>Databank/editor works</h3><p>Block editor + criteria + diff rail.</p></div></div>
+  <div class="option" data-choice="loop" onclick="toggleSelect(this)"><div class="letter">B</div><div class="content"><h3>Loop page works</h3><p>Properties + plan + agent output.</p></div></div>
+  <div class="option" data-choice="libraries" onclick="toggleSelect(this)"><div class="letter">C</div><div class="content"><h3>Libraries works</h3><p>Roles + templates as quiet lists.</p></div></div>
+  <div class="option" data-choice="success" onclick="toggleSelect(this)"><div class="letter">D</div><div class="content"><h3>Next: the root-done success state</h3><p>Show the "codebase matches databank" money shot.</p></div></div>
+</div>

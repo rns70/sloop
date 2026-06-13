@@ -1,0 +1,98 @@
+<h2 style="color:#fff">Markdown editor at the core — with inline diffs</h2>
+<p class="subtitle">Same editor for every file: ADR entries, role instructions, templates. Diffs render <strong>inline</strong> in the document, not a side rail. The cascade view keeps its bespoke components.</p>
+
+<style>
+  .win{background:#fff;border-radius:12px;overflow:hidden;border:1px solid #ececea;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-serif;color:#37352f;box-shadow:0 12px 40px rgba(0,0,0,.30);margin-bottom:26px;display:flex;min-height:380px}
+  .win .side{width:184px;background:#fbfbfa;border-right:1px solid #f0efed;padding:14px 9px;font-size:13px;flex-shrink:0}
+  .win .side .lbl{color:#b4b3af;font-size:10px;letter-spacing:.07em;margin:14px 6px 4px}
+  .win .side .it{color:#828179;padding:3px 6px}
+  .win .side .on{background:#f1f0ee;color:#37352f;border-radius:5px}
+  .crumb{font-size:12px;color:#b4b3af;margin-bottom:10px}
+  .h1{font-size:23px;font-weight:700;letter-spacing:-.01em}
+  .blk{display:flex;gap:9px;font-size:14.5px;line-height:1.75;margin:5px 0}
+  .grip{color:#dcdbd7}
+  .scrlabel{font-size:11px;color:#cfcfca;letter-spacing:.05em;text-transform:uppercase;margin:0 0 8px}
+  .pill{font-size:11.5px;padding:1px 8px;border-radius:4px}
+  /* inline diff */
+  .del{background:#fdecec;color:#9a4040;border-radius:4px;padding:1px 6px;text-decoration:line-through;opacity:.75}
+  .add{background:#eaf6ee;color:#2f6b45;border-radius:4px;padding:1px 6px;box-shadow:inset 2px 0 0 #5aa978}
+</style>
+
+<!-- ADR as plain markdown + inline diff -->
+<div class="scrlabel">① Databank entry — a plain markdown file, inline diff mode</div>
+<div class="win">
+  <div class="side">
+    <div style="font-weight:600;padding:2px 6px 14px">◆ sloop</div>
+    <div class="lbl" style="margin-top:6px">DATABANK</div>
+    <div class="it on">adr-007 · token rotation</div>
+    <div class="it">adr-012 · device trust</div>
+    <div class="it">adr-003 · legacy SSO</div>
+  </div>
+  <div style="flex:1;min-width:0">
+    <div style="display:flex;align-items:center;gap:12px;padding:10px 20px;border-bottom:1px solid #f0efed;font-size:12.5px">
+      <span style="color:#828179">Databank / adr-007-token-rotation.md</span>
+      <span style="margin-left:auto;display:flex;gap:8px;align-items:center">
+        <span class="pill" style="background:#eef3fb;color:#2f5fb0">● showing changes</span>
+        <span class="pill" style="background:#f1f0ee;color:#615f5a">Edit</span>
+      </span>
+    </div>
+    <div style="padding:24px 30px;max-width:640px">
+      <div class="crumb">adr-007-token-rotation.md</div>
+      <div class="h1" style="margin-bottom:4px"># Token rotation</div>
+      <div style="font-size:13px;color:#9b9a97;margin-bottom:18px">Markdown on disk · inline diff vs last accepted commit</div>
+
+      <div style="font-weight:600;font-size:15px;margin:14px 0 6px">## Decision</div>
+      <div class="blk"><span class="grip">⠿</span><span>Refresh tokens <span class="add">rotate on every use; a reused token revokes the whole family</span>.</span></div>
+      <div class="blk"><span class="grip">⠿</span><span class="del">Sessions persist indefinitely in Redis.</span></div>
+      <div class="blk"><span class="grip">⠿</span><span><span class="add">Access tokens live ≤ 15 minutes.</span></span></div>
+
+      <div style="font-weight:600;font-size:15px;margin:16px 0 6px">## Acceptance criteria</div>
+      <div class="blk"><span class="grip">⠿</span><span>- <code style="background:#f3f2f0;padding:0 5px;border-radius:3px;font-size:12.5px">ac-1</code> tokens rotate every ≤15m &nbsp;<span style="color:#9b9a97;font-family:ui-monospace,monospace;font-size:12px">`verify: npm test -- rotation`</span></span></div>
+      <div class="blk"><span class="grip">⠿</span><span class="add">- <code style="background:#e3efe7;padding:0 5px;border-radius:3px;font-size:12.5px">ac-2</code> reuse revokes family &nbsp;<span style="font-family:ui-monospace,monospace;font-size:12px">`verify: npm test -- reuse`</span></span></div>
+    </div>
+  </div>
+</div>
+
+<!-- Role instructions as markdown in the same editor -->
+<div class="scrlabel">② Role instructions — the same markdown editor (Libraries → Engineer)</div>
+<div class="win">
+  <div class="side">
+    <div style="font-weight:600;padding:2px 6px 14px">◆ sloop</div>
+    <div class="lbl" style="margin-top:6px">LIBRARIES</div>
+    <div class="it on">Roles</div>
+    <div class="it">Templates</div>
+    <div class="lbl">ROLES</div>
+    <div class="it">Architect</div>
+    <div class="it on" style="margin-left:8px">Engineer</div>
+    <div class="it">QA</div>
+    <div class="it">Security</div>
+  </div>
+  <div style="flex:1;min-width:0">
+    <div style="display:flex;align-items:center;gap:12px;padding:10px 20px;border-bottom:1px solid #f0efed;font-size:12.5px">
+      <span style="color:#828179">.sloop/roles/engineer.md</span>
+      <span style="margin-left:auto"><span class="pill" style="background:#37352f;color:#fff">Save</span></span>
+    </div>
+    <div style="padding:24px 30px;max-width:640px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px"><span class="h1"># Engineer</span><span class="pill" style="background:#eaf2fb;color:#2f6cb0">role</span></div>
+      <div style="font-size:13px;color:#9b9a97;margin-bottom:18px">Frontmatter sets the defaults · the body is the brief the agent receives</div>
+
+      <div style="background:#fbfbfa;border:1px solid #f0efed;border-radius:7px;padding:10px 13px;font-family:ui-monospace,Menlo,monospace;font-size:12px;color:#615f5a;line-height:1.7;margin-bottom:16px">
+        <div style="color:#9b9a97">---</div>
+        <div>defaultModel: sonnet</div>
+        <div>color: blue</div>
+        <div style="color:#9b9a97">---</div>
+      </div>
+
+      <div class="blk"><span class="grip">⠿</span><span style="font-weight:600;font-size:15px">## Brief</span></div>
+      <div class="blk"><span class="grip">⠿</span><span>You implement a single, well-scoped change. Make the acceptance criteria pass — nothing more.</span></div>
+      <div class="blk"><span class="grip">⠿</span><span>Write tests alongside the change. Keep the diff small and reviewable.</span></div>
+      <div class="blk"><span class="grip">⠿</span><span>If the work is larger than one unit, stop and spawn child loops instead of sprawling.</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="options" style="margin-top:8px">
+  <div class="option" data-choice="yes" onclick="toggleSelect(this)"><div class="letter">A</div><div class="content"><h3>This is right</h3><p>Markdown-core editor + inline diffs everywhere; roles/templates edited the same way. Lock it and update the docs.</p></div></div>
+  <div class="option" data-choice="diff" onclick="toggleSelect(this)"><div class="letter">B</div><div class="content"><h3>Inline diff treatment needs tweaking</h3><p>I'll describe how I want adds/removes to look.</p></div></div>
+  <div class="option" data-choice="success" onclick="toggleSelect(this)"><div class="letter">C</div><div class="content"><h3>Now show the cascade success "money shot"</h3><p>The bespoke-component surface at convergence.</p></div></div>
+</div>

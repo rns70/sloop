@@ -3,7 +3,7 @@
 > **Stage 2 — parallel. Depends on WP-0 (mock API). Reuses WP-4's design kit (import it; if not merged yet, stub minimal styles and swap later).**
 
 ## Before you start
-Read the spec (§7 UI surfaces, §3 convergence — the root-status "money shot", §6 roles/templates) and the overview. Branch: `wp-5-mission-control`. Consume `src/web/api-client` + shared types only.
+Read the spec (§7 UI surfaces, §3 convergence — the root-status "money shot", §6 roles/templates) and the overview. **Open the approved mockups in `docs/superpowers/mockups/` — `mission-control-running.html`, `cascade-done.html`, `loop-page-and-libraries.html` are your visual target; follow the locked visual-language note in that folder's README (Notion-quiet, no top tabs, one accent).** Branch: `wp-5-mission-control`. Consume `src/web/api-client` + shared types only.
 
 ## Your goal
 Build the views that make the demo land: the live **loop tree** (Mission Control) with the approval checkpoint, the **Loop page** with streamed agent output, and the **Libraries** view for roles/templates. The root-status flip to `done` ("codebase matches databank") is the visual climax — make it satisfying.

@@ -3,7 +3,7 @@
 > **Stage 2 — parallel. Depends on WP-0 (mock API). Build entirely against the mock; never import backend code.**
 
 ## Before you start
-Read the spec (§7 UI surfaces — Notion aesthetic) and the overview. Branch: `wp-4-frontend-shell`. You consume `src/web/api-client` and shared types only.
+Read the spec (§7 UI surfaces — Notion aesthetic) and the overview. **Open the approved mockups in `docs/superpowers/mockups/` (especially `markdown-editor-and-roles.html`) — they are the visual target; build to them, and follow the locked visual-language note in that folder's README.** Branch: `wp-4-frontend-shell`. You consume `src/web/api-client` and shared types only.
 
 ## Your goal
 Establish the Notion-style design system + app shell, and build the **Databank view**: browse ADRs and edit one with an inline diff. This sets the visual language WP-5 reuses, so nail the aesthetic: clean, light, typographic, generous whitespace, subtle borders, small uppercase labels, rounded tags.
@@ -18,7 +18,7 @@ Do not touch `src/web/views/{mission-control,loop,libraries}` (WP-5) or `src/web
 ## Tasks
 1. Tailwind theme: Notion-like palette (paper white, warm grays `#37352f`/`#787774`/`#9b9a97`, subtle `#ededec` borders), system font stack, tag color tokens for roles.
 2. Design primitives in `src/web/design/` — keep them dumb/presentational. This is the kit; WP-5 must be able to render the loop tree with it.
-3. `AppShell` with sidebar nav + routed content area. Sidebar sections match the spec (Databank, Cascades, Libraries).
+3. `AppShell` with sidebar nav + routed content area. Sidebar sections match the spec (Databank, Cascades, Libraries). **Navigation is the left sidebar only — no top tabs.** The content top bar is just a quiet breadcrumb (e.g. `Cascades / requirements-sync`) + minor right-aligned context. See the mockups (below).
 4. `MarkdownEditor` (in `src/web/design/`) — wrap **BlockNote** (`@blocknote/core`, `@blocknote/react`, `@blocknote/mantine`), a block-based rich-text editor, NOT a textarea:
    - Create the editor with `useCreateBlockNote()`; render with `<BlockNoteView editor={editor} theme="light" />` from `@blocknote/mantine`. Import its CSS: `@blocknote/core/fonts/inter.css` and `@blocknote/mantine/style.css`.
    - Props: `value: string` (markdown in) + `onChange(markdown: string)` + optional `diffAgainst?: string` (previous markdown). On mount/`value` change, load via `await editor.tryParseMarkdownToBlocks(value)` → `editor.replaceBlocks(...)`. On edit, export with `await editor.blocksToMarkdownLossy(editor.document)` and call `onChange`.
