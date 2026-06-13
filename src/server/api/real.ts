@@ -280,6 +280,19 @@ export class RealApi implements StreamingSloopApi {
 
   // ---- Cascades ------------------------------------------------------------
 
+  async listCascades(): Promise<CascadeSummary[]> {
+    // The engine never writes a cascade-summary file (meta lives in memory + loops),
+    // so enumerate the on-disk cascade dirs and rebuild each summary via the engine.
+    // A dir mid-write (no readable root loop yet) is skipped rather than failing the list.
+    const ids = await this.files.listCascadeIds();
+    const summaries = await Promise.all(
+      ids.map((id) => this.engine.get(id).then((d) => d.summary, () => null)),
+    );
+    return summaries
+      .filter((s): s is CascadeSummary => s !== null)
+      .sort((a, b) => b.id.localeCompare(a.id)); // newest first (ids are date-prefixed)
+  }
+
   async createCascade(req: CreateCascadeRequest): Promise<CascadeSummary> {
     const summary = await this.engine.kickoff(req.templateId);
     // Prime a stream buffer so a subscriber can attach the instant approval starts.
@@ -397,6 +410,7 @@ function decorateFiles(inner: FilesService, onWrite: (loop: LoopDoc) => void): F
     writeAdr: (d) => inner.writeAdr(d),
     readLoop: (p) => inner.readLoop(p),
     listLoops: (c) => inner.listLoops(c),
+    listCascadeIds: () => inner.listCascadeIds(),
     listTemplates: () => inner.listTemplates(),
     listRoles: () => inner.listRoles(),
     readModelRegistry: () => inner.readModelRegistry(),

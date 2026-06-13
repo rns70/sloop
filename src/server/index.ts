@@ -83,6 +83,7 @@ async function main(): Promise<void> {
 
   app.post('/api/author', h(async (req, res) => res.json(await api.author(req.body))));
 
+  app.get('/api/cascades', h(async (_req, res) => res.json(await api.listCascades())));
   app.post('/api/cascades', h(async (req, res) => res.json(await api.createCascade(req.body))));
   app.get('/api/cascades/:id', h(async (req, res) => res.json(await api.getCascade(req.params.id))));
   app.post('/api/cascades/:id/approve', h(async (req, res) =>
