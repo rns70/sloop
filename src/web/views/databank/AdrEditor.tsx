@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { getAdr, getAdrDiff, putAdr, type AdrDoc } from '../../api-client/index';
-import { Button, MarkdownEditor, Page, cx } from '../../design/index';
+import { getAdr, getAdrDiff, getAdrs, putAdr, type AdrDoc } from '../../api-client/index';
+import { Button, Page, cx } from '../../design/index';
+import { AuthoredEditor } from '../../author/AuthoredEditor';
 import { InlineDiff } from './InlineDiff';
 
 type Mode = 'edit' | 'changes';
@@ -22,18 +23,24 @@ export function AdrEditor() {
   const [mode, setMode] = useState<Mode>('edit');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [availableDocs, setAvailableDocs] = useState<{ relPath: string; title: string }[]>([]);
 
   useEffect(() => {
     let cancelled = false;
     setAdr(null);
     setError(null);
     setMode('edit');
-    Promise.all([getAdr(relPath), getAdrDiff(relPath)])
-      .then(([doc, diff]) => {
+    Promise.all([getAdr(relPath), getAdrDiff(relPath), getAdrs()])
+      .then(([doc, diff, all]) => {
         if (cancelled) return;
         setAdr(doc);
         setBody(doc.body);
         setCommitted(diff.before);
+        setAvailableDocs(
+          all
+            .filter((a) => a.relPath !== relPath)
+            .map((a) => ({ relPath: a.relPath, title: a.title })),
+        );
       })
       .catch((e: unknown) => {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
@@ -108,7 +115,13 @@ export function AdrEditor() {
           </div>
 
           {mode === 'edit' ? (
-            <MarkdownEditor value={body} onChange={setBody} />
+            <AuthoredEditor
+              relPath={relPath}
+              title={file}
+              value={body}
+              onChange={setBody}
+              availableDocs={availableDocs}
+            />
           ) : (
             <InlineDiff before={committed} after={body} />
           )}
