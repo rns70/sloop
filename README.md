@@ -1,155 +1,100 @@
-# sloop
+<div align="center">
+  <img src="assets/sloop-concept.png" alt="Sloop concept mark" width="220">
 
-**An IDE for agent factories** — a local app that keeps a codebase continuously
-reconciled to a databank of requirement documents (ADRs). Edit your requirements, kick
-off a **cascade**, and a tree of agent loops drives the code back into agreement. When
-the root loop reports **done**, the codebase matches the databank.
+  <h1>Sloop</h1>
 
-See the design and build plan:
-- `docs/superpowers/specs/2026-06-13-sloop-design.md`
-- `docs/superpowers/plans/2026-06-13-sloop-build-overview.md`
+  <p><strong>choose sloop not slop</strong></p>
 
-> **Status:** WP-0 (Foundation) — shared contracts, a working **mock** API over a sample
-> workspace, and the frontend/backend scaffold. No real git, agents, or backend logic yet.
+  <p>A paper-first meta-IDE for defining, running, and supervising nested agent loops.</p>
 
+  <p>
+    <img alt="Status" src="https://img.shields.io/badge/status-hackathon%20prototype-7c3aed?style=flat-square">
+    <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-first-3178c6?style=flat-square&amp;logo=typescript&amp;logoColor=white">
+    <img alt="Vite" src="https://img.shields.io/badge/Vite-powered-646cff?style=flat-square&amp;logo=vite&amp;logoColor=white">
+    <img alt="Node worker" src="https://img.shields.io/badge/Node-local%20worker-5fa04e?style=flat-square&amp;logo=nodedotjs&amp;logoColor=white">
+    <img alt="Markdown" src="https://img.shields.io/badge/Markdown-source%20of%20truth-111827?style=flat-square&amp;logo=markdown">
+    <img alt="Git backed" src="https://img.shields.io/badge/Git-backed-f05032?style=flat-square&amp;logo=git&amp;logoColor=white">
+  </p>
+</div>
+
+## What Is Sloop?
+
+Sloop is a local-first workspace for building software through definable agent loops. Instead of treating agents as one-off chat sessions, Sloop makes their work explicit as Markdown documents, evaluation criteria, diffs, and nested pipelines.
+
+The main interface is a Notion-like paper surface backed by plain Markdown. A loop document can define its own child stages inline: product requirements, architecture alternatives, implementation plans, build agents, review loops, or any other workflow the user wants to invent.
+
+## Core Ideas
+
+- **Markdown is canonical.** Loop definitions, generated docs, maintained docs, and evaluation criteria live in Markdown, optionally with frontmatter.
+- **Pipelines are user-definable.** Any loop doc can define lower stages, and those stages can define their own lower stages.
+- **Every loop has evals.** Evaluation criteria are written in text first, then agents can derive deterministic checks such as tests, schemas, fixtures, or commands.
+- **Git is the audit trail.** Sloop uses diffs and history to make agent changes inspectable and reversible.
+- **Cascades are diff-driven.** When a parent doc changes, agents inspect the Git diff and update only the affected downstream docs or code.
+- **Agents run locally through Pi.** The hackathon build uses Pi as the only external coding agent runtime.
+
+## How It Works
+
+```mermaid
+flowchart TD
+  A["Markdown loop doc"] --> B["Inline child stage definitions"]
+  B --> C["Agent run in the project directory"]
+  C --> D["Generated or updated downstream docs"]
+  D --> E["Text eval criteria + derived checks"]
+  E --> F{"Passes?"}
+  F -->|yes| G["Auto-apply changes"]
+  F -->|no| H["Pause, inspect, edit, rerun"]
+  G --> I["Git diff, history, rollback"]
+  I --> A
+```
+
+## Example Loop Shape
+
+```md
+---
+kind: loop-doc
+status: running
+agent: pi
+evals:
+  - Requirements are complete and non-ambiguous.
+  - Each downstream architecture option traces back to this PRD.
+children:
+  - stage: architecture
+    mode: alternatives
+    count: 3
+  - stage: implementation-plan
+    from: selected-architecture
 ---
 
-## Quickstart (CLI)
+# Product Requirements
 
-Run sloop inside any project directory. It treats that directory as both the requirement
-databank and the codebase the agent edits.
-
-```bash
-# one-time: build the web UI (served by the CLI)
-npm install
-npm run build
-
-# in your project:
-export ANTHROPIC_API_KEY=sk-ant-...     # or NEBIUS_API_KEY
-cd /path/to/your/project
-sloop init      # scaffold .sloop/, databank/, and a git repo (auto-runs if you skip it)
-sloop           # serve the UI + API on http://localhost:5174 and open the browser
+Define the product, its constraints, and the criteria every child loop must satisfy.
 ```
 
-Then edit an ADR under `databank/`, kick off a cascade in the UI, approve it, and watch
-the agent implement and verify it in your repo.
+## Current Direction
 
-Flags: `sloop --port <n>`, `sloop --no-open`, `sloop --help`, `sloop --version`.
+The hackathon version is a Vite + TypeScript app with a local Node worker/server. The frontend owns the paper-first editing experience, diff views, and loop status UI. The local worker owns filesystem access, Git status/diffs, and agent process orchestration.
 
----
+Tauri and Rust are intentionally deferred for now so the prototype can move quickly.
 
-## Run it
+## Pi Runtime
 
-Requires **Node 20+**.
+Sloop expects Pi to be installed globally and available as `pi` on `PATH`. Before running Sloop agent loops, log in with `pi /login`, or start interactive `pi` and run `/login`.
 
-```bash
-npm install
-cp .env.example .env      # optional; fill in keys only when WP-2/WP-3 land
-npm run dev               # Vite app on :5173, mock API on :5174 (concurrently)
-```
+The runtime is configured with environment variables:
 
-Open **http://localhost:5173** — the page loads ADRs through the api-client and renders
-"2 ADRs loaded from the mock."
+- `SLOOP_PI_COMMAND=pi` - Pi CLI command to invoke.
+- `SLOOP_PI_MODEL=openai-codex/gpt-5.3-codex` - default Pi model.
+- `SLOOP_PI_PROVIDER` - optional provider override.
+- `SLOOP_PI_ARGS` - optional extra CLI arguments appended to the Pi invocation.
+- `SLOOP_PI_SESSION_ROOT=.sloop/pi-sessions` - optional root for per-run Pi session directories.
 
-Verify the API directly:
+Each Sloop run uses a per-run Pi session directory under `.sloop/pi-sessions` for runtime state, while file edits happen directly in the active project directory.
 
-```bash
-curl localhost:5174/api/adrs        # the two fixture ADRs as JSON
-curl localhost:5174/api/health      # { ok, workspace }
-```
+## Repo Map
 
-### Scripts
-| Script | Does |
-|--------|------|
-| `npm run dev` | Vite web app + `tsx` mock server, concurrently |
-| `npm run typecheck` | `tsc --noEmit` across the whole repo |
-| `npm test` | Vitest (currently the `resolveModel` unit tests) |
-| `npm run build` | Typecheck + Vite production build |
-| `npm run start` | Mock server only (`tsx src/server/index.ts`) |
+- [`README.md`](README.md) - project overview.
+- [`assets/sloop-concept.png`](assets/sloop-concept.png) - current concept image.
 
-Ports and the workspace path are configurable via env: `PORT` (5174), `PORT_WEB` (5173),
-`SLOOP_WORKSPACE` (defaults to `fixtures/sample-workspace`).
+## Status
 
----
-
-## How it's wired
-
-```
-src/web  ──HTTP/WS──▶  src/server/api  ──▶  mock (WP-0)  ──reads──▶  fixtures/sample-workspace
-   │                        ▲                  swap point
-   └─ api-client            └─ contract.ts (SloopApi) ──▶ real services (WP-6)
-```
-
-The web app talks **only** to `src/web/api-client`, which hits the API defined in
-`src/server/api/contract.ts`. WP-0 satisfies that contract with an in-memory **mock**
-that reads the sample workspace; WP-6 swaps in real handlers backed by the services in
-`src/shared/services.ts`. Nothing else changes at the swap.
-
-`src/shared` holds the **canonical, frozen contracts** — every work package imports from
-here and never redefines them.
-
----
-
-## File ownership map
-
-Each work package owns its paths exclusively. **Do not edit files outside your set.**
-
-```
-src/shared/                          WP-0  (FROZEN after Stage 1 — import, never edit)
-fixtures/sample-workspace/           WP-0
-package.json / tsconfig* / vite / tailwind / postcss   WP-0  (WP-6 may add scripts)
-
-src/server/files/                    WP-1
-src/server/git/                      WP-1
-src/server/cascade/                  WP-2
-src/server/planner/                  WP-2
-src/server/executor/                 WP-3
-
-src/web/design/                      WP-4
-src/web/shell/                       WP-4
-src/web/views/databank/              WP-4
-src/web/main.tsx                     WP-4
-
-src/web/views/mission-control/       WP-5
-src/web/views/loop/                  WP-5
-src/web/views/libraries/             WP-5
-src/web/api-client/                  WP-5  (replaces the WP-0 stub)
-
-src/server/api/                      WP-0 (contract + mock) → WP-6 (real handlers)
-src/server/index.ts                  WP-0 (skeleton)        → WP-6 (final wiring)
-```
-
----
-
-## Model + agent layer: Pi (for WP-2 / WP-3)
-
-sloop embeds **[Pi](https://github.com/earendil-works/pi)** (`earendil-works`, MIT) for
-all model calls and agent execution — no direct Anthropic/OpenAI SDKs. Confirmed package
-names at install (versions pinned to `^0.79.3`, already in `package.json`):
-
-| Package | Role |
-|---------|------|
-| **`@earendil-works/pi-ai`** | Unified multi-provider LLM API. All model calls (architect planning + leaf execution). Anthropic & OpenAI built in; **Nebius/Nemotron** registers as an OpenAI-compatible provider via `registerProvider({ api: 'openai-completions', baseUrl: 'https://api.studio.nebius.ai/v1', apiKey })`. |
-| **`@earendil-works/pi-agent-core`** | General-purpose agent runtime (transport abstraction, tool-calling, state). The substrate for the Executor. |
-| **`@earendil-works/pi-coding-agent`** | Coding-agent CLI/SDK with read/bash/edit/write tools + session management. Best fit for the **leaf Executor** (WP-3): run a coding agent against the target repo on the leaf's resolved model. |
-
-**Model registry** lives in `fixtures/sample-workspace/.sloop/config.md` frontmatter
-(shape = `ModelRegistry` in `src/shared/types.ts`): aliases `opus`/`sonnet`/`haiku`
-(Anthropic) and `nemotron` (Nebius → `nvidia/llama-3.1-nemotron-70b-instruct`). The pure
-`resolveModel(alias, registry, env)` helper (`src/shared/resolveModel.ts`) turns an alias
-into a concrete `{ provider, id, baseUrl?, apiKey }`. Keys come from `ANTHROPIC_API_KEY`
-and `NEBIUS_API_KEY` (see `.env.example`).
-
----
-
-## Conventions
-
-- TypeScript everywhere, ESM, Node 20+. Keep `npm run typecheck` and `npm test` green.
-- Frontmatter: `gray-matter`. Git: `simple-git`. Server: `express` + `ws`. Web: Vite + React + Tailwind.
-- **All workspace frontmatter keys are camelCase**, matching the shared TS interfaces
-  exactly (`acceptanceCriteria`, `sourceAdr`, …) — `gray-matter` parses straight into the
-  types with no remapping.
-- **No `Date.now()` in `src/shared`** — pass timestamps in (keeps shared logic pure).
-- Branch per WP (`wp-N-shortname`), small conventional commits.
-- **`src/shared` is frozen after WP-0 merges.** If a contract is wrong, flag it to the
-  coordinator — do not edit it unilaterally; it ripples to every other agent.
+Sloop is in early design/prototype mode. The product thesis is set; implementation is next.
