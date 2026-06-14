@@ -69,3 +69,22 @@ describe('RealApi.getAdrChanges', () => {
     expect(changed).toEqual([]);
   });
 });
+
+describe('RealApi.getAdrDiff baseline', () => {
+  it('strips frontmatter from before/after so it matches the editor body', async () => {
+    // ADR_A is seeded+committed in beforeEach with frontmatter. Edit only the prose.
+    await write(ADR_A, '---\nid: adr-a\ntitle: A\nstatus: idle\n---\n# A\n\nchanged line\n');
+
+    const api = await createRealApi(root, process.env);
+    const diff = await api.getAdrDiff(ADR_A);
+
+    // The baseline must be the editor-facing body (frontmatter stripped), not raw git content.
+    expect(diff.before).not.toContain('---');
+    expect(diff.before).not.toContain('id: adr-a');
+    expect(diff.before).toContain('original A');
+
+    expect(diff.after).not.toContain('---');
+    expect(diff.after).not.toContain('id: adr-a');
+    expect(diff.after).toContain('changed line');
+  });
+});

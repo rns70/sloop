@@ -55,6 +55,19 @@ export function resolveWorkspaceRoot(explicit?: string): string {
   return path.resolve(root);
 }
 
+/** Derive the editor-facing ADR body from a raw markdown-with-frontmatter string —
+ *  strip the frontmatter and, for legacy files that kept criteria only in frontmatter,
+ *  inject a canonical criteria section. Mirrors readAdr so a diff baseline built from raw
+ *  git content matches what the editor edits. An empty string (file absent at HEAD) → ''. */
+export function deriveAdrBody(raw: string): string {
+  if (raw === '') return '';
+  const { data, body } = parseFrontmatter<Partial<AdrDoc>>(raw);
+  const parsed = parseCriteriaFromBody(body);
+  if (parsed.hasSection) return body;
+  const criteria = normalizeCriteria(data.acceptanceCriteria);
+  return criteria.length > 0 ? upsertCriteriaInBody(body, criteria, 'plain') : body;
+}
+
 /**
  * Disk-backed `FilesService`. Reads/writes loop, ADR, workflow, role, and config
  * markdown under a single workspace root. On-disk frontmatter keys are camelCase and
