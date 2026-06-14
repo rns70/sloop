@@ -203,9 +203,16 @@ export function diffRows(before: string, after: string): Row[] {
       i++;
       continue;
     }
-    // line.op === 'del': gather the del run, then the following add run, and zip them.
+    // line.op === 'del': an empty deleted line is a trailing-newline artifact, not a
+    // genuine edit — pass it through as context so it never pairs into a spurious mod.
+    if (line.text === '') {
+      rows.push({ kind: 'same', text: line.text });
+      i++;
+      continue;
+    }
+    // gather the del run, then the following add run, and zip them.
     const dels: string[] = [];
-    while (i < lines.length && lines[i].op === 'del') dels.push(lines[i++].text);
+    while (i < lines.length && lines[i].op === 'del' && lines[i].text !== '') dels.push(lines[i++].text);
     const adds: string[] = [];
     while (i < lines.length && lines[i].op === 'add') adds.push(lines[i++].text);
     const pairs = Math.min(dels.length, adds.length);
@@ -484,6 +491,8 @@ beforeEach(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), 'sloop-changes-'));
   await write(ADR_A, '---\nid: adr-a\ntitle: A\nstatus: idle\n---\n# A\n\noriginal A\n');
   await write(ADR_B, '---\nid: adr-b\ntitle: B\nstatus: idle\n---\n# B\n\noriginal B\n');
+  // createRealApi reads the model registry from .sloop/config.md — seed a minimal one.
+  await write('.sloop/config.md', 'models: {}\nproviders: {}\n');
   git(['init', '-q']);
   git(['add', '.']);
   git(['commit', '-q', '-m', 'seed']);

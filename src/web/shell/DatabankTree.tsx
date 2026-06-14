@@ -22,7 +22,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from '@dnd-kit/core';
-import type { AdrDoc } from '../api-client/index';
+import type { AdrDoc, Delta } from '../api-client/index';
 import { IconButton, cx } from '../design/index';
 import { useContextMenu, type MenuEntry } from './ContextMenu';
 import {
@@ -37,42 +37,67 @@ interface FileLeaf {
   title: string;
   to: string;
   relPath: string; // loops-prefixed, e.g. loops/auth/a.md — the drag source + move identity
+  delta?: Delta;   // set when this doc has a pending git change
 }
 interface FolderNode {
   name: string;
   path: string; // loops-relative, e.g. "auth" or "auth/oauth"
   folders: FolderNode[];
   files: FileLeaf[];
+  hasChanges: boolean; // any descendant file has a pending change (for the collapsed-folder dot)
 }
 
 const enc = encodeURIComponent;
 
+const DELTA_DOT: Record<Delta, { cls: string; label: string }> = {
+  add: { cls: 'bg-diff-addAccent', label: 'Added' },
+  change: { cls: 'bg-diff-changeAccent', label: 'Modified' },
+  delete: { cls: 'bg-diff-delText', label: 'Deleted' },
+};
+
+/** A small colored dot marking a pending git change on a row. */
+function DeltaDot({ delta, faint }: { delta: Delta; faint?: boolean }) {
+  const { cls, label } = DELTA_DOT[delta];
+  return (
+    <span
+      className={cx('h-1.5 w-1.5 shrink-0 rounded-full', cls, faint && 'opacity-50')}
+      title={label}
+      aria-label={label}
+    />
+  );
+}
+
 /** A folder node's loops-prefixed path. The root node ('') maps to `loops`. */
 const folderRelPath = (nodePath: string) => (nodePath ? `loops/${nodePath}` : 'loops');
 
-/** Build the folder/file tree from ADR relPaths (each `loops/<...>/<file>.md`). */
-function buildTree(adrs: AdrDoc[]): FolderNode {
-  const root: FolderNode = { name: '', path: '', folders: [], files: [] };
+/** Build the folder/file tree from ADR relPaths, stamping each file's pending delta
+ *  (from `changes`) and rolling that up to `hasChanges` on every ancestor folder. */
+function buildTree(adrs: AdrDoc[], changes: Map<string, Delta>): FolderNode {
+  const root: FolderNode = { name: '', path: '', folders: [], files: [], hasChanges: false };
   for (const adr of [...adrs].sort((a, b) => a.relPath.localeCompare(b.relPath))) {
     const sub = adr.relPath.replace(/^loops\//, '');
     const segments = sub.split('/');
     const fileName = segments.pop() ?? sub;
+    const delta = changes.get(adr.relPath);
     let node = root;
+    if (delta) node.hasChanges = true;
     let acc = '';
     for (const seg of segments) {
       acc = acc ? `${acc}/${seg}` : seg;
       let next = node.folders.find((f) => f.name === seg);
       if (!next) {
-        next = { name: seg, path: acc, folders: [], files: [] };
+        next = { name: seg, path: acc, folders: [], files: [], hasChanges: false };
         node.folders.push(next);
       }
       node = next;
+      if (delta) node.hasChanges = true;
     }
     const dirPrefix = segments.length ? `${segments.map(enc).join('/')}/` : '';
     node.files.push({
       title: adr.title || fileName,
       to: `/loops/${dirPrefix}${enc(fileName)}`,
       relPath: adr.relPath,
+      delta,
     });
   }
   return root;
@@ -80,6 +105,8 @@ function buildTree(adrs: AdrDoc[]): FolderNode {
 
 export interface DatabankTreeProps {
   adrs: AdrDoc[];
+  /** Pending git change per loops doc (relPath -> delta), driving the sidebar dots. */
+  changes: Map<string, Delta>;
   /** Create a new ADR inside `folder` ('' = root). */
   onNewItem: (folder: string) => void;
   /** Create a new subfolder named `name` under `parent` ('' = root). */
@@ -106,6 +133,7 @@ interface TreeActions {
 
 export function DatabankTree({
   adrs,
+  changes,
   onNewItem,
   onNewFolder,
   onMove,
@@ -114,7 +142,7 @@ export function DatabankTree({
   rootAdding,
   onRootAddingDone,
 }: DatabankTreeProps) {
-  const root = buildTree(adrs);
+  const root = buildTree(adrs, changes);
   const actions: TreeActions = { onNewItem, onNewFolder, onMove, onDuplicate, onDelete };
   const [dragLabel, setDragLabel] = useState<string | null>(null);
   const sensors = useSensors(
@@ -276,6 +304,7 @@ function Folder({ node, depth, actions }: { node: FolderNode; depth: number; act
             ▶
           </span>
           <span className="truncate font-medium">{node.name}</span>
+          {!open && node.hasChanges && <DeltaDot delta="change" faint />}
         </button>
         <div className="flex shrink-0 items-center pr-1 opacity-0 transition-opacity group-hover/row:opacity-100">
           <IconButton aria-label={`New entry in ${node.name}`} onClick={() => actions.onNewItem(node.path)}>
@@ -374,12 +403,13 @@ function FileRow({ leaf, depth, actions }: { leaf: FileLeaf; depth: number; acti
         style={indent(depth + 1)}
         className={({ isActive }) =>
           cx(
-            'block truncate rounded-md py-1 pr-2 text-[13px] transition-colors',
+            'flex items-center gap-1.5 rounded-md py-1 pr-2 text-[13px] transition-colors',
             isActive ? 'bg-active font-medium text-ink' : 'text-ink-muted hover:bg-line-soft',
           )
         }
       >
-        {leaf.title}
+        <span className="min-w-0 flex-1 truncate">{leaf.title}</span>
+        {leaf.delta && <DeltaDot delta={leaf.delta} />}
       </NavLink>
     </div>
   );

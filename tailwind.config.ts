@@ -50,6 +50,10 @@ export default {
           addAccent: '#5aa978',
           delBg: '#fdecec',
           delText: '#9a4040',
+          // Modified-line ("~") treatment — soft warm amber, tuned to the palette.
+          changeBg: '#fbf3e2',
+          changeText: '#8a6d1f',
+          changeAccent: '#caa23f',
         },
         // Role pills — soft pastels (Engineer=blue, Architect=purple, QA=green, Security=pink).
         role: {

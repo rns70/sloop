@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { cx } from './cx';
-import { diffLines, hasChanges, type DiffLine } from './diff';
+import { diffRows, diffStats, type DiffOp, type Row } from './diff';
 
 export interface InlineDiffViewProps {
   before: string;
@@ -23,20 +23,40 @@ function lineText(text: string): string {
   return text.replace(/^\s*(#{1,3}\s|>\s)/, '');
 }
 
-const OP_CLASS: Record<DiffLine['op'], string> = {
-  add: 'bg-diff-addBg text-diff-addText rounded shadow-[inset_2px_0_0_#5aa978]',
-  del: 'bg-diff-delBg text-diff-delText rounded line-through opacity-75',
+const ROW_BAND: Record<Row['kind'], string> = {
   same: '',
+  add: 'bg-diff-addBg',
+  del: 'bg-diff-delBg',
+  mod: 'bg-diff-changeBg',
+};
+
+const GUTTER: Record<Row['kind'], string> = { same: ' ', add: '+', del: '−', mod: '~' };
+
+const GUTTER_CLASS: Record<Row['kind'], string> = {
+  same: 'text-transparent',
+  add: 'text-diff-addAccent',
+  del: 'text-diff-delText',
+  mod: 'text-diff-changeAccent',
+};
+
+/** Word-segment tint inside a `mod` row. */
+const SEG_CLASS: Record<DiffOp, string> = {
+  same: '',
+  add: 'rounded-sm bg-diff-addBg text-diff-addText',
+  del: 'rounded-sm bg-diff-delBg text-diff-delText line-through opacity-80',
 };
 
 /**
- * Renders a before/after markdown diff *inline within the document flow* — added
- * lines get a green left accent, removed lines a red strikethrough. Read-only.
- * This is the in-document diff treatment (not a side rail), per the locked design.
+ * Renders a before/after markdown diff *inline within the document flow*. Each line is a
+ * row with a gutter marker (+ / − / ~) and a soft tint band; a `mod` row highlights only
+ * the words that changed (added green, removed red-strikethrough) rather than nuking the
+ * whole line. Read-only. This is the in-document diff treatment (not a side rail), per the
+ * locked design.
  */
 export function InlineDiffView({ before, after, className }: InlineDiffViewProps) {
-  const lines = useMemo(() => diffLines(before, after), [before, after]);
-  const changed = hasChanges(before, after);
+  const rows = useMemo(() => diffRows(before, after), [before, after]);
+  const stats = useMemo(() => diffStats(before, after), [before, after]);
+  const changed = stats.added > 0 || stats.removed > 0;
 
   return (
     <div className={cx('text-[14.5px] leading-[1.75] text-ink', className)}>
@@ -45,13 +65,25 @@ export function InlineDiffView({ before, after, className }: InlineDiffViewProps
           No pending changes — this matches the last accepted version.
         </p>
       )}
-      {lines.map((line, idx) => {
-        const blank = line.text.trim() === '';
-        if (blank && line.op === 'same') return <div key={idx} className="h-3" />;
+      {rows.map((row, idx) => {
+        const blank = row.text.trim() === '';
+        if (blank && row.kind === 'same') return <div key={idx} className="h-3" />;
         return (
-          <div key={idx} className="my-0.5">
-            <span className={cx('inline px-1 py-0.5', lineClass(line.text), OP_CLASS[line.op])}>
-              {lineText(line.text) || ' '}
+          <div key={idx} className={cx('-mx-2 my-0.5 flex gap-2 rounded px-2', ROW_BAND[row.kind])}>
+            <span
+              aria-hidden
+              className={cx('select-none font-mono text-[12px] leading-[1.75]', GUTTER_CLASS[row.kind])}
+            >
+              {GUTTER[row.kind]}
+            </span>
+            <span className={cx('min-w-0 flex-1', row.kind !== 'mod' && lineClass(row.text))}>
+              {row.kind === 'mod'
+                ? row.segs.map((seg, s) => (
+                    <span key={s} className={cx(SEG_CLASS[seg.op])}>
+                      {seg.text}
+                    </span>
+                  ))
+                : lineText(row.text) || ' '}
             </span>
           </div>
         );

@@ -45,6 +45,7 @@ export function buildServer(opts: BuildServerOptions): { server: Server; uiMount
   app.get('/api/health', (_req, res) => res.json({ ok: true, workspace: workspaceRoot }));
 
   app.get('/api/adrs', h(async (_req, res) => res.json(await api.listAdrs())));
+  app.get('/api/adrs/changes', h(async (_req, res) => res.json(await api.getAdrChanges())));
   app.get('/api/adrs/:relPath/diff', h(async (req, res) =>
     res.json(await api.getAdrDiff(decodeURIComponent(req.params.relPath))),
   ));

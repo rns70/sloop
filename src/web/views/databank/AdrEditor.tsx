@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { getAdr, getAdrDiff, putAdr, type AdrDoc } from '../../api-client/index';
 import { bodyHasNoCriteria, CRITERIA_ASSISTANT_INSTRUCTION } from '../../../shared/index';
-import { Button, CriteriaWarning, EditableTitle, MarkdownEditor, Page, cx, type MarkdownEditorHandle } from '../../design/index';
+import { Button, CriteriaWarning, EditableTitle, MarkdownEditor, Page, cx, diffStats, type MarkdownEditorHandle } from '../../design/index';
 import { signalTouches, useAssistant } from '../../assistant/AssistantContext';
 import { useRegisterSave } from '../../shell/EditorActionsContext';
 import { InlineDiff } from './InlineDiff';
@@ -92,6 +92,14 @@ export function AdrEditor() {
   const dirty = adr !== null && (body !== adr.body || title !== adr.title);
   const missingCriteria = bodyHasNoCriteria(body);
 
+  const stats = useMemo(() => diffStats(committed, body), [committed, body]);
+  const hasChanges = stats.added > 0 || stats.removed > 0;
+
+  // If the user is in "changes" mode and nothing differs anymore, drop back to edit.
+  useEffect(() => {
+    if (mode === 'changes' && !hasChanges) setMode('edit');
+  }, [mode, hasChanges]);
+
   /** Persist the current buffer. Returns true on success so callers (e.g. the
    *  "Add with assistant" shortcut) can avoid acting on stale on-disk content. */
   async function save(): Promise<boolean> {
@@ -117,22 +125,37 @@ export function AdrEditor() {
 
   const toggle = (
     <div className="flex items-center gap-1 rounded-md bg-line-soft p-0.5">
-      {(['edit', 'changes'] as const).map((m) => (
-        <button
-          key={m}
-          type="button"
-          onClick={() => setMode(m)}
-          className={cx(
-            'flex min-h-6 items-center gap-1.5 rounded px-2 text-[12px] transition-colors',
-            mode === m ? 'bg-paper font-medium text-ink shadow-sm' : 'text-ink-muted',
-          )}
-        >
-          {m === 'changes' && (
-            <span className="text-[8px] leading-none text-status-running">●</span>
-          )}
-          {m === 'edit' ? 'Edit' : 'Showing changes'}
-        </button>
-      ))}
+      <button
+        type="button"
+        onClick={() => setMode('edit')}
+        className={cx(
+          'flex min-h-6 items-center rounded px-2 text-[12px] transition-colors',
+          mode === 'edit' ? 'bg-paper font-medium text-ink shadow-sm' : 'text-ink-muted',
+        )}
+      >
+        Edit
+      </button>
+      <button
+        type="button"
+        onClick={() => hasChanges && setMode('changes')}
+        disabled={!hasChanges}
+        title={hasChanges ? 'Show pending changes' : 'No pending changes'}
+        className={cx(
+          'flex min-h-6 items-center gap-1.5 rounded px-2 text-[12px] transition-colors',
+          mode === 'changes' ? 'bg-paper font-medium text-ink shadow-sm' : 'text-ink-muted',
+          !hasChanges && 'cursor-default opacity-50',
+        )}
+      >
+        <span>Changes</span>
+        {hasChanges ? (
+          <span className="flex items-center gap-1 font-mono text-[11px] tabular-nums">
+            <span className="text-diff-addText">+{stats.added}</span>
+            <span className="text-diff-delText">−{stats.removed}</span>
+          </span>
+        ) : (
+          <span className="text-[11px] text-ink-faint">0</span>
+        )}
+      </button>
     </div>
   );
 

@@ -14,11 +14,13 @@ import {
   deleteAdr,
   deleteFile,
   getAdrs,
+  getAdrChanges,
   getRoles,
   getWorkflows,
   moveAdr,
   ApiError,
   type AdrDoc,
+  type Delta,
   type RoleDef,
   type WorkflowDef,
 } from '../api-client/index';
@@ -206,6 +208,7 @@ export function SidebarNav() {
   const location = useLocation();
   const navigate = useNavigate();
   const [adrs, setAdrs] = useState<AdrDoc[] | null>(null);
+  const [changes, setChanges] = useState<Map<string, Delta>>(new Map());
   const [roles, setRoles] = useState<RoleDef[] | null>(null);
   const [workflows, setWorkflows] = useState<WorkflowDef[] | null>(null);
   const [errs, setErrs] = useState<{
@@ -233,6 +236,13 @@ export function SidebarNav() {
     getAdrs().then((v) => !cancelled && setAdrs(v)).catch(fail('adrs'));
     getRoles().then((v) => !cancelled && setRoles(v)).catch(fail('roles'));
     getWorkflows().then((v) => !cancelled && setWorkflows(v)).catch(fail('workflows'));
+    // Pending-change dots are best-effort: on failure, show the tree with no dots.
+    getAdrChanges()
+      .then((res) => {
+        if (cancelled) return;
+        setChanges(new Map(res.changed.map((c) => [c.relPath, c.delta])));
+      })
+      .catch(() => !cancelled && setChanges(new Map()));
     return () => {
       cancelled = true;
     };
@@ -406,6 +416,7 @@ export function SidebarNav() {
               )}
               <DatabankTree
                 adrs={adrs}
+                changes={changes}
                 onNewItem={newAdr}
                 onNewFolder={newFolder}
                 onMove={moveDatabank}

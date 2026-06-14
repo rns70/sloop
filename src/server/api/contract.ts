@@ -10,6 +10,7 @@
 //   POST /api/adrs/:relPath/move   -> { ok: true }                 body: MoveAdrRequest
 //   DELETE /api/adrs/:relPath      -> { ok: true }
 //   GET  /api/adrs/:relPath/diff   -> AdrDiffResponse
+//   GET  /api/adrs/changes         -> AdrChangesResponse            lean pending-change list
 //   GET  /api/workflows            -> WorkflowDef[]
 //   GET  /api/roles                -> RoleDef[]
 //   GET  /api/models               -> ModelOption[]
@@ -26,7 +27,7 @@
 import type {
   AdrDoc, WorkflowDef, RoleDef,
   AssistantChatRequest, AssistantStreamEvent, ModelOption,
-  RunHistoryEntry,
+  RunHistoryEntry, Delta,
 } from '../../shared/index';
 
 export interface Ok {
@@ -54,6 +55,12 @@ export type DeleteAdrResponse = Ok;
 export interface AdrDiffResponse {
   before: string;
   after: string;
+}
+
+/** GET /api/adrs/changes — the lean pending-change list for the sidebar: one entry per
+ *  changed loops doc, `before`/`after` stripped (use /diff for a single doc's content). */
+export interface AdrChangesResponse {
+  changed: { relPath: string; delta: Delta }[];
 }
 
 export type GetWorkflowsResponse = WorkflowDef[];
@@ -94,6 +101,7 @@ export interface SloopApi {
   moveAdr(from: string, to: string): Promise<MoveAdrResponse>;
   deleteAdr(relPath: string): Promise<DeleteAdrResponse>;
   getAdrDiff(relPath: string): Promise<AdrDiffResponse>;
+  getAdrChanges(): Promise<AdrChangesResponse>;
   listWorkflows(): Promise<GetWorkflowsResponse>;
   listRoles(): Promise<GetRolesResponse>;
   /** Stamp a workflow's starter child-ADR tree onto `relPath` (one child per step).
